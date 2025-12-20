@@ -58,7 +58,7 @@ $(OBJDIR)/%.o: %.f90
 
 # Compile .f files
 $(OBJDIR)/%.o: %.f
-	$(FC) $(FFLAGS) -c $< -o $@
+	$(FC) $(FFLAGS) -c $< -o $@ -J$(OBJDIR)
 
 # Compile .F90 files (with preprocessing)
 $(OBJDIR)/%.o: %.F90
@@ -66,7 +66,7 @@ $(OBJDIR)/%.o: %.F90
 
 # Compile .F files (with preprocessing)
 $(OBJDIR)/%.o: %.F
-	$(FC) $(FFLAGS) -c $< -o $@
+	$(FC) $(FFLAGS) -c $< -o $@ -J$(OBJDIR)
 
 # Debug build
 debug: FFLAGS = $(DEBUGFLAGS)
@@ -75,7 +75,6 @@ debug: clean all
 # Clean build artifacts
 clean:
 	rm -rf $(OBJDIR) $(BINDIR)
-	rm -f *.mod *.smod
 	@echo "Cleaned build artifacts"
 
 # Clean and rebuild
