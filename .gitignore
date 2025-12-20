@@ -1,6 +1,6 @@
 # Fortran
 
-bulk.dSYM/
+*.dSYM
 bulk
 *.temp
 *.inp
