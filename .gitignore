@@ -1,3 +1,8 @@
+# Fortran
+
+bulk.dSYM/
+bulk
+
 # Prerequisites
 *.d
 
