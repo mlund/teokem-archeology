@@ -4,8 +4,6 @@
 # This example is set up to simulate a very simple seawater
 # solution at different concentrations and temperatures.
 
-# P A R A M E T E R S :
-
 # Ionic radii
 r1=1.8 #Na+
 r2=1.5 #K+
@@ -60,20 +58,18 @@ if     [ $T -eq 298 ] ; then dielec=78.4 ;
 fi
 }
 
-#  L O O P S
-
 # Salinity |  35    25    15    5
 # Box len  |  55.9  62.5  74.3  107.4
 
 echo "SIMULATION:"
 for T in 298                     #loop over temperatures
 do
-  for box in 55.9 #loop over box sizes (concentration/salinity)
+  for box in 74.3 #loop over box sizes (concentration/salinity)
   do
     setdielectric                   #Set the correct dielectric constant
-    echo "T=$T box=$box e=$dielec"  #info on screen
+    echo "T=$T box=$box epsr=$dielec"  #info on screen
     outfile="output.log"        #specify output file
-    random=1 n1=1000 n2=10   n3=10   bulktext >bulk.inp ; ../../bulk >.temp    #equilibration run (short)
-    random=0 n1=$n1f n2=$n2f n3=$n3f bulktext >bulk.inp ; ../../bulk >$outfile #final run (longer)
+    random=1 n1=1000 n2=10   n3=10   bulktext >bulk.inp ; ../../bulk > .temp  #equilibration run (short)
+    random=0 n1=$n1f n2=$n2f n3=$n3f bulktext >bulk.inp ; ../../bulk > $outfile #final run (longer)
   done
 done

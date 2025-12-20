@@ -1,12 +1,13 @@
 # Fortran compiler
 FC = gfortran
 
-# Compiler flags
-FFLAGS = -std=legacy -O0 -g -funroll-loops -finit-local-zero -fno-automatic
+# Compiler flags for main program
+FFLAGS = -std=legacy -O3 -g -funroll-loops -fno-automatic -finit-local-zero
+# Flags for ran2 (needs standard variable handling for SAVE to work)
+RAN2FLAGS = -std=legacy -O3 -g
 
 # Source files
 SRCDIR = src
-SOURCES = $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
 
 # Target executable
 TARGET = bulk
@@ -15,12 +16,14 @@ TARGET = bulk
 all: $(TARGET)
 
 # Compile the program
-$(TARGET): $(SOURCES)
-	$(FC) $(FFLAGS) $(SOURCES) -o $(TARGET) -lm
+$(TARGET): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
+	$(FC) $(RAN2FLAGS) -c $(SRCDIR)/ran2.f -o ran2.o
+	$(FC) $(FFLAGS) -c $(SRCDIR)/bulk.f -o bulk.o
+	$(FC) ran2.o bulk.o -o $(TARGET) -lm
 
 # Clean up compiled files
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) *.o
 
 # Run bulk test script
 test_bulk:

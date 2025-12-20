@@ -8,9 +8,10 @@ c  ********************************************************************
 c  ********************************************************************
 
 
-      PROGRAM BULK   
+      PROGRAM BULK
 
       IMPLICIT DOUBLE PRECISION (a-h,o-z)
+      REAL ran2
       INCLUDE 'bulk.inc'  
       DIMENSION uula(2),uuta(2),suu(25),tijd(10)
      * ,mtot(mxspec),macc(mxspec),menrj(mxspec),mhcrj(mxspec) 
@@ -320,10 +321,11 @@ c  ********************************************************************
          CALL collision3   
          CALL widom3      
       ENDIF              
-      REWIND lll   
-      WRITE(lll,771)(x6(l),y6(l),z6(l),l=1,npart) 
-  771 format(5e16.8) 
-c 
+      REWIND lll
+      WRITE(lll,771)(x6(l),y6(l),z6(l),l=1,npart)
+  771 format(5e16.8)
+      CLOSE(lll)
+c
 c  ********************************************************************
 c  **                                                                **
 c  ** CALCULATION OF PRESSURES FROM THE DENSITIES                    **
@@ -419,12 +421,13 @@ c  **                                                                **
 c  ********************************************************************
 c  ********************************************************************
 
-      SUBROUTINE slump 
+      SUBROUTINE slump
       IMPLICIT DOUBLE PRECISION (a-h,o-z)
-      INCLUDE 'bulk.inc'  
- 
+      REAL ran2
+      INCLUDE 'bulk.inc'
+
       WRITE(jjj,*) 'Random configuration generated'
-      nsl=0  
+      nsl=0
       nslmax=100000
       k12=0
     1 nsl=nsl+1
@@ -446,11 +449,11 @@ c  ********************************************************************
         r2=ddx**2+ddy**2+ddz**2 
         IF(r2.LT.hc2v(i,ispec)) GO TO 1
     2 CONTINUE 
-      k12=k12+1 
+      k12=k12+1
       x6(k12)=x6tt
       y6(k12)=y6tt
-      z6(k12)=z6tt 
-      IF(k12.EQ.npart) RETURN 
+      z6(k12)=z6tt
+      IF(k12.EQ.npart) RETURN
       GO TO 1
       END 
 
@@ -553,8 +556,9 @@ c  **                                                                **
 c  ********************************************************************
 c  ********************************************************************
 
-      SUBROUTINE Collision 
+      SUBROUTINE Collision
       IMPLICIT DOUBLE PRECISION (a-h,o-z)
+      REAL ran2
       INCLUDE 'bulk.inc'  
       DIMENSION rel(mxspec)
      * ,scoll(25,mxspec,mxspec),coll(mxspec,mxspec)
@@ -627,10 +631,10 @@ c     -------------------------------------------------
         WRITE(kkk,2012) (scoll(my3,i,k),i=1,nspec)
  1020 CONTINUE       
       RETURN     
-2010  FORMAT('Species          ',10(12X,I6),/)   
+2010  FORMAT('Species          ',10(12X,I6),/)
 2011  FORMAT(/,I4,'    Col. samples',10('            ',I6))
 2012  FORMAT('        pressure    ',10E18.6,/)
-2013  FORMAT(I4,'        ',10E12.5)
+2013  FORMAT(I4,'        ',20E12.5)
 c     ------------------------------------------------------                    
       ENTRY collision3    
       WRITE(jjj,'(/,a,/)') 'COLLISION MATRIX  AND RELATIVE ERROR'          
@@ -671,8 +675,9 @@ c  **                                                                **
 c  ********************************************************************
 c  ********************************************************************
 
-      SUBROUTINE widom   
+      SUBROUTINE widom
       IMPLICIT DOUBLE PRECISION (a-h,o-z)
+      REAL ran2
       INCLUDE 'bulk.inc'  
       DIMENSION chel(25,mxspec),chhc(25,mxspec),chex(25,mxspec)
      *,chto(25,mxspec),chexw(25,mxspec),dch1(25,mxspec)
