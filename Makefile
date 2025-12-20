@@ -35,10 +35,7 @@ ifndef SOURCES
 endif
 
 # Generate object file names from sources
-OBJECTS = $(patsubst %.f90,$(OBJDIR)/%.o,$(filter %.f90,$(SOURCES))) \
-          $(patsubst %.f,$(OBJDIR)/%.o,$(filter %.f,$(SOURCES))) \
-          $(patsubst %.F90,$(OBJDIR)/%.o,$(filter %.F90,$(SOURCES))) \
-          $(patsubst %.F,$(OBJDIR)/%.o,$(filter %.F,$(SOURCES)))
+OBJECTS = $(patsubst %,$(OBJDIR)/%.o,$(basename $(notdir $(SOURCES))))
 
 # Default rule
 all: directories $(BINDIR)/$(TARGET)
