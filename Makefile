@@ -26,7 +26,7 @@ clean:
 	rm -f $(TARGET) *.o
 
 # Run bulk test script
-test_bulk:
+test_bulk: $(TARGET)
 	cd examples/bulk && bash script.sh
 
 # Phony targets
