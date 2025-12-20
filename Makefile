@@ -22,5 +22,9 @@ $(TARGET): $(SOURCES)
 clean:
 	rm -f $(TARGET)
 
+# Run bulk test script
+test_bulk:
+	cd examples/bulk && bash script.sh
+
 # Phony targets
-.PHONY: all clean
+.PHONY: all clean test_bulk

@@ -2,6 +2,9 @@
 
 bulk.dSYM/
 bulk
+*.temp
+*.inp
+*.log
 
 # Prerequisites
 *.d
