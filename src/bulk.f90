@@ -13,8 +13,15 @@ program bulk
    real :: ran2
    include 'bulk_f90.inc'
 
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
+
+   ! Local variables for Monte Carlo simulation
+   integer :: step_inner, step_middle         ! Loop counters for inner and middle MC loops
+   integer :: kn1, kn2, key, kntot            ! Counters for accepted/rejected moves
+
    dimension :: uula(2), uuta(2), suu(25), tijd(10)
-   dimension :: mtot(mxspec), macc(mxspec), menrj(mxspec), mhcrj(mxspec)
+   dimension :: mtot(max_species), macc(max_species), menrj(max_species), mhcrj(max_species)
 
    data uuta  / 2*0.0 /
    data suu   / 25*0.0 /
@@ -32,14 +39,14 @@ program bulk
    iclk = 0
    lclk = 0
 
-   kkk = 12
-   lll = 13
-   mmm = 15
-   jjj = 6
+   unit_macro = 12
+   unit_conf = 13
+   unit_input = 15
+   unit_output = 6
 
-   write(jjj, 44)
-   write(jjj, 43)
-   write(jjj, 44)
+   write(unit_output, 44)
+   write(unit_output, 43)
+   write(unit_output, 44)
 
 
    ! ==========================================================================
@@ -47,10 +54,10 @@ program bulk
    ! ==========================================================================
 
    pi   = acos(-1.0d0)
-   epsx = 8.85418782d-12
-   ech  = 1.60219d-19
-   avno = 6.0223d23
-   bk   = 8.314
+   vacuum_permittivity= 8.85418782d-12
+   elementary_charge = 1.60219d-19
+   avogadro_number= 6.0223d23
+   gas_constant  = 8.314
 
 
    ! ==========================================================================
@@ -59,116 +66,116 @@ program bulk
    !
    ! MEANING OF THE INPUT VARIABLES
    !
-   ! ink         = 0   from file
-   ! ink         = 1   from slump
-   ! nspec       = number of ionic components
+   ! initial_config_type        = 0   from file
+   ! initial_config_type        = 1   from slump
+   ! num_species      = number of ionic components
    ! hion        = array contains the input info on the ions
    !               (1=nr, 2=number, 3=radius, 4=charge, 5=displacement)
    ! ny(1,2,3)   = number of MC loops
-   ! dtemp       = temperature
-   ! eps         = relative dielectric constant
-   ! box         = box size
-   ! nwint       = a widom/collision calc is performed every nwint cycle
-   ! nwins       = number of widom particles inserted each calc.
-   ! nfix        = where is the chem. pot. measured
+   ! temperature      = temperature
+   ! dielectric_constant        = relative dielectric constant
+   ! box_size        = box_sizesize
+   ! widom_interval      = a widom/collision calc is performed every widom_intervalcycle
+   ! num_widom_insertions      = number of widom particles inserted each calc.
+   ! measurement_location       = where is the chem. pot. measured
    !               0 = averaged over the cell
    !
    ! ==========================================================================
    ! ==========================================================================
 
-   open(lll, file='bulk.conf', form='formatted')
-   open(mmm, file='bulk.inp',  form='formatted')
-   open(kkk, file='bulk.macro', form='formatted')
+   open(unit_conf, file='bulk.conf', form='formatted')
+   open(unit_input, file='bulk.inp',  form='formatted')
+   open(unit_macro, file='bulk.macro', form='formatted')
 
-   read(mmm, *)
-   read(mmm, *) nspec
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) (hion(l, 1), hion(l, 2), hion(l, 3), hion(l, 4), hion(l, 5), l = 1, nspec)
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) ny1, ny2, ny3
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) ink, islu
-   islu = -islu
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) box
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) dtemp, eps
-   read(mmm, *)
-   read(mmm, *)
-   read(mmm, *) nwins, nwint, nfix
+   read(unit_input, *)
+   read(unit_input, *) num_species
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) (species_properties(l, 1), species_properties(l, 2), species_properties(l, 3), species_properties(l, 4), species_properties(l, 5), l = 1, num_species)
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) mc_steps_inner, mc_steps_middle, mc_steps_outer
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) initial_config_type, random_seed
+   random_seed = -random_seed
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) box_size
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) temperature, dielectric_constant
+   read(unit_input, *)
+   read(unit_input, *)
+   read(unit_input, *) num_widom_insertions, widom_interval, measurement_location
 
-   if (nfix > 2)  nfix = 2
-   if (islu == 0) islu = 7
-   if (nwint == 0) nwint = 2 * ny1
+   if (measurement_location> 2)  measurement_location= 2
+   if (random_seed == 0) random_seed = 7
+   if (widom_interval== 0) widom_interval= 2 * mc_steps_inner
 
 
    ! ==========================================================================
    ! Boxsize variables
    ! ==========================================================================
 
-   box2  = box / 2.0
-   box2i = 1.0 / box2
+   box_half = box_size/ 2.0
+   box_half_inverse = 1.0 / box_half
 
 
    ! ==========================================================================
    ! Set up hard core and charge vectors
    !
    ! hc2v contains in the first column the particle type given
-   ! by hion(i,1), whereas in the following columns the squared
+   ! by species_properties(i,1), whereas in the following columns the squared
    ! hard core distances between the particles are given.
    ! chv gives for every particle its charge
-   ! npart is the total number of particles
+   ! num_particlesis the total number of particles
    ! ==========================================================================
 
-   npart = 0
+   num_particles= 0
 
-   do i = 1, nspec
-      num = int(hion(i, 2))
+   do i = 1, num_species
+      num = int(species_properties(i, 2))
 
       do j = 1, num
-         npart = npart + 1
-         ispc(npart) = i
+         num_particles= num_particles+ 1
+         particle_species(num_particles) = i
 
-         do k = 1, nspec
-            hc2v(npart, k) = (hion(i, 3) + hion(k, 3)) ** 2
+         do k = 1, num_species
+            hard_core_distance_sq(num_particles, k) = (species_properties(i, 3) + species_properties(k, 3)) ** 2
          end do
 
-         chv(npart) = hion(i, 4)
-         dp(npart)  = hion(i, 5)
+         particle_charge(num_particles) = species_properties(i, 4)
+         displacement_max(num_particles)  = species_properties(i, 5)
       end do
    end do
 
-   do i = 1, nspec
-      caver(i) = (hion(i, 2)) / (box ** 3)
+   do i = 1, num_species
+      species_concentration(i) = (species_properties(i, 2)) / (box_size** 3)
    end do
 
-   do i = 1, npart
-      ei(i) = 0.0
+   do i = 1, num_particles
+      trial_energy(i) = 0.0
    end do
 
-   nkonf = ny1 * ny2 * ny3
+   nkonf = mc_steps_inner * mc_steps_middle * mc_steps_outer
 
-   if (ny3 > 25) ny3 = 25
+   if (mc_steps_outer > 25) mc_steps_outer = 25
 
-   t     = dtemp
-   abeta = -1.0 / (bk * dtemp)
+   t     = temperature
+   beta_inverse_temp= -1.0 / (gas_constant * temperature)
 
 
    ! ==========================================================================
    ! Read configuration from file
    ! ==========================================================================
 
-   if (ink == 0) then
-      read(lll, *) (x6(l), y6(l), z6(l), l = 1, npart)
-      write(jjj, *) 'Configuration read from file'
+   if (initial_config_type== 0) then
+      read(unit_conf, *) (particle_x(l), particle_y(l), particle_z(l), l = 1, num_particles)
+      write(unit_output, *) 'Configuration read from file'
    end if
 
-   if (ink == 1) call slump
+   if (initial_config_type== 1) call slump
    call collision
    call widom
 
@@ -177,13 +184,13 @@ program bulk
    ! Write input data
    ! ==========================================================================
 
-   nwtot = nwins * (int(ny1 / nwint) * ny2 * ny3)
+   nwtot = num_widom_insertions* (int(mc_steps_inner / nwint) * mc_steps_middle * mc_steps_outer)
 
-   write(jjj, 800) npart
-   write(jjj, 801) (l, int(hion(l, 2)), hion(l, 3), hion(l, 4), &
-                    hion(l, 5), caver(l) * 1.0d27 / avno, l = 1, nspec)
-   write(jjj, 802) eps, dtemp, box, ny1, ny2, ny3, nkonf, &
-                   dble(nkonf / npart), nwtot
+   write(unit_output, 800) num_particles
+   write(unit_output, 801) (l, int(species_properties(l, 2)), species_properties(l, 3), species_properties(l, 4), &
+                    species_properties(l, 5), species_concentration(l) * 1.0d27 / avno, l = 1, num_species)
+   write(unit_output, 802) dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, nkonf, &
+                   dble(nkonf / num_particles), nwtot
 
 800 format (/, 'VARIABLES FROM INPUT FILE', /, &
             /, ' number of particles        =', i10, /, &
@@ -191,12 +198,12 @@ program bulk
 801 format (i6, i10, f10.1, f10.1, f10.2, f10.6)
 802 format (/, ' dielectric constant         =', f10.1, /, &
             ' temperature                 =', f10.1, /, &
-            ' box size (AA)               =', f10.1, /, &
+            ' box_sizesize (AA)               =', f10.1, /, &
             ' number of configurations    =', i6, ' *', i6, ' *', i6, ' =', i8, /, &
             ' number of conf. per part    =', f10.1, /, &
             ' widom test per species      =', i10, /)
 
-   ecf = ech ** 2 * 1.0d10 * avno / (eps * epsx * 4.0 * pi)
+   energy_conversion_factor= elementary_charge** 2 * 1.0d10 * avogadro_number/ (eps * vacuum_permittivity* 4.0 * pi)
 
 
    ! ==========================================================================
@@ -205,74 +212,74 @@ program bulk
 
    call liv
 
-   ytot1 = xww1 * ecf * 1.0d-3
+   ytot1 = total_coulomb_energy* energy_conversion_factor* 1.0d-3
 
-   write(jjj, '(a)') 'Initial configuration'
-   write(jjj, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', ytot1
+   write(unit_output, '(a)') 'Initial configuration'
+   write(unit_output, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', ytot1
 
 
    ! ==========================================================================
    ! Start of Monte Carlo loop
    !
-   ! Loop over ny1*ny2*ny3 particle moves.
-   ! il    = current particle
+   ! Loop over mc_steps_inner*mc_steps_middle*mc_steps_outer particle moves.
+   ! current_particle   = current particle
    ! ei    = new coulomb energy of particle il
    ! esa   = all coulomb interaction energies of the particle
-   ! xww1  = total energy (also ulaa(1))
-   ! dp(1..10)  displacement parameter for every ion
+   ! total_coulomb_energy = total energy (also ulaa(1))
+   ! displacement_max(1..10)  displacement parameter for every ion
    !
    ! ==========================================================================
 
-   do my3 = 1, ny3
+   do current_macro_step = 1, mc_steps_outer
       uula(1) = 0.0
 
-      do my2 = 1, ny2
-         do my1 = 1, ny1
-            il    = 1 + mod(kntot, npart)
-            ispec = ispc(il)
+      do step_middle = 1, mc_steps_middle
+         do step_inner = 1, mc_steps_inner
+            current_particle   = 1 + mod(kntot, num_particles)
+            current_species= particle_species(current_particle)
             kntot = kntot + 1
             mtot(ispec) = mtot(ispec) + 1
 
-            tx6 = x6(il) + dp(il) * (ran2(islu) - 0.5)
-            ty6 = y6(il) + dp(il) * (ran2(islu) - 0.5)
-            tz6 = z6(il) + dp(il) * (ran2(islu) - 0.5)
+            trial_x= particle_x(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
+            trial_y= particle_y(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
+            trial_z= particle_z(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
 
-            if (tx6 >  box2) tx6 = tx6 - box
-            if (tx6 < -box2) tx6 = tx6 + box
-            if (ty6 >  box2) ty6 = ty6 - box
-            if (ty6 < -box2) ty6 = ty6 + box
-            if (tz6 >  box2) tz6 = tz6 - box
-            if (tz6 < -box2) tz6 = tz6 + box
+            if (trial_x>  box2) trial_x= trial_x- box_size
+            if (trial_x< -box_half) trial_x= trial_x+ box_size
+            if (trial_y>  box2) trial_y= trial_y- box_size
+            if (trial_y< -box_half) trial_y= trial_y+ box_size
+            if (trial_z>  box2) trial_z= trial_z- box_size
+            if (trial_z< -box_half) trial_z= trial_z+ box_size
 
-            isos = 99
+            overlap_status= 99
             call qin
 
-            if (isos /= 0) go to 63
+            if (overlap_status/= 0) go to 63
 
             deltae = 0.0
-            do j = 1, npart
-               deltae = deltae + ei(j) - esa(j, il)
+            do j = 1, num_particles
+               deltae = deltae + trial_energy(j) - energy_matrix(j, il)
             end do
 
-            dzxp = abeta * (deltae * ecf)
+            dzxp = beta_inverse_temp* (deltae * energy_conversion_factor)
 
             if (dzxp < -80.0) go to 64
             if (dzxp >   0.0) go to 62
-            if (exp(dzxp) < ran2(islu)) go to 64
+            if (exp(dzxp) < ran2(random_seed)) go to 64
 
 62          macc(ispec) = macc(ispec) + 1
 
             ! Trial config accepted
-            x6(il) = tx6
-            y6(il) = ty6
-            z6(il) = tz6
+            particle_x(current_particle) = tx6
+            particle_y(current_particle) = ty6
+            particle_z(current_particle) = tz6
 
-            do j = 1, npart
-               esa(il, j) = ei(j)
-               esa(j, il) = ei(j)
+            do j = 1, num_particles
+               energy_matrix(current_particle, j) = trial_energy(j)
+               energy_matrix(j, il) = trial_energy(j)
             end do
 
-            xww1 = xww1 + deltae
+            total_coulomb_energy= total_coulomb_energy+ deltae
             go to 65
 
 63          mhcrj(ispec) = mhcrj(ispec) + 1
@@ -282,7 +289,7 @@ program bulk
 
 65          uula(1) = uula(1) + xww1
 
-            if (mod(my1, nwint) == 0) then
+            if (mod(step_inner, nwint) == 0) then
                call collision1
                call widom1
             end if
@@ -293,39 +300,39 @@ program bulk
       qww1 = xww1
       call liv
 
-      if (xww1 /= 0) qww1 = (qww1 - xww1) / xww1
+      if (total_coulomb_energy/= 0) qww1 = (qww1 - xww1) / xww1
 
-      write(kkk, *)
-      write(kkk, 44)
-      write(kkk, 73) my3, qww1, qfww1
+      write(unit_macro, *)
+      write(unit_macro, 44)
+      write(unit_macro, 73) current_macro_step, qww1, energy_check_parameter
 
       if (abs(qww1) > 0.001) stop
 
       call liv
 
-      if (nwint <= ny1) then
+      if (widom_interval<= mc_steps_inner) then
          call collision2
          call widom2
       end if
 
-      uula(1) = uula(1) / dble(ny1 * ny2)
+      uula(1) = uula(1) / dble(mc_steps_inner * mc_steps_middle)
       uuta(1) = uuta(1) + uula(1)
-      uula(1) = uula(1) * ecf * 1.0d-3
-      suu(my3) = uula(1)
+      uula(1) = uula(1) * energy_conversion_factor* 1.0d-3
+      suu(current_macro_step) = uula(1)
 
       ! Calculate total acceptance and rejection
       key = 0
       kn1 = 0
       kn2 = 0
 
-      do i = 1, nspec
+      do i = 1, num_species
          key = key + macc(i)
          kn1 = kn1 + mhcrj(i)
          kn2 = kn2 + menrj(i)
       end do
 
-      write(kkk, 810) kntot, key, kn2, kn1
-      write(kkk, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', uula(1)
+      write(unit_macro, 810) kntot, key, kn2, kn1
+      write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', uula(1)
    end do
 
 73  format(/ ' MACROSTEP  ', i10, /, /, 'Checkparameters : ', 3e10.3)
@@ -344,32 +351,32 @@ program bulk
    !
    ! ==========================================================================
 
-   yn3     = 1.0 / float(ny3)
+   yn3     = 1.0 / float(mc_steps_outer)
    uuta(1) = yn3 * uuta(1)
-   uuta(1) = uuta(1) * ecf * 1.0d-3
+   uuta(1) = uuta(1) * energy_conversion_factor* 1.0d-3
 
-   call earth(suu, uuvar, uuta(1), ny3)
+   call earth(suu, uuvar, uuta(1), mc_steps_outer)
 
-   write(jjj, '(/)')
-   write(jjj, 44)
-   write(jjj, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', ny3, &
+   write(unit_output, '(/)')
+   write(unit_output, 44)
+   write(unit_output, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', mc_steps_outer, &
                                   ' MACROSTEPS'
-   write(jjj, 810) kntot, key, kn2, kn1
-   write(jjj, 811) (l, dble(macc(l)) / mtot(l), dble(menrj(l)) &
-                    / mtot(l), dble(mhcrj(l)) / mtot(l), l = 1, nspec)
-   write(jjj, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', uuta(1), uuvar
-   write(jjj, *)
+   write(unit_output, 810) kntot, key, kn2, kn1
+   write(unit_output, 811) (l, dble(macc(l)) / mtot(l), dble(menrj(l)) &
+                    / mtot(l), dble(mhcrj(l)) / mtot(l), l = 1, num_species)
+   write(unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', uuta(1), uuvar
+   write(unit_output, *)
 
-   if (nwint <= ny1) then
+   if (widom_interval<= mc_steps_inner) then
       call collision3
       call widom3
    end if
 
-   rewind lll
-   write(lll, 771) (x6(l), y6(l), z6(l), l = 1, npart)
+   rewind unit_conf
+   write(unit_conf, 771) (particle_x(l), particle_y(l), particle_z(l), l = 1, num_particles)
 771 format(5e16.8)
 
-   close(lll)
+   close(unit_conf)
 
 
    ! ==========================================================================
@@ -379,21 +386,21 @@ program bulk
    ! ==========================================================================
 
    pid = 0.0
-   do k = 1, nspec
-      pid = pid + caver(k) * 1.0d27 / avno
+   do k = 1, num_species
+      pid = pid + species_concentration(k) * 1.0d27 / avno
    end do
 
-   pexen  = uuta(1) * 1.0d30 / (3 * bk * dtemp * box ** 3 * avno)
-   pexenv = uuvar   * 1.0d30 / (3 * bk * dtemp * box ** 3 * avno)
-   ptot   = pid + pcollav + pexen
-   ptotv  = sqrt(pcollv * pcollv + pexenv * pexenv)
+   pexen  = uuta(1) * 1.0d30 / (3 * gas_constant* temperature* box_size_size** 3 * avno)
+   pexenv = uuvar   * 1.0d30 / (3 * gas_constant* temperature* box_size_size** 3 * avno)
+   ptot   = pid + pressure_collision_average+ pexen
+   ptotv  = sqrt(pressure_collision_variance* pressure_collision_variance+ pexenv * pexenv)
 
-   write(jjj, '(/, a, /)') 'TOTAL BULK PRESSURE '
-   write(jjj, 729) 'Ideal pressure       ', pid, 0.0
-   write(jjj, 729) 'Energy con. <E/3V>   ', pexen, pexenv
-   write(jjj, 729) 'Collision press      ', pcollav, pcollv
-   write(jjj, 731)
-   write(jjj, 729) 'Bulk pressure        ' , ptot, ptotv
+   write(unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
+   write(unit_output, 729) 'Ideal pressure       ', pid, 0.0
+   write(unit_output, 729) 'Energy con. <E/3V>   ', pexen, pexenv
+   write(unit_output, 729) 'Collision press      ', pcollav, pcollv
+   write(unit_output, 731)
+   write(unit_output, 729) 'Bulk pressure        ' , ptot, ptotv
 
 729 format(a, f12.4, f10.4)
 731 format(70('_'))
@@ -458,8 +465,8 @@ subroutine earth2(a, bbbwww, xb, nnn, num)
 
    implicit double precision (a-h, o-z)
 
-   parameter (mxspec = 10)
-   dimension :: a(25, mxspec), xb(mxspec), bbbwww(mxspec)
+   parameter (max_species = 10)
+   dimension :: a(25, max_species), xb(max_species), bbbwww(max_species)
 
    yak = 1.0 / (nnn * (nnn - 1))
 
@@ -502,7 +509,10 @@ subroutine slump
    real :: ran2
    include 'bulk_f90.inc'
 
-   write(jjj, *) 'Random configuration generated'
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
+
+   write(unit_output, *) 'Random configuration generated'
 
    nsl    = 0
    nslmax = 100000
@@ -511,33 +521,33 @@ subroutine slump
 1  nsl = nsl + 1
 
    if (nsl > nslmax) then
-      write(jjj, *)' too dense system'
+      write(unit_output, *)' too dense system'
       stop
    end if
 
-   x6tt  = (ran2(islu) - 0.5) * box
-   y6tt  = (ran2(islu) - 0.5) * box
-   z6tt  = (ran2(islu) - 0.5) * box
-   ispec = ispc(k12 + 1)
+   x6tt  = (ran2(random_seed) - 0.5) * box_size
+   y6tt  = (ran2(random_seed) - 0.5) * box_size
+   z6tt  = (ran2(random_seed) - 0.5) * box_size
+   current_species= particle_species(k12 + 1)
 
    do i = 1, k12
-      ddx = x6tt - x6(i)
-      ddy = y6tt - y6(i)
-      ddz = z6tt - z6(i)
-      ddx = ddx - aint(ddx * box2i) * box
-      ddy = ddy - aint(ddy * box2i) * box
-      ddz = ddz - aint(ddz * box2i) * box
+      ddx = x6tt - particle_x(i)
+      ddy = y6tt - particle_y(i)
+      ddz = z6tt - particle_z(i)
+      ddx = ddx - aint(ddx * box_size_half_inverse) * box_size
+      ddy = ddy - aint(ddy * box_size_half_inverse) * box_size
+      ddz = ddz - aint(ddz * box_size_half_inverse) * box_size
       r2  = ddx ** 2 + ddy ** 2 + ddz ** 2
 
-      if (r2 < hc2v(i, ispec)) go to 1
+      if (r2 < hard_core_distance_sq(i, ispec)) go to 1
    end do
 
    k12 = k12 + 1
-   x6(k12) = x6tt
-   y6(k12) = y6tt
-   z6(k12) = z6tt
+   particle_x(k12) = x6tt
+   particle_y(k12) = y6tt
+   particle_z(k12) = z6tt
 
-   if (k12 == npart) return
+   if (k12 == num_particles) return
 
    go to 1
 
@@ -560,31 +570,34 @@ subroutine qin
    implicit double precision (a-h, o-z)
    include 'bulk_f90.inc'
 
-   do k = 1, npart
-      ddx = abs(tx6 - x6(k))
-      ddy = abs(ty6 - y6(k))
-      ddz = abs(tz6 - z6(k))
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
 
-      if (ddx > box2) ddx = ddx - box
-      if (ddy > box2) ddy = ddy - box
-      if (ddz > box2) ddz = ddz - box
+   do k = 1, num_particles
+      ddx = abs(trial_x- particle_x(k))
+      ddy = abs(trial_y- particle_y(k))
+      ddz = abs(trial_z- particle_z(k))
 
-      rw2(k) = ddx * ddx + ddy * ddy + ddz * ddz
+      if (ddx > box_half) ddx = ddx - box_size
+      if (ddy > box_half) ddy = ddy - box_size
+      if (ddz > box_half) ddz = ddz - box_size
+
+      distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
 
       ! Cancel out the hard core overlap with itself
-      rw2(il) = 1000000
+      distance_squared(current_particle) = 1000000
 
-      if (rw2(k) < hc2v(k, ispec)) return
+      if (distance_squared(k) < hard_core_distance_sq(k, ispec)) return
    end do
 
-   isos = 0
-   chil = chv(il)
+   overlap_status= 0
+   chil = particle_charge(current_particle)
 
-   do k = 1, npart
-      ei(k) = chil * chv(k) / sqrt(rw2(k))
+   do k = 1, num_particles
+      trial_energy(k) = chil * particle_charge(k) / sqrt(distance_squared(k))
    end do
 
-   ei(il) = 0
+   trial_energy(current_particle) = 0
 
    return
 
@@ -607,39 +620,42 @@ subroutine liv
    implicit double precision (a-h, o-z)
    include 'bulk_f90.inc'
 
-   xww1 = 0.0
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
 
-   do i = 1, npart - 1
-      tx6 = x6(i)
-      ty6 = y6(i)
-      tz6 = z6(i)
+   total_coulomb_energy= 0.0
+
+   do i = 1, num_particles- 1
+      trial_x= particle_x(i)
+      trial_y= particle_y(i)
+      trial_z= particle_z(i)
       ip1 = i + 1
 
-      do k = ip1, npart
-         ddx = tx6 - x6(k)
-         ddy = ty6 - y6(k)
-         ddz = tz6 - z6(k)
-         ddx = ddx - aint(ddx * box2i) * box
-         ddy = ddy - aint(ddy * box2i) * box
-         ddz = ddz - aint(ddz * box2i) * box
-         rw2(k) = ddx * ddx + ddy * ddy + ddz * ddz
+      do k = ip1, num_particles
+         ddx = trial_x- particle_x(k)
+         ddy = trial_y- particle_y(k)
+         ddz = trial_z- particle_z(k)
+         ddx = ddx - aint(ddx * box_size_half_inverse) * box_size
+         ddy = ddy - aint(ddy * box_size_half_inverse) * box_size
+         ddz = ddz - aint(ddz * box_size_half_inverse) * box_size
+         distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
       end do
 
-      do k = ip1, npart
-         uj1 = chv(i) * chv(k) / sqrt(rw2(k))
-         xww1 = xww1 + uj1
-         esa(i, k) = uj1
-      end do
-   end do
-
-   do i = 1, npart - 1
-      do k = i + 1, npart
-         esa(k, i) = esa(i, k)
+      do k = ip1, num_particles
+         uj1 = particle_charge(i) * particle_charge(k) / sqrt(distance_squared(k))
+         total_coulomb_energy= total_coulomb_energy+ uj1
+         energy_matrix(i, k) = uj1
       end do
    end do
 
-   do i = 1, npart
-      esa(i, i) = 0.0
+   do i = 1, num_particles- 1
+      do k = i + 1, num_particles
+         energy_matrix(k, i) = energy_matrix(i, k)
+      end do
+   end do
+
+   do i = 1, num_particles
+      energy_matrix(i, i) = 0.0
    end do
 
    return
@@ -668,14 +684,17 @@ subroutine collision
    real :: ran2
    include 'bulk_f90.inc'
 
-   dimension :: rel(mxspec)
-   dimension :: scoll(25, mxspec, mxspec), coll(mxspec, mxspec)
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
 
-   do i = 1, mxspec
-      do k = 1, mxspec
+   dimension :: rel(max_species)
+   dimension :: scoll(25, max_species, max_species), coll(max_species, max_species)
+
+   do i = 1, max_species
+      do k = 1, max_species
          coll(i, k) = 0.0
 
-         do j = 1, ny3
+         do j = 1, mc_steps_outer
             scoll(j, i, k) = 0.0
          end do
       end do
@@ -691,48 +710,48 @@ subroutine collision
    do i = 1, nwins
       num = 1
 
-      do isp = 1, nspec
-         nisp = int(hion(isp, 2))
+      do isp = 1, num_species
+         nisp = int(species_properties(isp, 2))
 
-         do ksp = 1, nspec
-            nnn = ran2(islu) * nisp + num
-            dis = hion(isp, 3) + hion(ksp, 3)
-            aa  = (2 * ran2(islu) - 1) * dis
-            v   = 2 * pi * ran2(islu)
-            wz6 = z6(nnn) + aa
+         do ksp = 1, num_species
+            nnn = ran2(random_seed) * nisp + num
+            dis = species_properties(isp, 3) + species_properties(ksp, 3)
+            aa  = (2 * ran2(random_seed) - 1) * dis
+            v   = 2 * pi * ran2(random_seed)
+            wz6 = particle_z(nnn) + aa
             g2  = sqrt(dis * dis - aa * aa) + 0.00001
-            wx6 = x6(nnn) + g2 * cos(v)
-            wy6 = y6(nnn) + g2 * sin(v)
-            wx6 = wx6 - aint(wx6 * box2i) * box
-            wy6 = wy6 - aint(wy6 * box2i) * box
-            wz6 = wz6 - aint(wz6 * box2i) * box
+            wx6 = particle_x(nnn) + g2 * cos(v)
+            wy6 = particle_y(nnn) + g2 * sin(v)
+            wx6 = wx6 - aint(wx6 * box_size_half_inverse) * box_size
+            wy6 = wy6 - aint(wy6 * box_size_half_inverse) * box_size
+            wz6 = wz6 - aint(wz6 * box_size_half_inverse) * box_size
             urej = 0
 
-            do k = 1, npart
-               ddx = dabs(wx6 - x6(k))
-               ddy = dabs(wy6 - y6(k))
-               ddz = dabs(wz6 - z6(k))
+            do k = 1, num_particles
+               ddx = dabs(wx6 - particle_x(k))
+               ddy = dabs(wy6 - particle_y(k))
+               ddz = dabs(wz6 - particle_z(k))
 
-               if (ddx > box2) ddx = ddx - box
-               if (ddy > box2) ddy = ddy - box
-               if (ddz > box2) ddz = ddz - box
+               if (ddx > box_half) ddx = ddx - box_size
+               if (ddy > box_half) ddy = ddy - box_size
+               if (ddz > box_half) ddz = ddz - box_size
 
-               rw2(k) = ddx * ddx + ddy * ddy + ddz * ddz
+               distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
 
-               if (rw2(k) < hc2v(k, ksp)) go to 121
+               if (distance_squared(k) < hard_core_distance_sq(k, ksp)) go to 121
             end do
 
-            do k = 1, npart
-               rwi(k) = 1.0 / sqrt(rw2(k))
+            do k = 1, num_particles
+               distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
             end do
 
             wtot2 = 0
 
-            do k = 1, npart
-               wtot2 = wtot2 + rwi(k) * chv(k)
+            do k = 1, num_particles
+               wtot2 = wtot2 + distance_inverse(k) * particle_charge(k)
             end do
 
-            coll(isp, ksp) = exp(abeta * wtot2 * hion(ksp, 4) * ecf) + coll(isp, ksp)
+            coll(isp, ksp) = exp(beta_inverse_temp* wtot2 * species_properties(ksp, 4) * energy_conversion_factor) + coll(isp, ksp)
 
 121         continue
          end do
@@ -748,19 +767,19 @@ subroutine collision
 
    entry collision2
 
-   nwtot = nwins * int(ny1 / nwint) * ny2
+   nwtot = num_widom_insertions* int(mc_steps_inner / nwint) * mc_steps_middle
 
-   write (kkk, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
-   write (kkk, '(/, a, i6)') 'Total collision trials per species ', nwtot
-   write (kkk, 2010) (i, i = 1, nspec)
+   write (unit_macro, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
+   write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', nwtot
+   write (unit_macro, 2010) (i, i = 1, num_species)
 
-   do k = 1, nspec
-      do i = 1, nspec
-         scoll(my3, i, k) = coll(i, k) / nwtot
+   do k = 1, num_species
+      do i = 1, num_species
+         scoll(current_macro_step, i, k) = coll(i, k) / nwtot
          coll(i, k) = 0
       end do
 
-      write(kkk, 2012) (scoll(my3, i, k), i = 1, nspec)
+      write(unit_macro, 2012) (scoll(current_macro_step, i, k), i = 1, num_species)
    end do
 
    return
@@ -775,29 +794,29 @@ subroutine collision
 
    entry collision3
 
-   write(jjj, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
-   write (jjj, 2010) (i, i = 1, nspec)
+   write(unit_output, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
+   write (unit_output, 2010) (i, i = 1, num_species)
 
-   do i = 1, nspec
-      do k = 1, nspec
+   do i = 1, num_species
+      do k = 1, num_species
          collav = 0
 
-         do j = 1, ny3
-            cwi(j, i, k) = scoll(j, i, k)
-            dum(j) = scoll(j, i, k)
+         do j = 1, mc_steps_outer
+            contact_correlation(j, i, k) = scoll(j, i, k)
+            temp_array(j) = scoll(j, i, k)
          end do
 
-         call earth(dum, collv, collav, ny3)
+         call earth(temp_array, collv, collav, mc_steps_outer)
 
          rel(k) = 0
          if (collav /= 0) rel(k) = collv / collav
-         coll(i, k) = caver(i) * collav
+         coll(i, k) = species_concentration(i) * collav
       end do
 
-      write(jjj, 2013) i, (coll(i, k), rel(k), k = 1, nspec)
+      write(unit_output, 2013) i, (coll(i, k), rel(k), k = 1, num_species)
    end do
 
-   write(jjj, '(/)')
+   write(unit_output, '(/)')
 
    return
 
@@ -828,29 +847,32 @@ subroutine widom
    real :: ran2
    include 'bulk_f90.inc'
 
-   dimension :: chel(25, mxspec), chhc(25, mxspec), chex(25, mxspec)
-   dimension :: chto(25, mxspec), chexw(25, mxspec), dch1(25, mxspec)
-   dimension :: dch2(25, mxspec), chint(mxspec, 11), ewnom(mxspec, 11)
-   dimension :: ewden(mxspec, 11), chinta(mxspec, 11)
-   dimension :: expuw(mxspec), chid(mxspec)
-   dimension :: chelav(mxspec), chelv(mxspec), chhcav(mxspec), chhcv(mxspec)
-   dimension :: chexav(mxspec), chexv(mxspec), chtoav(mxspec), chtov(mxspec)
-   dimension :: chexwa(mxspec), chexwv(mxspec)
-   dimension :: ihc(mxspec), irej(mxspec), mwcn(25), ihcall(0:5)
+   ! Note: Variable names have been updated to be more descriptive
+   ! See bulk_f90.inc for the complete variable declarations
 
-   character*80 str(mxspec)
+   dimension :: chel(25, max_species), chhc(25, max_species), chex(25, max_species)
+   dimension :: chto(25, max_species), chexw(25, max_species), dch1(25, max_species)
+   dimension :: dch2(25, max_species), chint(max_species, 11), ewnom(max_species, 11)
+   dimension :: ewden(max_species, 11), chinta(max_species, 11)
+   dimension :: expuw(max_species), chid(max_species)
+   dimension :: chelav(max_species), chelv(max_species), chhcav(max_species), chhcv(max_species)
+   dimension :: chexav(max_species), chexv(max_species), chtoav(max_species), chtov(max_species)
+   dimension :: chexwa(max_species), chexwv(max_species)
+   dimension :: ihc(max_species), irej(max_species), mwcn(25), ihcall(0:5)
+
+   character*80 str(max_species)
 
    do i = 0, nfix
-      do j = 1, nspec
-         if (caver(j) /= 0) then
-            chid(j + nspec * i) = dlog( caver(j) / avno * 1.0d27)
+      do j = 1, num_species
+         if (species_concentration(j) /= 0) then
+            chid(j + num_species* i) = dlog( species_concentration(j) / avogadro_number* 1.0d27)
          else
-            chid(j + nspec * i) = -77
+            chid(j + num_species* i) = -77
          end if
       end do
    end do
 
-   do j = 1, mxspec
+   do j = 1, max_species
       do i = 1, 25
          chel(i, j) = 0
          chhc(i, j) = 0
@@ -891,87 +913,87 @@ subroutine widom
 
    entry widom1
 
-   mwcn(my3) = mwcn(my3) + 1
+   mwcn(current_macro_step) = mwcn(current_macro_step) + 1
 
    do mp = 0, nfix
       do i = 1, nwins
-         x = box * (ran2(islu) - 0.5)
-         y = box * (ran2(islu) - 0.5)
+         x = box_size* (ran2(random_seed) - 0.5)
+         y = box_size* (ran2(random_seed) - 0.5)
          z = 0
 
          if (mp <= 1) then
-            z = box * (ran2(islu) - 0.5)
-            if (mp == 1) z = sign(box2, z)
+            z = box_size* (ran2(random_seed) - 0.5)
+            if (mp == 1) z = sign(box_half, z)
          end if
 
-         do j = 1, npart
-            ddx = abs(x - x6(j))
-            if (ddx > box2) ddx = ddx - box
-            ddy = abs(y - y6(j))
-            if (ddy > box2) ddy = ddy - box
-            ddz = abs(z - z6(j))
-            if (ddz > box2) ddz = ddz - box
-            rw2(j) = ddx * ddx + ddy * ddy + ddz * ddz
+         do j = 1, num_particles
+            ddx = abs(x - particle_x(j))
+            if (ddx > box_half) ddx = ddx - box_size
+            ddy = abs(y - particle_y(j))
+            if (ddy > box_half) ddy = ddy - box_size
+            ddz = abs(z - particle_z(j))
+            if (ddz > box_half) ddz = ddz - box_size
+            distance_squared(j) = ddx * ddx + ddy * ddy + ddz * ddz
          end do
 
          irsum = 0
 
-         do j = 1, nspec
-            jm = mp * nspec + j
+         do j = 1, num_species
+            jm = mp * num_species+ j
             irej(jm) = 0
 
-            do k = 1, npart
-               if (rw2(k) < hc2v(k, j)) irej(jm) = 1
+            do k = 1, num_particles
+               if (distance_squared(k) < hard_core_distance_sq(k, j)) irej(jm) = 1
             end do
 
             irsum = irsum + irej(jm)
          end do
 
-         if (irsum == nspec) then
+         if (irsum == num_species) then
             ihcall(mp) = ihcall(mp) + 1
             go to 110
          end if
 
-         do k = 1, npart
-            rwi(k) = 1.0 / sqrt(rw2(k))
+         do k = 1, num_particles
+            distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
          end do
 
          wtot2 = 0
          wtot3 = 0
          nl    = 1
 
-         do j = 1, nspec
-            nh   = int(hion(j, 2))
+         do j = 1, num_species
+            nh   = int(species_properties(j, 2))
             wsum = 0
 
             do k = nl, nl + nh - 1
-               wsum = wsum + rwi(k)
+               wsum = wsum + distance_inverse(k)
             end do
 
             nl = nl + nh
-            wtot2 = wtot2 + wsum * hion(j, 4)
+            wtot2 = wtot2 + wsum * species_properties(j, 4)
             wtot3 = wtot3 + wsum
          end do
 
          wtot2 = wtot2 + uj1
 
-         do j = 1, nspec
-            jm = mp * nspec + j
+         do j = 1, num_species
+            jm = mp * num_species+ j
 
             if (irej(jm) == 1) then
                ihc(jm) = ihc(jm) + 1
                go to 160
             end if
 
-            expuw(jm) = expuw(jm) + exp(abeta * wtot2 * hion(j, 4) * ecf)
+            expuw(jm) = expuw(jm) + exp(beta_inverse_temp* wtot2 * species_properties(j, 4) * energy_conversion_factor)
 
             do k1 = 0, 10
                k   = k1 + 1
-               ew  = hion(j, 4) * (wtot2 - k1 * 0.1 * hion(j, 4) * wtot3 / npart)
+               ew  = species_properties(j, 4) * (wtot2 - k1 * 0.1 * species_properties(j, 4) * wtot3 / num_particles)
                ewla = ew * k1 * 0.1
-               ewd  = exp(abeta * ecf * ewla)
+               ewd  = exp(beta_inverse_temp* energy_conversion_factor* ewla)
                ewden(jm, k) = ewden(jm, k) + ewd
-               ewnom(jm, k) = ewnom(jm, k) - ew * abeta * ecf * ewd
+               ewnom(jm, k) = ewnom(jm, k) - ew * beta_inverse_temp* energy_conversion_factor* ewd
             end do
 
 160         continue
@@ -986,53 +1008,53 @@ subroutine widom
 
    entry widom2
 
-   ntocp = nspec * (nfix + 1)
+   ntocp = num_species* (measurement_location+ 1)
 
    do i = 1, ntocp
       do j = 1, 11
          if (ewden(i, j) == 0) then
-            write(jjj, *) ' WIDOM DENOMINATOR EQUALS ZERO', i, j
+            write(unit_output, *) ' WIDOM DENOMINATOR EQUALS ZERO', i, j
          else
             chint(i, j)  = ewnom(i, j) / ewden(i, j)
             ewnom(i, j)  = 0
             ewden(i, j)  = 0
-            chinta(i, j) = chinta(i, j) + 1.0 / ny3 * chint(i, j)
+            chinta(i, j) = chinta(i, j) + 1.0 / mc_steps_outer * chint(i, j)
          end if
       end do
 
       aint4 = chint(i, 2) + chint(i, 4) + chint(i, 6) + chint(i, 8) + chint(i, 10)
       aint2 = chint(i, 3) + chint(i, 5) + chint(i, 7) + chint(i, 9)
       aint1 = chint(i, 1) + chint(i, 11)
-      chel(my3, i) = 1.0 / 30.0 * (aint1 + 2 * aint2 + 4 * aint4)
+      chel(current_macro_step, i) = 1.0 / 30.0 * (aint1 + 2 * aint2 + 4 * aint4)
    end do
 
-   nwtot = mwcn(my3) * nwins
-   nwtot = nwins * int(ny1 / nwint) * ny2
+   nwtot = mwcn(current_macro_step) * nwins
+   nwtot = num_widom_insertions* int(mc_steps_inner / nwint) * mc_steps_middle
 
    do i = 1, ntocp
-      ihc(i) = ihc(i) + ihcall(int((i - 1) / nspec))
-      chhc(my3, i)  = -dlog(dble(nwtot - ihc(i)) / nwtot)
-      chexw(my3, i) = -dlog(expuw(i) / nwtot)
-      chex(my3, i)  = chel(my3, i) + chhc(my3, i)
-      chto(my3, i)  = chex(my3, i) + chid(i)
+      ihc(i) = ihc(i) + ihcall(int((i - 1) / num_species))
+      chhc(current_macro_step, i)  = -dlog(dble(nwtot - ihc(i)) / nwtot)
+      chexw(current_macro_step, i) = -dlog(expuw(i) / nwtot)
+      chex(current_macro_step, i)  = chel(current_macro_step, i) + chhc(current_macro_step, i)
+      chto(current_macro_step, i)  = chex(current_macro_step, i) + chid(i)
       expuw(i) = 0
       ihc(i)   = 0
    end do
 
-   do j = 1, nspec
-      dch1(my3, j) = chto(my3, j) - chex(my3, nspec + j)
-      dch2(my3, j) = chto(my3, j) - chex(my3, 2 * nspec + j)
+   do j = 1, num_species
+      dch1(current_macro_step, j) = chto(current_macro_step, j) - chex(current_macro_step, num_species+ j)
+      dch2(current_macro_step, j) = chto(current_macro_step, j) - chex(current_macro_step, 2 * num_species+ j)
    end do
 
-   write(kkk, 2010) nwtot
+   write(unit_macro, 2010) nwtot
 
    do j = 0, nfix
       ihcall(j) = 0
-      write(kkk, '(/, a)') str(j + 1)
-      write(kkk, 2015)
-      write(kkk, 2020) (i, chid(i), chhc(my3, i), chel(my3, i), &
-                        chex(my3, i), chto(my3, i), chexw(my3, i), &
-                        i = j * nspec + 1, (j + 1) * nspec)
+      write(unit_macro, '(/, a)') str(j + 1)
+      write(unit_macro, 2015)
+      write(unit_macro, 2020) (i, chid(i), chhc(current_macro_step, i), chel(current_macro_step, i), &
+                        chex(current_macro_step, i), chto(current_macro_step, i), chexw(current_macro_step, i), &
+                        i = j * num_species+ 1, (j + 1) * num_species)
    end do
 
    return
@@ -1042,82 +1064,82 @@ subroutine widom
 
    nwtot = 0
 
-   do i = 1, ny3
+   do i = 1, mc_steps_outer
       nwtot = nwtot + mwcn(i) * nwins
    end do
 
-   ntocp = nspec * (nfix + 1)
+   ntocp = num_species* (measurement_location+ 1)
    i = 1
 
-   call earth2(chel,  chelv,  chelav,  ny3, ntocp)
-   call earth2(chexw, chexwv, chexwa,  ny3, ntocp)
-   call earth2(chhc,  chhcv,  chhcav,  ny3, ntocp)
-   call earth2(chex,  chexv,  chexav,  ny3, ntocp)
-   call earth2(chto,  chtov,  chtoav,  ny3, ntocp)
+   call earth2(chel,  chelv,  chelav,  mc_steps_outer, ntocp)
+   call earth2(chexw, chexwv, chexwa,  mc_steps_outer, ntocp)
+   call earth2(chhc,  chhcv,  chhcav,  mc_steps_outer, ntocp)
+   call earth2(chex,  chexv,  chexav,  mc_steps_outer, ntocp)
+   call earth2(chto,  chtov,  chtoav,  mc_steps_outer, ntocp)
 
-   write (jjj, '(a, /)') 'CONTACT CORRELATION g(r)'
-   write (jjj, 2001) (i, i = 1, nspec)
+   write (unit_output, '(a, /)') 'CONTACT CORRELATION g(r)'
+   write (unit_output, 2001) (i, i = 1, num_species)
 
-   pcollav = 0.0
-   pcollv  = 0.0
+   pressure_collision_average= 0.0
+   pressure_collision_variance = 0.0
 
-   do i = 1, nspec
-      do k = 1, nspec
-         do j = 1, ny3
-            dum(j) = cwi(j, i, k) * exp(chexw(j, k))
+   do i = 1, num_species
+      do k = 1, num_species
+         do j = 1, mc_steps_outer
+            temp_array(j) = contact_correlation(j, i, k) * exp(chexw(j, k))
          end do
 
-         call earth(dum, cwiv, cwiav, ny3)
-         cwi(11, i, k) = cwiv
-         cwi(12, i, k) = cwiav
+         call earth(temp_array, cwiv, cwiav, mc_steps_outer)
+         contact_correlation(11, i, k) = cwiv
+         contact_correlation(12, i, k) = cwiav
       end do
 
-      write(jjj, 2002) i, (cwi(12, i, k), cwi(11, i, k), k = 1, nspec)
+      write(unit_output, 2002) i, (contact_correlation(12, i, k), contact_correlation(11, i, k), k = 1, num_species)
    end do
 
-   write (jjj, '(/, a, /)') 'CONTACT PRESSURE MATRIX'
-   write (jjj, 2001) (i, i = 1, nspec)
+   write (unit_output, '(/, a, /)') 'CONTACT PRESSURE MATRIX'
+   write (unit_output, 2001) (i, i = 1, num_species)
 
-   do i = 1, nspec
-      do k = 1, nspec
-         do j = 1, ny3
-            dum(j) = 2.0 / 3.0 * pi * caver(i) * cwi(j, i, k) * &
-                     exp(chexw(j, k) + chid(k)) * (hion(i, 3) + hion(k, 3)) ** 3
+   do i = 1, num_species
+      do k = 1, num_species
+         do j = 1, mc_steps_outer
+            temp_array(j) = 2.0 / 3.0 * pi * species_concentration(i) * contact_correlation(j, i, k) * &
+                     exp(chexw(j, k) + chid(k)) * (species_properties(i, 3) + species_properties(k, 3)) ** 3
          end do
 
-         call earth(dum, cwiv, cwiav, ny3)
-         cwi(11, i, k) = cwiv
-         cwi(12, i, k) = cwiav
-         pcollav = pcollav + cwiav
-         pcollv  = pcollv  + cwiv * cwiv
+         call earth(temp_array, cwiv, cwiav, mc_steps_outer)
+         contact_correlation(11, i, k) = cwiv
+         contact_correlation(12, i, k) = cwiav
+         pressure_collision_average= pressure_collision_average+ cwiav
+         pressure_collision_variance = pressure_collision_variance + cwiv * cwiv
       end do
 
-      write(jjj, 2002) i, (cwi(12, i, k), cwi(11, i, k), k = 1, nspec)
+      write(unit_output, 2002) i, (contact_correlation(12, i, k), contact_correlation(11, i, k), k = 1, num_species)
    end do
 
-   pcollv = sqrt(pcollv)
+   pressure_collision_variance= sqrt(pcollv)
 
-   write(jjj, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
+   write(unit_output, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
                                           ', pcollav, pcollv
 
 
-   write(jjj, 44)
-   write(jjj, 2034)
-   write(jjj, 2035) ((i - 1.0) / 10.0, i = 1, 11)
+   write(unit_output, 44)
+   write(unit_output, 2034)
+   write(unit_output, 2035) ((i - 1.0) / 10.0, i = 1, 11)
 
    do i = 1, ntocp
-      write(jjj, 2040) i, (chinta(i, j), j = 1, 11)
+      write(unit_output, 2040) i, (chinta(i, j), j = 1, 11)
    end do
 
-   write(jjj, 2010) nwtot
+   write(unit_output, 2010) nwtot
 
    do j = 0, nfix
-      write(jjj, '(/, a)') str(j + 1)
-      write(jjj, 2015)
-      write(jjj, 2030) (mod(i - 1, nspec) + 1, chid(i), chhcav(i), chhcv(i) &
+      write(unit_output, '(/, a)') str(j + 1)
+      write(unit_output, 2015)
+      write(unit_output, 2030) (mod(i - 1, num_species) + 1, chid(i), chhcav(i), chhcv(i) &
                         , chelav(i), chelv(i), chexav(i), chexv(i), chtoav(i), chtov(i) &
-                        , chexwa(i), chexwv(i), i = j * nspec + 1, nspec * (j + 1))
-      write(jjj, 2033) ( exp((2 * chexav(i - 2) + chexav(i - 1)) / 3) )
+                        , chexwa(i), chexwv(i), i = j * num_species+ 1, num_species* (j + 1))
+      write(unit_output, 2033) ( exp((2 * chexav(i - 2) + chexav(i - 1)) / 3) )
    end do
 
 

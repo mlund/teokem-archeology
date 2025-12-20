@@ -1,75 +1,116 @@
 ! =============================================================================
-! Random number generator: ran2
-! Long period (> 2×10^18) random number generator
+! Random Number Generator: Long Period Uniform Distribution
+!
+! This is the ran2 algorithm from Numerical Recipes, providing a long period
+! (> 2×10¹⁸) random number generator using Schrage's method to avoid overflow
+! in modular arithmetic.
+!
+! The algorithm combines two linear congruential generators and uses a shuffle
+! table to break up sequential correlations.
 ! =============================================================================
 
-function ran2(idum)
+function ran2(random_seed)
 
     implicit none
 
     ! Arguments
-    integer, intent(inout) :: idum
-    real                   :: ran2
+    integer, intent(inout) :: random_seed      ! Seed for random number generator (modified on each call)
+    real                   :: ran2             ! Returns uniform random number in (0,1)
 
-    ! Constants
-    integer, parameter :: IM1   = 2147483563
-    integer, parameter :: IM2   = 2147483399
-    integer, parameter :: IMM1  = IM1 - 1
-    integer, parameter :: IA1   = 40014
-    integer, parameter :: IA2   = 40692
-    integer, parameter :: IQ1   = 53668
-    integer, parameter :: IQ2   = 52774
-    integer, parameter :: IR1   = 12211
-    integer, parameter :: IR2   = 3791
-    integer, parameter :: NTAB  = 32
-    integer, parameter :: NDIV  = 1 + IMM1 / NTAB
+    ! Linear congruential generator 1 parameters
+    integer, parameter :: modulus_1         = 2147483563  ! IM1: First modulus
+    integer, parameter :: multiplier_1      = 40014       ! IA1: First multiplier
+    integer, parameter :: quotient_1        = 53668       ! IQ1: modulus_1 / multiplier_1
+    integer, parameter :: remainder_1       = 12211       ! IR1: modulus_1 mod multiplier_1
 
-    real, parameter :: AM   = 1.0 / IM1
-    real, parameter :: EPS  = 1.2e-7
-    real, parameter :: RNMX = 1.0 - EPS
+    ! Linear congruential generator 2 parameters
+    integer, parameter :: modulus_2         = 2147483399  ! IM2: Second modulus
+    integer, parameter :: multiplier_2      = 40692       ! IA2: Second multiplier
+    integer, parameter :: quotient_2        = 52774       ! IQ2: modulus_2 / multiplier_2
+    integer, parameter :: remainder_2       = 3791        ! IR2: modulus_2 mod multiplier_2
+
+    ! Shuffle table parameters
+    integer, parameter :: shuffle_table_size = 32            ! NTAB: Size of shuffle table
+    integer, parameter :: modulus_1_minus_1  = modulus_1 - 1 ! IMM1
+    integer, parameter :: table_divisor      = 1 + modulus_1_minus_1 / shuffle_table_size  ! NDIV
+
+    ! Scaling and safety parameters
+    real, parameter :: scaling_factor     = 1.0 / modulus_1  ! AM: Converts to (0,1)
+    real, parameter :: epsilon            = 1.2e-7           ! EPS: Small value to avoid exact endpoints
+    real, parameter :: random_max         = 1.0 - epsilon    ! RNMX: Maximum return value
+
+    ! Saved state variables (persistent across function calls)
+    integer :: generator_2_state                      ! State of second generator
+    integer :: shuffle_table(shuffle_table_size)      ! Shuffle table for decorrelation
+    integer :: previous_output                        ! Previous output from shuffle table
+
+    save shuffle_table, previous_output, generator_2_state
+
+    ! Initial values for saved variables
+    data generator_2_state  / 123456789 /
+    data shuffle_table      / shuffle_table_size * 0 /
+    data previous_output    / 0 /
 
     ! Local variables
-    integer            :: idum2, j, k
-    integer            :: iv(NTAB), iy
+    integer :: table_index  ! Index into shuffle table
+    integer :: temp_value   ! Temporary value for Schrage's method
 
-    save iv, iy, idum2
 
-    data idum2 / 123456789 /
-    data iv    / NTAB*0 /
-    data iy    / 0 /
+    ! =========================================================================
+    ! Initialization: First call or when seed is reset (negative value)
+    ! =========================================================================
+    if (random_seed <= 0) then
+        ! Ensure seed is positive
+        random_seed = max(-random_seed, 1)
+        generator_2_state = random_seed
 
-    ! Initialize
-    if (idum <= 0) then
-        idum  = max(-idum, 1)
-        idum2 = idum
+        ! Fill shuffle table using generator 1
+        ! Extra iterations (table_size + 8) ensure table is well shuffled
+        do table_index = shuffle_table_size + 8, 1, -1
+            ! Schrage's method: compute (multiplier_1 * seed) mod modulus_1
+            ! without overflow by using seed = quotient * Q + remainder
+            temp_value  = random_seed / quotient_1
+            random_seed = multiplier_1 * (random_seed - temp_value * quotient_1) - temp_value * remainder_1
 
-        do j = NTAB + 8, 1, -1
-            k    = idum / IQ1
-            idum = IA1 * (idum - k * IQ1) - k * IR1
+            ! Ensure result is positive
+            if (random_seed < 0) random_seed = random_seed + modulus_1
 
-            if (idum < 0) idum = idum + IM1
-            if (j <= NTAB) iv(j) = idum
+            ! Store in shuffle table (only the first shuffle_table_size values)
+            if (table_index <= shuffle_table_size) shuffle_table(table_index) = random_seed
         end do
 
-        iy = iv(1)
+        ! Initialize previous output with first table entry
+        previous_output = shuffle_table(1)
     end if
 
-    ! Generate random number
-    k    = idum / IQ1
-    idum = IA1 * (idum - k * IQ1) - k * IR1
-    if (idum < 0) idum = idum + IM1
 
-    k     = idum2 / IQ2
-    idum2 = IA2 * (idum2 - k * IQ2) - k * IR2
-    if (idum2 < 0) idum2 = idum2 + IM2
+    ! =========================================================================
+    ! Generate random number using both generators and shuffle table
+    ! =========================================================================
 
-    j     = 1 + iy / NDIV
-    iy    = iv(j) - idum2
-    iv(j) = idum
+    ! Update generator 1 using Schrage's method
+    temp_value  = random_seed / quotient_1
+    random_seed = multiplier_1 * (random_seed - temp_value * quotient_1) - temp_value * remainder_1
+    if (random_seed < 0) random_seed = random_seed + modulus_1
 
-    if (iy < 1) iy = iy + IMM1
+    ! Update generator 2 using Schrage's method
+    temp_value        = generator_2_state / quotient_2
+    generator_2_state = multiplier_2 * (generator_2_state - temp_value * quotient_2) - temp_value * remainder_2
+    if (generator_2_state < 0) generator_2_state = generator_2_state + modulus_2
 
-    ran2 = min(AM * iy, RNMX)
+    ! Use previous output to select index in shuffle table
+    ! This breaks up sequential correlations
+    table_index = 1 + previous_output / table_divisor
+
+    ! Combine generator 2 output with shuffled generator 1 output
+    previous_output            = shuffle_table(table_index) - generator_2_state
+    shuffle_table(table_index) = random_seed
+
+    ! Ensure output is positive
+    if (previous_output < 1) previous_output = previous_output + modulus_1_minus_1
+
+    ! Scale to (0,1) and ensure we never return exact 1.0
+    ran2 = min(scaling_factor * previous_output, random_max)
 
     return
 
