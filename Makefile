@@ -2,7 +2,7 @@
 FC = gfortran
 
 # Compiler flags
-FFLAGS = -std=legacy -O3 -g -funroll-loops -finit-local-zero -fno-automatic
+FFLAGS = -std=legacy -O0 -g -funroll-loops -finit-local-zero -fno-automatic
 
 # Source files
 SRCDIR = src
