@@ -936,155 +936,180 @@ subroutine calculate_widom_insertion
    ! Local variables
    ! max_widom_species accounts for species at multiple measurement locations (bulk, wall, midplane)
    integer, parameter :: max_widom_species = max_species * 3  ! max_species * (max_measurement_locations + 1)
-   integer :: i, j, k, mp, ntel, ntocp, nwtot, nh, nl, jm, k1, irsum
-   integer :: ihc(max_widom_species), irej(max_widom_species), mwcn(25), ihcall(0:5)
-   double precision :: chel(25, max_widom_species), chhc(25, max_widom_species), chex(25, max_widom_species)
-   double precision :: chto(25, max_widom_species), chexw(25, max_widom_species), dch1(25, max_widom_species)
-   double precision :: dch2(25, max_widom_species), chint(max_widom_species, 11), ewnom(max_widom_species, 11)
-   double precision :: ewden(max_widom_species, 11), chinta(max_widom_species, 11)
-   double precision :: expuw(max_widom_species), chid(max_widom_species)
-   double precision :: chelav(max_widom_species), chelv(max_widom_species), chhcav(max_widom_species), chhcv(max_widom_species)
-   double precision :: chexav(max_widom_species), chexv(max_widom_species), chtoav(max_widom_species), chtov(max_widom_species)
-   double precision :: chexwa(max_widom_species), chexwv(max_widom_species)
-   double precision :: ddx, ddy, ddz, x, y, z, ew, ewd, ewla, wtot2, wtot3, aint1, aint2, aint4, wsum
-   double precision :: uj1, pcollav, pcollv, cwiav, cwiv
-   character(len=80) :: str(max_species)
+   integer :: species_index, particle_index, loop_index
+   integer :: measurement_position, total_chemical_potentials, total_widom_tests
+   integer :: num_particles_in_species, particle_list_start, species_measurement_index
+   integer :: integration_point_index, integration_index, rejection_sum
+   integer :: hardcore_rejection_count(max_widom_species), is_rejected(max_widom_species)
+   integer :: widom_count_per_macrostep(25), hardcore_rejection_all(0:5)
+   double precision :: chem_pot_electrostatic(25, max_widom_species)
+   double precision :: chem_pot_hardcore(25, max_widom_species)
+   double precision :: chem_pot_excess(25, max_widom_species)
+   double precision :: chem_pot_total(25, max_widom_species)
+   double precision :: chem_pot_excess_widom(25, max_widom_species)
+   double precision :: chem_pot_diff_wall(25, max_widom_species)
+   double precision :: chem_pot_diff_midplane(25, max_widom_species)
+   double precision :: chem_pot_integration(max_widom_species, 11)
+   double precision :: energy_weighted_numerator(max_widom_species, 11)
+   double precision :: energy_weighted_denominator(max_widom_species, 11)
+   double precision :: chem_pot_integration_avg(max_widom_species, 11)
+   double precision :: exponential_widom_sum(max_widom_species)
+   double precision :: chem_pot_ideal(max_widom_species)
+   double precision :: chem_pot_elec_avg(max_widom_species), chem_pot_elec_var(max_widom_species)
+   double precision :: chem_pot_hc_avg(max_widom_species), chem_pot_hc_var(max_widom_species)
+   double precision :: chem_pot_ex_avg(max_widom_species), chem_pot_ex_var(max_widom_species)
+   double precision :: chem_pot_tot_avg(max_widom_species), chem_pot_tot_var(max_widom_species)
+   double precision :: chem_pot_widom_avg(max_widom_species), chem_pot_widom_var(max_widom_species)
+   double precision :: delta_x, delta_y, delta_z
+   double precision :: test_particle_x, test_particle_y, test_particle_z
+   double precision :: energy_weighted, energy_weighted_exponential, energy_weighted_lambda
+   double precision :: total_electrostatic_potential, total_inverse_distance
+   double precision :: simpson_weight_1, simpson_weight_2, simpson_weight_4, distance_sum
+   double precision :: pairwise_energy
+   double precision :: correlation_avg, correlation_var
+   character(len=80) :: location_description(max_species)
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
-   do i = 0, measurement_location
-      do j = 1, num_species
-         if (species_concentration(j) /= 0) then
-            chid(j + num_species* i) = dlog( species_concentration(j) / avogadro_number* 1.0d27)
+   do measurement_position = 0, measurement_location
+      do species_index = 1, num_species
+         if (species_concentration(species_index) /= 0) then
+            chem_pot_ideal(species_index + num_species * measurement_position) = &
+               dlog(species_concentration(species_index) / avogadro_number * 1.0d27)
          else
-            chid(j + num_species* i) = -77
+            chem_pot_ideal(species_index + num_species * measurement_position) = -77
          end if
       end do
    end do
 
-   do j = 1, max_species
-      do i = 1, 25
-         chel(i, j) = 0
-         chhc(i, j) = 0
-         chex(i, j) = 0
-         chto(i, j) = 0
+   do species_index = 1, max_species
+      do loop_index = 1, 25
+         chem_pot_electrostatic(loop_index, species_index) = 0
+         chem_pot_hardcore(loop_index, species_index) = 0
+         chem_pot_excess(loop_index, species_index) = 0
+         chem_pot_total(loop_index, species_index) = 0
       end do
 
-      chelav(j) = 0
-      chhcav(j) = 0
-      chexav(j) = 0
-      chtoav(j) = 0
-      expuw(j)  = 0
-      ihc(j)    = 0
+      chem_pot_elec_avg(species_index) = 0
+      chem_pot_hc_avg(species_index) = 0
+      chem_pot_ex_avg(species_index) = 0
+      chem_pot_tot_avg(species_index) = 0
+      exponential_widom_sum(species_index) = 0
+      hardcore_rejection_count(species_index) = 0
 
-      do k = 1, 11
-         ewden(j, k)  = 0
-         ewnom(j, k)  = 0
-         chinta(j, k) = 0
+      do loop_index = 1, 11
+         energy_weighted_denominator(species_index, loop_index) = 0
+         energy_weighted_numerator(species_index, loop_index) = 0
+         chem_pot_integration_avg(species_index, loop_index) = 0
       end do
    end do
 
-   do j = 1, 25
-      mwcn(j) = 0
+   do loop_index = 1, 25
+      widom_count_per_macrostep(loop_index) = 0
    end do
 
-   do j = 0, 5
-      ihcall(j) = 0
+   do loop_index = 0, 5
+      hardcore_rejection_all(loop_index) = 0
    end do
 
-   ntel = 0
-
-   str(1) = 'Chemical potentials averaged over the whole cell'
-   str(2) = 'Chemical potentials at the wall'
-   str(3) = 'Chemical potentials at the midplane'
+   location_description(1) = 'Chemical potentials averaged over the whole cell'
+   location_description(2) = 'Chemical potentials at the wall'
+   location_description(3) = 'Chemical potentials at the midplane'
 
    return
 
 
    entry calculate_widom_insertion1
 
-   mwcn(current_macro_step) = mwcn(current_macro_step) + 1
+   widom_count_per_macrostep(current_macro_step) = widom_count_per_macrostep(current_macro_step) + 1
 
-   do mp = 0, measurement_location
-      do i = 1, num_widom_insertions
-         x = box_size* (ran2(random_seed) - 0.5)
-         y = box_size* (ran2(random_seed) - 0.5)
-         z = 0
+   do measurement_position = 0, measurement_location
+      do loop_index = 1, num_widom_insertions
+         test_particle_x = box_size * (ran2(random_seed) - 0.5)
+         test_particle_y = box_size * (ran2(random_seed) - 0.5)
+         test_particle_z = 0
 
-         if (mp <= 1) then
-            z = box_size* (ran2(random_seed) - 0.5)
-            if (mp == 1) z = sign(box_half, z)
+         if (measurement_position <= 1) then
+            test_particle_z = box_size * (ran2(random_seed) - 0.5)
+            if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
          end if
 
-         do j = 1, num_particles
-            ddx = abs(x - particle_x(j))
-            if (ddx > box_half) ddx = ddx - box_size
-            ddy = abs(y - particle_y(j))
-            if (ddy > box_half) ddy = ddy - box_size
-            ddz = abs(z - particle_z(j))
-            if (ddz > box_half) ddz = ddz - box_size
-            distance_squared(j) = ddx * ddx + ddy * ddy + ddz * ddz
+         do particle_index = 1, num_particles
+            delta_x = abs(test_particle_x - particle_x(particle_index))
+            if (delta_x > box_half) delta_x = delta_x - box_size
+            delta_y = abs(test_particle_y - particle_y(particle_index))
+            if (delta_y > box_half) delta_y = delta_y - box_size
+            delta_z = abs(test_particle_z - particle_z(particle_index))
+            if (delta_z > box_half) delta_z = delta_z - box_size
+            distance_squared(particle_index) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
          end do
 
-         irsum = 0
+         rejection_sum = 0
 
-         do j = 1, num_species
-            jm = mp * num_species+ j
-            irej(jm) = 0
+         do species_index = 1, num_species
+            species_measurement_index = measurement_position * num_species + species_index
+            is_rejected(species_measurement_index) = 0
 
-            do k = 1, num_particles
-               if (distance_squared(k) < hard_core_distance_sq(k, j)) irej(jm) = 1
+            do particle_index = 1, num_particles
+               if (distance_squared(particle_index) < hard_core_distance_sq(particle_index, species_index)) &
+                  is_rejected(species_measurement_index) = 1
             end do
 
-            irsum = irsum + irej(jm)
+            rejection_sum = rejection_sum + is_rejected(species_measurement_index)
          end do
 
-         if (irsum == num_species) then
-            ihcall(mp) = ihcall(mp) + 1
+         if (rejection_sum == num_species) then
+            hardcore_rejection_all(measurement_position) = hardcore_rejection_all(measurement_position) + 1
             go to 110
          end if
 
-         do k = 1, num_particles
-            distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
+         do particle_index = 1, num_particles
+            distance_inverse(particle_index) = 1.0 / sqrt(distance_squared(particle_index))
          end do
 
-         wtot2 = 0
-         wtot3 = 0
-         nl    = 1
+         total_electrostatic_potential = 0
+         total_inverse_distance = 0
+         particle_list_start = 1
 
-         do j = 1, num_species
-            nh   = int(species_properties(j, 2))
-            wsum = 0
+         do species_index = 1, num_species
+            num_particles_in_species = int(species_properties(species_index, 2))
+            distance_sum = 0
 
-            do k = nl, nl + nh - 1
-               wsum = wsum + distance_inverse(k)
+            do particle_index = particle_list_start, particle_list_start + num_particles_in_species - 1
+               distance_sum = distance_sum + distance_inverse(particle_index)
             end do
 
-            nl = nl + nh
-            wtot2 = wtot2 + wsum * species_properties(j, 4)
-            wtot3 = wtot3 + wsum
+            particle_list_start = particle_list_start + num_particles_in_species
+            total_electrostatic_potential = total_electrostatic_potential + distance_sum * species_properties(species_index, 4)
+            total_inverse_distance = total_inverse_distance + distance_sum
          end do
 
-         wtot2 = wtot2 + uj1
+         total_electrostatic_potential = total_electrostatic_potential + pairwise_energy
 
-         do j = 1, num_species
-            jm = mp * num_species+ j
+         do species_index = 1, num_species
+            species_measurement_index = measurement_position * num_species + species_index
 
-            if (irej(jm) == 1) then
-               ihc(jm) = ihc(jm) + 1
+            if (is_rejected(species_measurement_index) == 1) then
+               hardcore_rejection_count(species_measurement_index) = hardcore_rejection_count(species_measurement_index) + 1
                go to 160
             end if
 
-            expuw(jm) = expuw(jm) + exp(beta_inverse_temp* wtot2 * species_properties(j, 4) * energy_conversion_factor)
+            exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
+               exp(beta_inverse_temp * total_electrostatic_potential * species_properties(species_index, 4) * energy_conversion_factor)
 
-            do k1 = 0, 10
-               k   = k1 + 1
-               ew  = species_properties(j, 4) * (wtot2 - k1 * 0.1 * species_properties(j, 4) * wtot3 / num_particles)
-               ewla = ew * k1 * 0.1
-               ewd  = exp(beta_inverse_temp* energy_conversion_factor* ewla)
-               ewden(jm, k) = ewden(jm, k) + ewd
-               ewnom(jm, k) = ewnom(jm, k) - ew * beta_inverse_temp* energy_conversion_factor* ewd
+            do integration_point_index = 0, 10
+               integration_index = integration_point_index + 1
+               energy_weighted = species_properties(species_index, 4) * &
+                  (total_electrostatic_potential - integration_point_index * 0.1 * species_properties(species_index, 4) * &
+                   total_inverse_distance / num_particles)
+               energy_weighted_lambda = energy_weighted * integration_point_index * 0.1
+               energy_weighted_exponential = exp(beta_inverse_temp * energy_conversion_factor * energy_weighted_lambda)
+               energy_weighted_denominator(species_measurement_index, integration_index) = &
+                  energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
+               energy_weighted_numerator(species_measurement_index, integration_index) = &
+                  energy_weighted_numerator(species_measurement_index, integration_index) - &
+                  energy_weighted * beta_inverse_temp * energy_conversion_factor * energy_weighted_exponential
             end do
 
 160         continue
@@ -1099,53 +1124,68 @@ subroutine calculate_widom_insertion
 
    entry calculate_widom_insertion2
 
-   ntocp = num_species* (measurement_location+ 1)
+   total_chemical_potentials = num_species * (measurement_location + 1)
 
-   do i = 1, ntocp
-      do j = 1, 11
-         if (ewden(i, j) == 0) then
-            write(unit_output, *) ' WIDOM DENOMINATOR EQUALS ZERO', i, j
+   do species_index = 1, total_chemical_potentials
+      do loop_index = 1, 11
+         if (energy_weighted_denominator(species_index, loop_index) == 0) then
+            write(unit_output, *) ' WIDOM DENOMINATOR EQUALS ZERO', species_index, loop_index
          else
-            chint(i, j)  = ewnom(i, j) / ewden(i, j)
-            ewnom(i, j)  = 0
-            ewden(i, j)  = 0
-            chinta(i, j) = chinta(i, j) + 1.0 / mc_steps_outer * chint(i, j)
+            chem_pot_integration(species_index, loop_index) = &
+               energy_weighted_numerator(species_index, loop_index) / energy_weighted_denominator(species_index, loop_index)
+            energy_weighted_numerator(species_index, loop_index) = 0
+            energy_weighted_denominator(species_index, loop_index) = 0
+            chem_pot_integration_avg(species_index, loop_index) = chem_pot_integration_avg(species_index, loop_index) + &
+               1.0 / mc_steps_outer * chem_pot_integration(species_index, loop_index)
          end if
       end do
 
-      aint4 = chint(i, 2) + chint(i, 4) + chint(i, 6) + chint(i, 8) + chint(i, 10)
-      aint2 = chint(i, 3) + chint(i, 5) + chint(i, 7) + chint(i, 9)
-      aint1 = chint(i, 1) + chint(i, 11)
-      chel(current_macro_step, i) = 1.0 / 30.0 * (aint1 + 2 * aint2 + 4 * aint4)
+      simpson_weight_4 = chem_pot_integration(species_index, 2) + chem_pot_integration(species_index, 4) + &
+                         chem_pot_integration(species_index, 6) + chem_pot_integration(species_index, 8) + &
+                         chem_pot_integration(species_index, 10)
+      simpson_weight_2 = chem_pot_integration(species_index, 3) + chem_pot_integration(species_index, 5) + &
+                         chem_pot_integration(species_index, 7) + chem_pot_integration(species_index, 9)
+      simpson_weight_1 = chem_pot_integration(species_index, 1) + chem_pot_integration(species_index, 11)
+      chem_pot_electrostatic(current_macro_step, species_index) = &
+         1.0 / 30.0 * (simpson_weight_1 + 2 * simpson_weight_2 + 4 * simpson_weight_4)
    end do
 
-   nwtot = mwcn(current_macro_step) * num_widom_insertions
-   nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
+   total_widom_tests = widom_count_per_macrostep(current_macro_step) * num_widom_insertions
+   total_widom_tests = num_widom_insertions * int(mc_steps_inner / widom_interval) * mc_steps_middle
 
-   do i = 1, ntocp
-      ihc(i) = ihc(i) + ihcall(int((i - 1) / num_species))
-      chhc(current_macro_step, i)  = -dlog(dble(nwtot - ihc(i)) / nwtot)
-      chexw(current_macro_step, i) = -dlog(expuw(i) / nwtot)
-      chex(current_macro_step, i)  = chel(current_macro_step, i) + chhc(current_macro_step, i)
-      chto(current_macro_step, i)  = chex(current_macro_step, i) + chid(i)
-      expuw(i) = 0
-      ihc(i)   = 0
+   do species_index = 1, total_chemical_potentials
+      hardcore_rejection_count(species_index) = hardcore_rejection_count(species_index) + &
+         hardcore_rejection_all(int((species_index - 1) / num_species))
+      chem_pot_hardcore(current_macro_step, species_index) = &
+         -dlog(dble(total_widom_tests - hardcore_rejection_count(species_index)) / total_widom_tests)
+      chem_pot_excess_widom(current_macro_step, species_index) = &
+         -dlog(exponential_widom_sum(species_index) / total_widom_tests)
+      chem_pot_excess(current_macro_step, species_index) = &
+         chem_pot_electrostatic(current_macro_step, species_index) + chem_pot_hardcore(current_macro_step, species_index)
+      chem_pot_total(current_macro_step, species_index) = &
+         chem_pot_excess(current_macro_step, species_index) + chem_pot_ideal(species_index)
+      exponential_widom_sum(species_index) = 0
+      hardcore_rejection_count(species_index) = 0
    end do
 
-   do j = 1, num_species
-      dch1(current_macro_step, j) = chto(current_macro_step, j) - chex(current_macro_step, num_species+ j)
-      dch2(current_macro_step, j) = chto(current_macro_step, j) - chex(current_macro_step, 2 * num_species+ j)
+   do species_index = 1, num_species
+      chem_pot_diff_wall(current_macro_step, species_index) = &
+         chem_pot_total(current_macro_step, species_index) - chem_pot_excess(current_macro_step, num_species + species_index)
+      chem_pot_diff_midplane(current_macro_step, species_index) = &
+         chem_pot_total(current_macro_step, species_index) - chem_pot_excess(current_macro_step, 2 * num_species + species_index)
    end do
 
-   write(unit_macro, 2010) nwtot
+   write(unit_macro, 2010) total_widom_tests
 
-   do j = 0, measurement_location
-      ihcall(j) = 0
-      write(unit_macro, '(/, a)') str(j + 1)
+   do measurement_position = 0, measurement_location
+      hardcore_rejection_all(measurement_position) = 0
+      write(unit_macro, '(/, a)') location_description(measurement_position + 1)
       write(unit_macro, 2015)
-      write(unit_macro, 2020) (i, chid(i), chhc(current_macro_step, i), chel(current_macro_step, i), &
-                        chex(current_macro_step, i), chto(current_macro_step, i), chexw(current_macro_step, i), &
-                        i = j * num_species+ 1, (j + 1) * num_species)
+      write(unit_macro, 2020) &
+         (species_index, chem_pot_ideal(species_index), chem_pot_hardcore(current_macro_step, species_index), &
+          chem_pot_electrostatic(current_macro_step, species_index), chem_pot_excess(current_macro_step, species_index), &
+          chem_pot_total(current_macro_step, species_index), chem_pot_excess_widom(current_macro_step, species_index), &
+          species_index = measurement_position * num_species + 1, (measurement_position + 1) * num_species)
    end do
 
    return
@@ -1153,84 +1193,103 @@ subroutine calculate_widom_insertion
 
    entry calculate_widom_insertion3
 
-   nwtot = 0
+   total_widom_tests = 0
 
-   do i = 1, mc_steps_outer
-      nwtot = nwtot + mwcn(i) * num_widom_insertions
+   do loop_index = 1, mc_steps_outer
+      total_widom_tests = total_widom_tests + widom_count_per_macrostep(loop_index) * num_widom_insertions
    end do
 
-   ntocp = num_species* (measurement_location+ 1)
-   i = 1
+   total_chemical_potentials = num_species * (measurement_location + 1)
 
-   call calculate_statistics_per_species(chel,  chelv,  chelav,  mc_steps_outer, ntocp)
-   call calculate_statistics_per_species(chexw, chexwv, chexwa,  mc_steps_outer, ntocp)
-   call calculate_statistics_per_species(chhc,  chhcv,  chhcav,  mc_steps_outer, ntocp)
-   call calculate_statistics_per_species(chex,  chexv,  chexav,  mc_steps_outer, ntocp)
-   call calculate_statistics_per_species(chto,  chtov,  chtoav,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chem_pot_electrostatic, chem_pot_elec_var, chem_pot_elec_avg, &
+                                          mc_steps_outer, total_chemical_potentials)
+   call calculate_statistics_per_species(chem_pot_excess_widom, chem_pot_widom_var, chem_pot_widom_avg, &
+                                          mc_steps_outer, total_chemical_potentials)
+   call calculate_statistics_per_species(chem_pot_hardcore, chem_pot_hc_var, chem_pot_hc_avg, &
+                                          mc_steps_outer, total_chemical_potentials)
+   call calculate_statistics_per_species(chem_pot_excess, chem_pot_ex_var, chem_pot_ex_avg, &
+                                          mc_steps_outer, total_chemical_potentials)
+   call calculate_statistics_per_species(chem_pot_total, chem_pot_tot_var, chem_pot_tot_avg, &
+                                          mc_steps_outer, total_chemical_potentials)
 
    write (unit_output, '(a, /)') 'CONTACT CORRELATION g(r)'
-   write (unit_output, 2001) (i, i = 1, num_species)
+   write (unit_output, 2001) (species_index, species_index = 1, num_species)
 
-   pressure_collision_average= 0.0
+   pressure_collision_average = 0.0
    pressure_collision_variance = 0.0
 
-   do i = 1, num_species
-      do k = 1, num_species
-         do j = 1, mc_steps_outer
-            temp_array(j) = contact_correlation(j, i, k) * exp(chexw(j, k))
+   do species_index = 1, num_species
+      do loop_index = 1, num_species
+         do particle_index = 1, mc_steps_outer
+            temp_array(particle_index) = contact_correlation(particle_index, species_index, loop_index) * &
+               exp(chem_pot_excess_widom(particle_index, loop_index))
          end do
 
-         call calculate_statistics(temp_array, cwiv, cwiav, mc_steps_outer)
-         contact_correlation(11, i, k) = cwiv
-         contact_correlation(12, i, k) = cwiav
+         call calculate_statistics(temp_array, correlation_var, correlation_avg, mc_steps_outer)
+         contact_correlation(11, species_index, loop_index) = correlation_var
+         contact_correlation(12, species_index, loop_index) = correlation_avg
       end do
 
-      write(unit_output, 2002) i, (contact_correlation(12, i, k), contact_correlation(11, i, k), k = 1, num_species)
+      write(unit_output, 2002) species_index, &
+         (contact_correlation(12, species_index, loop_index), contact_correlation(11, species_index, loop_index), &
+          loop_index = 1, num_species)
    end do
 
    write (unit_output, '(/, a, /)') 'CONTACT PRESSURE MATRIX'
-   write (unit_output, 2001) (i, i = 1, num_species)
+   write (unit_output, 2001) (species_index, species_index = 1, num_species)
 
-   do i = 1, num_species
-      do k = 1, num_species
-         do j = 1, mc_steps_outer
-            temp_array(j) = 2.0 / 3.0 * pi * species_concentration(i) * contact_correlation(j, i, k) * &
-                     exp(chexw(j, k) + chid(k)) * (species_properties(i, 3) + species_properties(k, 3)) ** 3
+   do species_index = 1, num_species
+      do loop_index = 1, num_species
+         do particle_index = 1, mc_steps_outer
+            temp_array(particle_index) = 2.0 / 3.0 * pi * species_concentration(species_index) * &
+               contact_correlation(particle_index, species_index, loop_index) * &
+               exp(chem_pot_excess_widom(particle_index, loop_index) + chem_pot_ideal(loop_index)) * &
+               (species_properties(species_index, 3) + species_properties(loop_index, 3)) ** 3
          end do
 
-         call calculate_statistics(temp_array, cwiv, cwiav, mc_steps_outer)
-         contact_correlation(11, i, k) = cwiv
-         contact_correlation(12, i, k) = cwiav
-         pressure_collision_average= pressure_collision_average+ cwiav
-         pressure_collision_variance = pressure_collision_variance + cwiv * cwiv
+         call calculate_statistics(temp_array, correlation_var, correlation_avg, mc_steps_outer)
+         contact_correlation(11, species_index, loop_index) = correlation_var
+         contact_correlation(12, species_index, loop_index) = correlation_avg
+         pressure_collision_average = pressure_collision_average + correlation_avg
+         pressure_collision_variance = pressure_collision_variance + correlation_var * correlation_var
       end do
 
-      write(unit_output, 2002) i, (contact_correlation(12, i, k), contact_correlation(11, i, k), k = 1, num_species)
+      write(unit_output, 2002) species_index, &
+         (contact_correlation(12, species_index, loop_index), contact_correlation(11, species_index, loop_index), &
+          loop_index = 1, num_species)
    end do
 
-   pressure_collision_variance= sqrt(pcollv)
+   pressure_collision_variance = sqrt(pressure_collision_variance)
 
    write(unit_output, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
-                                          &', pcollav, pcollv
+                                          &', pressure_collision_average, pressure_collision_variance
 
 
    write(unit_output, 44)
    write(unit_output, 2034)
-   write(unit_output, 2035) ((i - 1.0) / 10.0, i = 1, 11)
+   write(unit_output, 2035) ((species_index - 1.0) / 10.0, species_index = 1, 11)
 
-   do i = 1, ntocp
-      write(unit_output, 2040) i, (chinta(i, j), j = 1, 11)
+   do species_index = 1, total_chemical_potentials
+      write(unit_output, 2040) species_index, &
+         (chem_pot_integration_avg(species_index, loop_index), loop_index = 1, 11)
    end do
 
-   write(unit_output, 2010) nwtot
+   write(unit_output, 2010) total_widom_tests
 
-   do j = 0, measurement_location
-      write(unit_output, '(/, a)') str(j + 1)
+   do measurement_position = 0, measurement_location
+      write(unit_output, '(/, a)') location_description(measurement_position + 1)
       write(unit_output, 2015)
-      write(unit_output, 2030) (mod(i - 1, num_species) + 1, chid(i), chhcav(i), chhcv(i) &
-                        , chelav(i), chelv(i), chexav(i), chexv(i), chtoav(i), chtov(i) &
-                        , chexwa(i), chexwv(i), i = j * num_species+ 1, num_species* (j + 1))
-      write(unit_output, 2033) ( exp((2 * chexav(i - 2) + chexav(i - 1)) / 3) )
+      write(unit_output, 2030) &
+         (mod(species_index - 1, num_species) + 1, &
+          chem_pot_ideal(species_index), &
+          chem_pot_hc_avg(species_index), chem_pot_hc_var(species_index), &
+          chem_pot_elec_avg(species_index), chem_pot_elec_var(species_index), &
+          chem_pot_ex_avg(species_index), chem_pot_ex_var(species_index), &
+          chem_pot_tot_avg(species_index), chem_pot_tot_var(species_index), &
+          chem_pot_widom_avg(species_index), chem_pot_widom_var(species_index), &
+          species_index = measurement_position * num_species + 1, num_species * (measurement_position + 1))
+      write(unit_output, 2033) (exp((2 * chem_pot_ex_avg(species_index - 2) + &
+                                         chem_pot_ex_avg(species_index - 1)) / 3))
    end do
 
 
