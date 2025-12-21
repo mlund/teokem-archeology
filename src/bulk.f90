@@ -322,41 +322,62 @@ program bulk
             overlap_status= 99
             call evaluate_trial_move
 
-            if (overlap_status/= 0) go to 63
+            if (overlap_status == 0) then
+               ! No hard core overlap, evaluate energy
+               energy_difference = 0.0
+               do loop_j = 1, num_particles
+                  energy_difference = energy_difference + trial_energy(loop_j) - energy_matrix(loop_j, current_particle)
+               end do
 
-            energy_difference = 0.0
-            do loop_j = 1, num_particles
-               energy_difference = energy_difference + trial_energy(loop_j) - energy_matrix(loop_j, current_particle)
-            end do
+               boltzmann_factor = beta_inverse_temp* (energy_difference * energy_conversion_factor)
 
-            boltzmann_factor = beta_inverse_temp* (energy_difference * energy_conversion_factor)
+               ! Metropolis acceptance criterion
+               if (boltzmann_factor < -80.0 .or. boltzmann_factor > 0.0) then
+                  ! Automatically accept (very favorable or downhill move)
+                  moves_per_species_accepted(current_species) = moves_per_species_accepted(current_species) + 1
 
-            if (boltzmann_factor < -80.0) go to 64
-            if (boltzmann_factor >   0.0) go to 62
-            call random_number(random_value)
-            if (exp(boltzmann_factor) < random_value) go to 64
+                  ! Update particle position
+                  particle_x(current_particle) = trial_x
+                  particle_y(current_particle) = trial_y
+                  particle_z(current_particle) = trial_z
 
-62          moves_per_species_accepted(current_species) = moves_per_species_accepted(current_species) + 1
+                  ! Update energy matrix
+                  do loop_j = 1, num_particles
+                     energy_matrix(current_particle, loop_j) = trial_energy(loop_j)
+                     energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
+                  end do
 
-            ! Trial config accepted
-            particle_x(current_particle) = trial_x
-            particle_y(current_particle) = trial_y
-            particle_z(current_particle) = trial_z
+                  total_coulomb_energy= total_coulomb_energy+ energy_difference
+               else
+                  ! Probabilistic acceptance for uphill moves
+                  call random_number(random_value)
+                  if (exp(boltzmann_factor) >= random_value) then
+                     ! Accept move
+                     moves_per_species_accepted(current_species) = moves_per_species_accepted(current_species) + 1
 
-            do loop_j = 1, num_particles
-               energy_matrix(current_particle, loop_j) = trial_energy(loop_j)
-               energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
-            end do
+                     ! Update particle position
+                     particle_x(current_particle) = trial_x
+                     particle_y(current_particle) = trial_y
+                     particle_z(current_particle) = trial_z
 
-            total_coulomb_energy= total_coulomb_energy+ energy_difference
-            go to 65
+                     ! Update energy matrix
+                     do loop_j = 1, num_particles
+                        energy_matrix(current_particle, loop_j) = trial_energy(loop_j)
+                        energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
+                     end do
 
-63          moves_per_species_hardcore_rejected(current_species) = moves_per_species_hardcore_rejected(current_species) + 1
-            go to 65
+                     total_coulomb_energy= total_coulomb_energy+ energy_difference
+                  else
+                     ! Reject move due to energy
+                     moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
+                  end if
+               end if
+            else
+               ! Reject move due to hard core overlap
+               moves_per_species_hardcore_rejected(current_species) = moves_per_species_hardcore_rejected(current_species) + 1
+            end if
 
-64          moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
-
-65          energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
+            energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
                call calculate_collision_pressure1
@@ -597,41 +618,47 @@ subroutine initialize_random_configuration
    max_placement_attempts = 100000
    particles_placed       = 0
 
-1  placement_attempts = placement_attempts + 1
+   do while (particles_placed < num_particles)
+      placement_attempts = placement_attempts + 1
 
-   if (placement_attempts > max_placement_attempts) then
-      write(unit_output, *)' too dense system'
-      stop
-   end if
+      if (placement_attempts > max_placement_attempts) then
+         write(unit_output, *)' too dense system'
+         stop
+      end if
 
-   call random_number(random_value)
-   trial_position_x = (random_value - 0.5) * box_size
-   call random_number(random_value)
-   trial_position_y = (random_value - 0.5) * box_size
-   call random_number(random_value)
-   trial_position_z = (random_value - 0.5) * box_size
-   current_species  = particle_species(particles_placed + 1)
+      call random_number(random_value)
+      trial_position_x = (random_value - 0.5) * box_size
+      call random_number(random_value)
+      trial_position_y = (random_value - 0.5) * box_size
+      call random_number(random_value)
+      trial_position_z = (random_value - 0.5) * box_size
+      current_species  = particle_species(particles_placed + 1)
 
-   do i = 1, particles_placed
-      delta_x = trial_position_x - particle_x(i)
-      delta_y = trial_position_y - particle_y(i)
-      delta_z = trial_position_z - particle_z(i)
-      delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
-      delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
-      delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
-      dist_squared = delta_x ** 2 + delta_y ** 2 + delta_z ** 2
+      ! Check for overlaps with already placed particles
+      overlap_status = 0
+      do i = 1, particles_placed
+         delta_x = trial_position_x - particle_x(i)
+         delta_y = trial_position_y - particle_y(i)
+         delta_z = trial_position_z - particle_z(i)
+         delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
+         delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
+         delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
+         dist_squared = delta_x ** 2 + delta_y ** 2 + delta_z ** 2
 
-      if (dist_squared < hard_core_distance_sq(i, current_species)) go to 1
+         if (dist_squared < hard_core_distance_sq(i, current_species)) then
+            overlap_status = 1
+            exit  ! Exit overlap check loop early
+         end if
+      end do
+
+      ! If no overlap found, accept this particle position
+      if (overlap_status == 0) then
+         particles_placed = particles_placed + 1
+         particle_x(particles_placed) = trial_position_x
+         particle_y(particles_placed) = trial_position_y
+         particle_z(particles_placed) = trial_position_z
+      end if
    end do
-
-   particles_placed = particles_placed + 1
-   particle_x(particles_placed) = trial_position_x
-   particle_y(particles_placed) = trial_position_y
-   particle_z(particles_placed) = trial_position_z
-
-   if (particles_placed == num_particles) return
-
-   go to 1
 
 end subroutine initialize_random_configuration
 
@@ -830,6 +857,8 @@ subroutine calculate_collision_pressure
             ghost_y = ghost_y - aint(ghost_y * box_half_inverse) * box_size
             ghost_z = ghost_z - aint(ghost_z * box_half_inverse) * box_size
 
+            ! Check for hard core overlaps and compute distances
+            overlap_status = 0
             do k = 1, num_particles
                delta_x = dabs(ghost_x - particle_x(k))
                delta_y = dabs(ghost_y - particle_y(k))
@@ -841,23 +870,27 @@ subroutine calculate_collision_pressure
 
                distance_squared(k) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
 
-               if (distance_squared(k) < hard_core_distance_sq(k, species_k)) go to 121
+               if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
+                  overlap_status = 1
+                  exit  ! Exit early if overlap found
+               end if
             end do
 
-            do k = 1, num_particles
-               distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
-            end do
+            ! Only compute electrostatic potential if no hard core overlap
+            if (overlap_status == 0) then
+               do k = 1, num_particles
+                  distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
+               end do
 
-            total_electrostatic_potential = 0
+               total_electrostatic_potential = 0
 
-            do k = 1, num_particles
-               total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k) * particle_charge(k)
-            end do
+               do k = 1, num_particles
+                  total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k) * particle_charge(k)
+               end do
 
-            collision_matrix(species_i, species_k) = exp(beta_inverse_temp * total_electrostatic_potential * &
-               species_properties(species_k, 4) * energy_conversion_factor) + collision_matrix(species_i, species_k)
-
-121         continue
+               collision_matrix(species_i, species_k) = exp(beta_inverse_temp * total_electrostatic_potential * &
+                  species_properties(species_k, 4) * energy_conversion_factor) + collision_matrix(species_i, species_k)
+            end if
          end do
 
          particle_list_start = particle_list_start + num_particles_in_species
@@ -1075,9 +1108,10 @@ subroutine calculate_widom_insertion
             rejection_sum = rejection_sum + is_rejected(species_measurement_index)
          end do
 
+         ! Skip this test particle if all species reject it
          if (rejection_sum == num_species) then
             hardcore_rejection_all(measurement_position) = hardcore_rejection_all(measurement_position) + 1
-            go to 110
+            cycle  ! Continue to next test particle insertion
          end if
 
          do j = 1, num_particles
@@ -1107,31 +1141,28 @@ subroutine calculate_widom_insertion
             species_measurement_index = measurement_position * num_species + i
 
             if (is_rejected(species_measurement_index) == 1) then
+               ! Species rejected due to hard core overlap
                hardcore_rejection_count(species_measurement_index) = hardcore_rejection_count(species_measurement_index) + 1
-               go to 160
+            else
+               ! Species accepted, compute Widom insertion chemical potential
+               exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
+                  exp(beta_inverse_temp * total_electrostatic_potential * species_properties(i, 4) * energy_conversion_factor)
+
+               do integration_point_index = 0, 10
+                  integration_index = integration_point_index + 1
+                  energy_weighted = species_properties(i, 4) * &
+                     (total_electrostatic_potential - integration_point_index * 0.1 * species_properties(i, 4) * &
+                      total_inverse_distance / num_particles)
+                  energy_weighted_lambda = energy_weighted * integration_point_index * 0.1
+                  energy_weighted_exponential = exp(beta_inverse_temp * energy_conversion_factor * energy_weighted_lambda)
+                  energy_weighted_denominator(species_measurement_index, integration_index) = &
+                     energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
+                  energy_weighted_numerator(species_measurement_index, integration_index) = &
+                     energy_weighted_numerator(species_measurement_index, integration_index) - &
+                     energy_weighted * beta_inverse_temp * energy_conversion_factor * energy_weighted_exponential
+               end do
             end if
-
-            exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
-               exp(beta_inverse_temp * total_electrostatic_potential * species_properties(i, 4) * energy_conversion_factor)
-
-            do integration_point_index = 0, 10
-               integration_index = integration_point_index + 1
-               energy_weighted = species_properties(i, 4) * &
-                  (total_electrostatic_potential - integration_point_index * 0.1 * species_properties(i, 4) * &
-                   total_inverse_distance / num_particles)
-               energy_weighted_lambda = energy_weighted * integration_point_index * 0.1
-               energy_weighted_exponential = exp(beta_inverse_temp * energy_conversion_factor * energy_weighted_lambda)
-               energy_weighted_denominator(species_measurement_index, integration_index) = &
-                  energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
-               energy_weighted_numerator(species_measurement_index, integration_index) = &
-                  energy_weighted_numerator(species_measurement_index, integration_index) - &
-                  energy_weighted * beta_inverse_temp * energy_conversion_factor * energy_weighted_exponential
-            end do
-
-160         continue
          end do
-
-110      continue
       end do
    end do
 
