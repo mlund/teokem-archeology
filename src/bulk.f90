@@ -743,10 +743,15 @@ subroutine recalculate_total_energy
          distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
       end do
 
+      ! Separate computation from reduction to enable vectorization
       do j = next_particle_index, num_particles
          pairwise_energy = particle_charge(i)*particle_charge(j)/sqrt(distance_squared(j))
-         total_coulomb_energy = total_coulomb_energy + pairwise_energy
          energy_matrix(i, j) = pairwise_energy
+      end do
+
+      ! Accumulate energy (separate reduction)
+      do j = next_particle_index, num_particles
+         total_coulomb_energy = total_coulomb_energy + energy_matrix(i, j)
       end do
    end do
 
