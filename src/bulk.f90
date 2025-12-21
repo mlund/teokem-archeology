@@ -9,7 +9,7 @@
 
 program bulk
 
-   implicit double precision (a-h, o-z)
+   implicit none
    real :: ran2
    include 'bulk_f90.inc'
 
@@ -19,9 +19,16 @@ program bulk
    ! Local variables for Monte Carlo simulation
    integer :: step_inner, step_middle         ! Loop counters for inner and middle MC loops
    integer :: kn1, kn2, key, kntot            ! Counters for accepted/rejected moves
+   integer :: i, j, k, l, num                 ! Loop counters and temporary variables
+   integer :: iclk, lclk, nkonf, nwtot        ! Clock and configuration counters
+   integer :: mtot(max_species), macc(max_species), menrj(max_species), mhcrj(max_species)
 
-   dimension :: uula(2), uuta(2), suu(25), tijd(10)
-   dimension :: mtot(max_species), macc(max_species), menrj(max_species), mhcrj(max_species)
+   double precision :: uula(2), uuta(2), suu(25), tijd(10)
+   double precision :: deltae, dzxp, uuvar     ! Energy and variance variables
+   double precision :: t                       ! Temperature variable
+   double precision :: pexen, pexenv, pid      ! Pressure variables
+   double precision :: ptot, ptotv             ! Total pressure variables
+   double precision :: qww1, yn3, ytot1        ! Energy check and averaging variables
 
    data uuta  / 2*0.0 /
    data suu   / 25*0.0 /
@@ -238,17 +245,17 @@ program bulk
             current_particle   = 1 + mod(kntot, num_particles)
             current_species= particle_species(current_particle)
             kntot = kntot + 1
-            mtot(ispec) = mtot(ispec) + 1
+            mtot(current_species) = mtot(current_species) + 1
 
             trial_x= particle_x(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
             trial_y= particle_y(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
             trial_z= particle_z(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
 
-            if (trial_x>  box2) trial_x= trial_x- box_size
+            if (trial_x>  box_half) trial_x= trial_x- box_size
             if (trial_x< -box_half) trial_x= trial_x+ box_size
-            if (trial_y>  box2) trial_y= trial_y- box_size
+            if (trial_y>  box_half) trial_y= trial_y- box_size
             if (trial_y< -box_half) trial_y= trial_y+ box_size
-            if (trial_z>  box2) trial_z= trial_z- box_size
+            if (trial_z>  box_half) trial_z= trial_z- box_size
             if (trial_z< -box_half) trial_z= trial_z+ box_size
 
             overlap_status= 99
@@ -258,7 +265,7 @@ program bulk
 
             deltae = 0.0
             do j = 1, num_particles
-               deltae = deltae + trial_energy(j) - energy_matrix(j, il)
+               deltae = deltae + trial_energy(j) - energy_matrix(j, current_particle)
             end do
 
             dzxp = beta_inverse_temp* (deltae * energy_conversion_factor)
@@ -267,27 +274,27 @@ program bulk
             if (dzxp >   0.0) go to 62
             if (exp(dzxp) < ran2(random_seed)) go to 64
 
-62          macc(ispec) = macc(ispec) + 1
+62          macc(current_species) = macc(current_species) + 1
 
             ! Trial config accepted
-            particle_x(current_particle) = tx6
-            particle_y(current_particle) = ty6
-            particle_z(current_particle) = tz6
+            particle_x(current_particle) = trial_x
+            particle_y(current_particle) = trial_y
+            particle_z(current_particle) = trial_z
 
             do j = 1, num_particles
                energy_matrix(current_particle, j) = trial_energy(j)
-               energy_matrix(j, il) = trial_energy(j)
+               energy_matrix(j, current_particle) = trial_energy(j)
             end do
 
             total_coulomb_energy= total_coulomb_energy+ deltae
             go to 65
 
-63          mhcrj(ispec) = mhcrj(ispec) + 1
+63          mhcrj(current_species) = mhcrj(current_species) + 1
             go to 65
 
-64          menrj(ispec) = menrj(ispec) + 1
+64          menrj(current_species) = menrj(current_species) + 1
 
-65          uula(1) = uula(1) + xww1
+65          uula(1) = uula(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
                call collision1
@@ -297,10 +304,10 @@ program bulk
          end do
       end do
 
-      qww1 = xww1
+      qww1 = total_coulomb_energy
       call liv
 
-      if (total_coulomb_energy/= 0) qww1 = (qww1 - xww1) / xww1
+      if (total_coulomb_energy/= 0) qww1 = (qww1 - total_coulomb_energy) / total_coulomb_energy
 
       write(unit_macro, *)
       write(unit_macro, 44)
@@ -398,7 +405,7 @@ program bulk
    write(unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
    write(unit_output, 729) 'Ideal pressure       ', pid, 0.0
    write(unit_output, 729) 'Energy con. <E/3V>   ', pexen, pexenv
-   write(unit_output, 729) 'Collision press      ', pcollav, pcollv
+   write(unit_output, 729) 'Collision press      ', pressure_collision_average, pressure_collision_variance
    write(unit_output, 731)
    write(unit_output, 729) 'Bulk pressure        ' , ptot, ptotv
 
@@ -424,9 +431,10 @@ end program bulk
 
 subroutine earth(a, bbbwww, xb, nnn)
 
-   implicit double precision (a-h, o-z)
-
-   dimension :: a(25)
+   implicit none
+   integer :: k, nnn
+   double precision :: a(25), bbbwww, xb
+   double precision :: b, yak
 
    yak = 1.0 / (nnn * (nnn - 1))
    b   = 0.0
@@ -463,10 +471,11 @@ end subroutine earth
 
 subroutine earth2(a, bbbwww, xb, nnn, num)
 
-   implicit double precision (a-h, o-z)
-
-   parameter (max_species = 10)
-   dimension :: a(25, max_species), xb(max_species), bbbwww(max_species)
+   implicit none
+   integer, parameter :: max_species = 10
+   integer :: i, j, k, nnn, num
+   double precision :: a(25, max_species), xb(max_species), bbbwww(max_species)
+   double precision :: b, yak
 
    yak = 1.0 / (nnn * (nnn - 1))
 
@@ -505,9 +514,13 @@ end subroutine earth2
 
 subroutine slump
 
-   implicit double precision (a-h, o-z)
+   implicit none
    real :: ran2
    include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, k12, nsl, nslmax
+   double precision :: ddx, ddy, ddz, r2, x6tt, y6tt, z6tt
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -539,7 +552,7 @@ subroutine slump
       ddz = ddz - aint(ddz * box_half_inverse) * box_size
       r2  = ddx ** 2 + ddy ** 2 + ddz ** 2
 
-      if (r2 < hard_core_distance_sq(i, ispec)) go to 1
+      if (r2 < hard_core_distance_sq(i, current_species)) go to 1
    end do
 
    k12 = k12 + 1
@@ -567,8 +580,12 @@ end subroutine slump
 
 subroutine qin
 
-   implicit double precision (a-h, o-z)
+   implicit none
    include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: k
+   double precision :: ddx, ddy, ddz, chil
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -587,7 +604,7 @@ subroutine qin
       ! Cancel out the hard core overlap with itself
       distance_squared(current_particle) = 1000000
 
-      if (distance_squared(k) < hard_core_distance_sq(k, ispec)) return
+      if (distance_squared(k) < hard_core_distance_sq(k, current_species)) return
    end do
 
    overlap_status= 0
@@ -617,8 +634,12 @@ end subroutine qin
 
 subroutine liv
 
-   implicit double precision (a-h, o-z)
+   implicit none
    include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, k, ip1
+   double precision :: ddx, ddy, ddz, uj1
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -680,15 +701,19 @@ end subroutine liv
 
 subroutine collision
 
-   implicit double precision (a-h, o-z)
+   implicit none
    real :: ran2
    include 'bulk_f90.inc'
 
+   ! Local variables
+   integer :: i, j, k, isp, ksp, nisp, nnn, num, nwtot
+   double precision :: rel(max_species)
+   double precision :: scoll(25, max_species, max_species), coll(max_species, max_species)
+   double precision :: ddx, ddy, ddz, aa, dis, v, g2, wx6, wy6, wz6, urej, wtot2
+   double precision :: collav, collv, cwiav, cwiv
+
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
-
-   dimension :: rel(max_species)
-   dimension :: scoll(25, max_species, max_species), coll(max_species, max_species)
 
    do i = 1, max_species
       do k = 1, max_species
@@ -707,7 +732,7 @@ subroutine collision
 
    entry collision1
 
-   do i = 1, nwins
+   do i = 1, num_widom_insertions
       num = 1
 
       do isp = 1, num_species
@@ -843,26 +868,29 @@ end subroutine collision
 
 subroutine widom
 
-   implicit double precision (a-h, o-z)
+   implicit none
    real :: ran2
    include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, j, k, mp, ntel, ntocp, nwtot, nh, nl, jm, k1, irsum
+   integer :: ihc(max_species), irej(max_species), mwcn(25), ihcall(0:5)
+   double precision :: chel(25, max_species), chhc(25, max_species), chex(25, max_species)
+   double precision :: chto(25, max_species), chexw(25, max_species), dch1(25, max_species)
+   double precision :: dch2(25, max_species), chint(max_species, 11), ewnom(max_species, 11)
+   double precision :: ewden(max_species, 11), chinta(max_species, 11)
+   double precision :: expuw(max_species), chid(max_species)
+   double precision :: chelav(max_species), chelv(max_species), chhcav(max_species), chhcv(max_species)
+   double precision :: chexav(max_species), chexv(max_species), chtoav(max_species), chtov(max_species)
+   double precision :: chexwa(max_species), chexwv(max_species)
+   double precision :: ddx, ddy, ddz, x, y, z, ew, ewd, ewla, wtot2, wtot3, aint1, aint2, aint4, wsum
+   double precision :: uj1, pcollav, pcollv, cwiav, cwiv
+   character*80 str(max_species)
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
-   dimension :: chel(25, max_species), chhc(25, max_species), chex(25, max_species)
-   dimension :: chto(25, max_species), chexw(25, max_species), dch1(25, max_species)
-   dimension :: dch2(25, max_species), chint(max_species, 11), ewnom(max_species, 11)
-   dimension :: ewden(max_species, 11), chinta(max_species, 11)
-   dimension :: expuw(max_species), chid(max_species)
-   dimension :: chelav(max_species), chelv(max_species), chhcav(max_species), chhcv(max_species)
-   dimension :: chexav(max_species), chexv(max_species), chtoav(max_species), chtov(max_species)
-   dimension :: chexwa(max_species), chexwv(max_species)
-   dimension :: ihc(max_species), irej(max_species), mwcn(25), ihcall(0:5)
-
-   character*80 str(max_species)
-
-   do i = 0, nfix
+   do i = 0, measurement_location
       do j = 1, num_species
          if (species_concentration(j) /= 0) then
             chid(j + num_species* i) = dlog( species_concentration(j) / avogadro_number* 1.0d27)
@@ -915,8 +943,8 @@ subroutine widom
 
    mwcn(current_macro_step) = mwcn(current_macro_step) + 1
 
-   do mp = 0, nfix
-      do i = 1, nwins
+   do mp = 0, measurement_location
+      do i = 1, num_widom_insertions
          x = box_size* (ran2(random_seed) - 0.5)
          y = box_size* (ran2(random_seed) - 0.5)
          z = 0
@@ -1028,7 +1056,7 @@ subroutine widom
       chel(current_macro_step, i) = 1.0 / 30.0 * (aint1 + 2 * aint2 + 4 * aint4)
    end do
 
-   nwtot = mwcn(current_macro_step) * nwins
+   nwtot = mwcn(current_macro_step) * num_widom_insertions
    nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
 
    do i = 1, ntocp
@@ -1048,7 +1076,7 @@ subroutine widom
 
    write(unit_macro, 2010) nwtot
 
-   do j = 0, nfix
+   do j = 0, measurement_location
       ihcall(j) = 0
       write(unit_macro, '(/, a)') str(j + 1)
       write(unit_macro, 2015)
@@ -1065,7 +1093,7 @@ subroutine widom
    nwtot = 0
 
    do i = 1, mc_steps_outer
-      nwtot = nwtot + mwcn(i) * nwins
+      nwtot = nwtot + mwcn(i) * num_widom_insertions
    end do
 
    ntocp = num_species* (measurement_location+ 1)
@@ -1133,7 +1161,7 @@ subroutine widom
 
    write(unit_output, 2010) nwtot
 
-   do j = 0, nfix
+   do j = 0, measurement_location
       write(unit_output, '(/, a)') str(j + 1)
       write(unit_output, 2015)
       write(unit_output, 2030) (mod(i - 1, num_species) + 1, chid(i), chhcav(i), chhcv(i) &
