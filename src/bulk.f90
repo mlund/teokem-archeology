@@ -104,21 +104,18 @@ program bulk
         total_accepted_moves, total_mc_steps / 4*0 /
    data time_array  / 10*0.0 /
 
-43 format( 'MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ', &
-            'IONIC SYSTEM  ', /, /, 'Written by Peter Bolhuis, February', &
-            '1992', / )
-
-44 format( '************************************************************', &
-            '************************', / )
-
    unit_macro = 12
    unit_conf = 13
    unit_input = 15
    unit_output = 6
 
-   write(unit_output, 44)
-   write(unit_output, 43)
-   write(unit_output, 44)
+   write(unit_output, '(/, "************************************************************", &
+            &"************************", /)')
+   write(unit_output, '("MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ", &
+            &"IONIC SYSTEM  ", /, /, "Written by Peter Bolhuis, February", &
+            &"1992", /)')
+   write(unit_output, '(/, "************************************************************", &
+            &"************************", /)')
 
 
    ! ==========================================================================
@@ -252,22 +249,20 @@ program bulk
 
    total_widom_tests = num_widom_insertions* (int(mc_steps_inner / widom_interval) * mc_steps_middle * mc_steps_outer)
 
-   write(unit_output, 800) num_particles
-   write(unit_output, 801) (loop_l, int(species_properties(loop_l, 2)), species_properties(loop_l, 3), species_properties(loop_l, 4), &
-                    species_properties(loop_l, 5), species_concentration(loop_l) * 1.0d27 / avogadro_number, loop_l = 1, num_species)
-   write(unit_output, 802) dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, total_configurations, &
-                   dble(total_configurations / num_particles), total_widom_tests
-
-800 format (/, 'VARIABLES FROM INPUT FILE', /, &
-            /, ' number of particles        =', i10, /, &
-            /, ' species   number   radius    charge   dp   average conc', /)
-801 format (i6, i10, f10.1, f10.1, f10.2, f10.6)
-802 format (/, ' dielectric constant         =', f10.1, /, &
-            ' temperature                 =', f10.1, /, &
-            ' box_sizesize (AA)               =', f10.1, /, &
-            ' number of configurations    =', i6, ' *', i6, ' *', i6, ' =', i8, /, &
-            ' number of conf. per part    =', f10.1, /, &
-            ' widom test per species      =', i10, /)
+   write(unit_output, '(/, "VARIABLES FROM INPUT FILE", /, &
+            &/, " number of particles        =", i10, /, &
+            &/, " species   number   radius    charge   dp   average conc", /)') num_particles
+   write(unit_output, '(i6, i10, f10.1, f10.1, f10.2, f10.6)') &
+      (loop_l, int(species_properties(loop_l, 2)), species_properties(loop_l, 3), species_properties(loop_l, 4), &
+       species_properties(loop_l, 5), species_concentration(loop_l) * 1.0d27 / avogadro_number, loop_l = 1, num_species)
+   write(unit_output, '(/, " dielectric constant         =", f10.1, /, &
+            &" temperature                 =", f10.1, /, &
+            &" box_sizesize (AA)               =", f10.1, /, &
+            &" number of configurations    =", i6, " *", i6, " *", i6, " =", i8, /, &
+            &" number of conf. per part    =", f10.1, /, &
+            &" widom test per species      =", i10, /)') &
+      dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, total_configurations, &
+      dble(total_configurations / num_particles), total_widom_tests
 
    energy_conversion_factor= elementary_charge** 2 * 1.0d10 * avogadro_number/ (dielectric_constant * vacuum_permittivity* 4.0 * pi)
 
@@ -369,8 +364,10 @@ program bulk
       if (total_coulomb_energy/= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy) / total_coulomb_energy
 
       write(unit_macro, *)
-      write(unit_macro, 44)
-      write(unit_macro, 73) current_macro_step, energy_consistency_check
+      write(unit_macro, '(/, "************************************************************", &
+            &"************************", /)')
+      write(unit_macro, '(/ " MACROSTEP  ", i10, /, /, "Checkparameters : ", e10.3)') &
+         current_macro_step, energy_consistency_check
 
       if (abs(energy_consistency_check) > 0.001) stop
 
@@ -397,17 +394,13 @@ program bulk
          total_energy_rejections = total_energy_rejections + moves_per_species_energy_rejected(loop_i)
       end do
 
-      write(unit_macro, 810) total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
+      write(unit_macro, '(/, " total number of configurations    =", i8, /, &
+            &" accepted configurations           =", i8, /, &
+            &" energy rejected configurations    =", i8, /, &
+            &" hard core rejected configurations =", i8, /)') &
+         total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
       write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_current(1)
    end do
-
-73  format(/ ' MACROSTEP  ', i10, /, /, 'Checkparameters : ', e10.3)
-810 format(/, ' total number of configurations    =', i8, /, &
-           ' accepted configurations           =', i8, /, &
-           ' energy rejected configurations    =', i8, /, &
-           ' hard core rejected configurations =', i8, /)
-811 format(/, 'Divided per species', /, 'species      accepted   ', &
-           ' energy rej.   hard core rej.', /, 10(i6, 3(6x, f8.4), /), /)
 
 
    ! ==========================================================================
@@ -424,13 +417,20 @@ program bulk
    call calculate_statistics(energy_per_macrostep, energy_variance, energy_accumulator_total(1), mc_steps_outer)
 
    write(unit_output, '(/)')
-   write(unit_output, 44)
+   write(unit_output, '(/, "************************************************************", &
+            &"************************", /)')
    write(unit_output, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', mc_steps_outer, &
                                   ' MACROSTEPS'
-   write(unit_output, 810) total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
-   write(unit_output, 811) (loop_l, dble(moves_per_species_accepted(loop_l)) / moves_per_species_total(loop_l), &
-                    dble(moves_per_species_energy_rejected(loop_l)) / moves_per_species_total(loop_l), &
-                    dble(moves_per_species_hardcore_rejected(loop_l)) / moves_per_species_total(loop_l), loop_l = 1, num_species)
+   write(unit_output, '(/, " total number of configurations    =", i8, /, &
+            &" accepted configurations           =", i8, /, &
+            &" energy rejected configurations    =", i8, /, &
+            &" hard core rejected configurations =", i8, /)') &
+      total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
+   write(unit_output, '(/, "Divided per species", /, "species      accepted   ", &
+            &" energy rej.   hard core rej.", /, 10(i6, 3(6x, f8.4), /), /)') &
+      (loop_l, dble(moves_per_species_accepted(loop_l)) / moves_per_species_total(loop_l), &
+       dble(moves_per_species_energy_rejected(loop_l)) / moves_per_species_total(loop_l), &
+       dble(moves_per_species_hardcore_rejected(loop_l)) / moves_per_species_total(loop_l), loop_l = 1, num_species)
    write(unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_total(1), energy_variance
    write(unit_output, *)
 
@@ -440,8 +440,7 @@ program bulk
    end if
 
    rewind unit_conf
-   write(unit_conf, 771) (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
-771 format(5e16.8)
+   write(unit_conf, '(5e16.8)') (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
 
    close(unit_conf)
 
@@ -463,14 +462,11 @@ program bulk
    pressure_total_variance  = sqrt(pressure_collision_variance* pressure_collision_variance+ pressure_excess_variance * pressure_excess_variance)
 
    write(unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
-   write(unit_output, 729) 'Ideal pressure       ', pressure_ideal, 0.0
-   write(unit_output, 729) 'Energy con. <E/3V>   ', pressure_excess_energy, pressure_excess_variance
-   write(unit_output, 729) 'Collision press      ', pressure_collision_average, pressure_collision_variance
-   write(unit_output, 731)
-   write(unit_output, 729) 'Bulk pressure        ' , pressure_total, pressure_total_variance
-
-729 format(a, f12.4, f10.4)
-731 format(70('_'))
+   write(unit_output, '(a, f12.4, f10.4)') 'Ideal pressure       ', pressure_ideal, 0.0
+   write(unit_output, '(a, f12.4, f10.4)') 'Energy con. <E/3V>   ', pressure_excess_energy, pressure_excess_variance
+   write(unit_output, '(a, f12.4, f10.4)') 'Collision press      ', pressure_collision_average, pressure_collision_variance
+   write(unit_output, '(70("_"))')
+   write(unit_output, '(a, f12.4, f10.4)') 'Bulk pressure        ' , pressure_total, pressure_total_variance
 
    stop
 
@@ -865,7 +861,7 @@ subroutine calculate_collision_pressure
 
    write (unit_macro, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
    write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', total_collision_tests
-   write (unit_macro, 2010) (i, i = 1, num_species)
+   write (unit_macro, '("Species          ", 10(12x, i6), /)') (i, i = 1, num_species)
 
    do k = 1, num_species
       do i = 1, num_species
@@ -873,14 +869,10 @@ subroutine calculate_collision_pressure
          collision_matrix(i, k) = 0
       end do
 
-      write(unit_macro, 2012) (collision_samples(current_macro_step, i, k), i = 1, num_species)
+      write(unit_macro, '("        pressure    ", 10e18.6, /)') (collision_samples(current_macro_step, i, k), i = 1, num_species)
    end do
 
    return
-
-2010 format('Species          ', 10(12x, i6), /)
-2012 format('        pressure    ', 10e18.6, /)
-2013 format(i4, '        ', 20e12.5)
 
 
    ! -------------------------------------------------------------------------
@@ -888,7 +880,7 @@ subroutine calculate_collision_pressure
    entry calculate_collision_pressure3
 
    write(unit_output, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
-   write (unit_output, 2010) (i, i = 1, num_species)
+   write (unit_output, '("Species          ", 10(12x, i6), /)') (i, i = 1, num_species)
 
    do i = 1, num_species
       do k = 1, num_species
@@ -906,7 +898,7 @@ subroutine calculate_collision_pressure
          collision_matrix(i, k) = species_concentration(i) * collision_avg
       end do
 
-      write(unit_output, 2013) i, (collision_matrix(i, k), relative_error(k), k = 1, num_species)
+      write(unit_output, '(i4, "        ", 20e12.5)') i, (collision_matrix(i, k), relative_error(k), k = 1, num_species)
    end do
 
    write(unit_output, '(/)')
@@ -1182,13 +1174,14 @@ subroutine calculate_widom_insertion
          chem_pot_total(current_macro_step, i) - chem_pot_excess(current_macro_step, 2 * num_species + i)
    end do
 
-   write(unit_macro, 2010) total_widom_tests
+   write(unit_macro, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
 
    do measurement_position = 0, measurement_location
       hardcore_rejection_all(measurement_position) = 0
       write(unit_macro, '(/, a)') location_description(measurement_position + 1)
-      write(unit_macro, 2015)
-      write(unit_macro, 2020) &
+      write(unit_macro, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
+            &"         Total         Uncorrected Excess")')
+      write(unit_macro, '(10(i3, f8.4, 5(f9.4, "       "), /))') &
          (i, chem_pot_ideal(i), chem_pot_hardcore(current_macro_step, i), &
           chem_pot_electrostatic(current_macro_step, i), chem_pot_excess(current_macro_step, i), &
           chem_pot_total(current_macro_step, i), chem_pot_excess_widom(current_macro_step, i), &
@@ -1220,7 +1213,7 @@ subroutine calculate_widom_insertion
                                           mc_steps_outer, total_chemical_potentials)
 
    write (unit_output, '(a, /)') 'CONTACT CORRELATION g(r)'
-   write (unit_output, 2001) (i, i = 1, num_species)
+   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i = 1, num_species)
 
    pressure_collision_average = 0.0
    pressure_collision_variance = 0.0
@@ -1237,13 +1230,13 @@ subroutine calculate_widom_insertion
          contact_correlation(12, i, k) = correlation_avg
       end do
 
-      write(unit_output, 2002) i, &
+      write(unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
          (contact_correlation(12, i, k), contact_correlation(11, i, k), &
           k = 1, num_species)
    end do
 
    write (unit_output, '(/, a, /)') 'CONTACT PRESSURE MATRIX'
-   write (unit_output, 2001) (i, i = 1, num_species)
+   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i = 1, num_species)
 
    do i = 1, num_species
       do k = 1, num_species
@@ -1261,7 +1254,7 @@ subroutine calculate_widom_insertion
          pressure_collision_variance = pressure_collision_variance + correlation_var * correlation_var
       end do
 
-      write(unit_output, 2002) i, &
+      write(unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
          (contact_correlation(12, i, k), contact_correlation(11, i, k), &
           k = 1, num_species)
    end do
@@ -1272,21 +1265,23 @@ subroutine calculate_widom_insertion
                                           &', pressure_collision_average, pressure_collision_variance
 
 
-   write(unit_output, 44)
-   write(unit_output, 2034)
-   write(unit_output, 2035) ((i - 1.0) / 10.0, i = 1, 11)
+   write(unit_output, '(/, "************************************************************", &
+            &"**********************************************")')
+   write(unit_output, '(/, /, "INTEGRAND IN WIDOM CORRECTION FOR DIFFERENT CHARGE PARAMETERS")')
+   write(unit_output, '("TYPE", 11("  ", f4.2, "  "), /)') ((i - 1.0) / 10.0, i = 1, 11)
 
    do i = 1, total_chemical_potentials
-      write(unit_output, 2040) i, &
+      write(unit_output, '(10(i3, 11f8.3), /)') i, &
          (chem_pot_integration_avg(i, j), j = 1, 11)
    end do
 
-   write(unit_output, 2010) total_widom_tests
+   write(unit_output, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
 
    do measurement_position = 0, measurement_location
       write(unit_output, '(/, a)') location_description(measurement_position + 1)
-      write(unit_output, 2015)
-      write(unit_output, 2030) &
+      write(unit_output, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
+            &"         Total         Uncorrected Excess")')
+      write(unit_output, '(10(i3, f8.4, 5(f9.4, f7.4), /))') &
          (mod(i - 1, num_species) + 1, &
           chem_pot_ideal(i), &
           chem_pot_hc_avg(i), chem_pot_hc_var(i), &
@@ -1295,24 +1290,9 @@ subroutine calculate_widom_insertion
           chem_pot_tot_avg(i), chem_pot_tot_var(i), &
           chem_pot_widom_avg(i), chem_pot_widom_var(i), &
           i = measurement_position * num_species + 1, num_species * (measurement_position + 1))
-      write(unit_output, 2033) (exp((2 * chem_pot_ex_avg(i - 2) + &
+      write(unit_output, '("2:1 ", 10(f8.4), /)') (exp((2 * chem_pot_ex_avg(i - 2) + &
                                          chem_pot_ex_avg(i - 1)) / 3))
    end do
-
-
-2001 format('Species      ', 10(i12, 12x))
-2002 format(i4, '        ', 10(f12.5, f10.5))
-2010 format(/, /, 'CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED', i8, ' TIMES')
-2015 format(/, 'Type  Ideal     Hard Core       El. Static       Excess', &
-           '         Total         Uncorrected Excess')
-2020 format(10(i3, f8.4, 5(f9.4, '       '), /))
-2030 format(10(i3, f8.4, 5(f9.4, f7.4), /))
-2033 format('2:1 ', 10(f8.4), /)
-2034 format(/, /, 'INTEGRAND IN WIDOM CORRECTION FOR DIFFERENT CHARGE PARAMETERS')
-2035 format('TYPE', 11('  ', f4.2, '  '), /)
-2040 format(10(i3, 11f8.3), /)
-44   format(/, '************************************************************', &
-           '**********************************************')
 
    return
 
