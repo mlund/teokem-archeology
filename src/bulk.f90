@@ -20,10 +20,10 @@ program bulk
          double precision :: data_array(25), standard_deviation, mean_value
       end subroutine calculate_statistics
 
-      subroutine calculate_statistics_per_species(a, bbbwww, xb, nnn, num)
+      subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
          integer, parameter :: max_species = 10
-         integer :: nnn, num
-         double precision :: a(25, max_species), xb(max_species), bbbwww(max_species)
+         integer :: num_samples, num_species_to_process
+         double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
       end subroutine calculate_statistics_per_species
 
       subroutine initialize_random_configuration()
@@ -529,32 +529,33 @@ end subroutine calculate_statistics
 ! =============================================================================
 ! =============================================================================
 
-subroutine calculate_statistics_per_species(a, bbbwww, xb, nnn, num)
+subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
 
    implicit none
    integer, parameter :: max_species = 10
-   integer :: i, k, nnn, num
-   double precision :: a(25, max_species), xb(max_species), bbbwww(max_species)
-   double precision :: b, yak
+   integer :: species_index, sample_index, num_samples, num_species_to_process
+   double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
+   double precision :: current_std_dev, normalization_factor
 
-   yak = 1.0 / (nnn * (nnn - 1))
+   normalization_factor = 1.0 / (num_samples * (num_samples - 1))
 
-   do i = 1, num
-      b = 0.0
-      xb(i) = 0.0
+   do species_index = 1, num_species_to_process
+      current_std_dev = 0.0
+      mean_values(species_index) = 0.0
 
-      do k = 1, nnn
-         xb(i) = xb(i) + a(k, i)
+      do sample_index = 1, num_samples
+         mean_values(species_index) = mean_values(species_index) + data_matrix(sample_index, species_index)
       end do
 
-      xb(i) = xb(i) / nnn
+      mean_values(species_index) = mean_values(species_index) / num_samples
 
-      do k = 1, nnn
-         b = b + (a(k, i) - xb(i)) * (a(k, i) - xb(i))
+      do sample_index = 1, num_samples
+         current_std_dev = current_std_dev + (data_matrix(sample_index, species_index) - mean_values(species_index)) * &
+                                              (data_matrix(sample_index, species_index) - mean_values(species_index))
       end do
 
-      b = sqrt(yak * b)
-      bbbwww(i) = b
+      current_std_dev = sqrt(normalization_factor * current_std_dev)
+      standard_deviations(species_index) = current_std_dev
    end do
 
    return
@@ -579,48 +580,49 @@ subroutine initialize_random_configuration
    include 'bulk_f90.inc'
 
    ! Local variables
-   integer :: i, k12, nsl, nslmax
-   double precision :: ddx, ddy, ddz, r2, x6tt, y6tt, z6tt
+   integer :: particle_index, particles_placed, placement_attempts, max_placement_attempts
+   double precision :: delta_x, delta_y, delta_z, dist_squared
+   double precision :: trial_position_x, trial_position_y, trial_position_z
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
    write(unit_output, *) 'Random configuration generated'
 
-   nsl    = 0
-   nslmax = 100000
-   k12    = 0
+   placement_attempts     = 0
+   max_placement_attempts = 100000
+   particles_placed       = 0
 
-1  nsl = nsl + 1
+1  placement_attempts = placement_attempts + 1
 
-   if (nsl > nslmax) then
+   if (placement_attempts > max_placement_attempts) then
       write(unit_output, *)' too dense system'
       stop
    end if
 
-   x6tt  = (ran2(random_seed) - 0.5) * box_size
-   y6tt  = (ran2(random_seed) - 0.5) * box_size
-   z6tt  = (ran2(random_seed) - 0.5) * box_size
-   current_species= particle_species(k12 + 1)
+   trial_position_x = (ran2(random_seed) - 0.5) * box_size
+   trial_position_y = (ran2(random_seed) - 0.5) * box_size
+   trial_position_z = (ran2(random_seed) - 0.5) * box_size
+   current_species  = particle_species(particles_placed + 1)
 
-   do i = 1, k12
-      ddx = x6tt - particle_x(i)
-      ddy = y6tt - particle_y(i)
-      ddz = z6tt - particle_z(i)
-      ddx = ddx - aint(ddx * box_half_inverse) * box_size
-      ddy = ddy - aint(ddy * box_half_inverse) * box_size
-      ddz = ddz - aint(ddz * box_half_inverse) * box_size
-      r2  = ddx ** 2 + ddy ** 2 + ddz ** 2
+   do particle_index = 1, particles_placed
+      delta_x = trial_position_x - particle_x(particle_index)
+      delta_y = trial_position_y - particle_y(particle_index)
+      delta_z = trial_position_z - particle_z(particle_index)
+      delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
+      delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
+      delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
+      dist_squared = delta_x ** 2 + delta_y ** 2 + delta_z ** 2
 
-      if (r2 < hard_core_distance_sq(i, current_species)) go to 1
+      if (dist_squared < hard_core_distance_sq(particle_index, current_species)) go to 1
    end do
 
-   k12 = k12 + 1
-   particle_x(k12) = x6tt
-   particle_y(k12) = y6tt
-   particle_z(k12) = z6tt
+   particles_placed = particles_placed + 1
+   particle_x(particles_placed) = trial_position_x
+   particle_y(particles_placed) = trial_position_y
+   particle_z(particles_placed) = trial_position_z
 
-   if (k12 == num_particles) return
+   if (particles_placed == num_particles) return
 
    go to 1
 
@@ -644,34 +646,34 @@ subroutine evaluate_trial_move
    include 'bulk_f90.inc'
 
    ! Local variables
-   integer :: k
-   double precision :: ddx, ddy, ddz, chil
+   integer :: particle_index
+   double precision :: delta_x, delta_y, delta_z, current_particle_charge
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
-   do k = 1, num_particles
-      ddx = abs(trial_x- particle_x(k))
-      ddy = abs(trial_y- particle_y(k))
-      ddz = abs(trial_z- particle_z(k))
+   do particle_index = 1, num_particles
+      delta_x = abs(trial_x - particle_x(particle_index))
+      delta_y = abs(trial_y - particle_y(particle_index))
+      delta_z = abs(trial_z - particle_z(particle_index))
 
-      if (ddx > box_half) ddx = ddx - box_size
-      if (ddy > box_half) ddy = ddy - box_size
-      if (ddz > box_half) ddz = ddz - box_size
+      if (delta_x > box_half) delta_x = delta_x - box_size
+      if (delta_y > box_half) delta_y = delta_y - box_size
+      if (delta_z > box_half) delta_z = delta_z - box_size
 
-      distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
+      distance_squared(particle_index) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
 
       ! Cancel out the hard core overlap with itself
       distance_squared(current_particle) = 1000000
 
-      if (distance_squared(k) < hard_core_distance_sq(k, current_species)) return
+      if (distance_squared(particle_index) < hard_core_distance_sq(particle_index, current_species)) return
    end do
 
-   overlap_status= 0
-   chil = particle_charge(current_particle)
+   overlap_status = 0
+   current_particle_charge = particle_charge(current_particle)
 
-   do k = 1, num_particles
-      trial_energy(k) = chil * particle_charge(k) / sqrt(distance_squared(k))
+   do particle_index = 1, num_particles
+      trial_energy(particle_index) = current_particle_charge * particle_charge(particle_index) / sqrt(distance_squared(particle_index))
    end do
 
    trial_energy(current_particle) = 0
@@ -698,45 +700,45 @@ subroutine recalculate_total_energy
    include 'bulk_f90.inc'
 
    ! Local variables
-   integer :: i, k, ip1
-   double precision :: ddx, ddy, ddz, uj1
+   integer :: particle_i, particle_j, next_particle_index
+   double precision :: delta_x, delta_y, delta_z, pairwise_energy
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
-   total_coulomb_energy= 0.0
+   total_coulomb_energy = 0.0
 
-   do i = 1, num_particles- 1
-      trial_x= particle_x(i)
-      trial_y= particle_y(i)
-      trial_z= particle_z(i)
-      ip1 = i + 1
+   do particle_i = 1, num_particles - 1
+      trial_x = particle_x(particle_i)
+      trial_y = particle_y(particle_i)
+      trial_z = particle_z(particle_i)
+      next_particle_index = particle_i + 1
 
-      do k = ip1, num_particles
-         ddx = trial_x- particle_x(k)
-         ddy = trial_y- particle_y(k)
-         ddz = trial_z- particle_z(k)
-         ddx = ddx - aint(ddx * box_half_inverse) * box_size
-         ddy = ddy - aint(ddy * box_half_inverse) * box_size
-         ddz = ddz - aint(ddz * box_half_inverse) * box_size
-         distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
+      do particle_j = next_particle_index, num_particles
+         delta_x = trial_x - particle_x(particle_j)
+         delta_y = trial_y - particle_y(particle_j)
+         delta_z = trial_z - particle_z(particle_j)
+         delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
+         delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
+         delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
+         distance_squared(particle_j) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
       end do
 
-      do k = ip1, num_particles
-         uj1 = particle_charge(i) * particle_charge(k) / sqrt(distance_squared(k))
-         total_coulomb_energy= total_coulomb_energy+ uj1
-         energy_matrix(i, k) = uj1
-      end do
-   end do
-
-   do i = 1, num_particles- 1
-      do k = i + 1, num_particles
-         energy_matrix(k, i) = energy_matrix(i, k)
+      do particle_j = next_particle_index, num_particles
+         pairwise_energy = particle_charge(particle_i) * particle_charge(particle_j) / sqrt(distance_squared(particle_j))
+         total_coulomb_energy = total_coulomb_energy + pairwise_energy
+         energy_matrix(particle_i, particle_j) = pairwise_energy
       end do
    end do
 
-   do i = 1, num_particles
-      energy_matrix(i, i) = 0.0
+   do particle_i = 1, num_particles - 1
+      do particle_j = particle_i + 1, num_particles
+         energy_matrix(particle_j, particle_i) = energy_matrix(particle_i, particle_j)
+      end do
+   end do
+
+   do particle_i = 1, num_particles
+      energy_matrix(particle_i, particle_i) = 0.0
    end do
 
    return
