@@ -184,11 +184,11 @@ program bulk
    ! Write input data
    ! ==========================================================================
 
-   nwtot = num_widom_insertions* (int(mc_steps_inner / nwint) * mc_steps_middle * mc_steps_outer)
+   nwtot = num_widom_insertions* (int(mc_steps_inner / widom_interval) * mc_steps_middle * mc_steps_outer)
 
    write(unit_output, 800) num_particles
    write(unit_output, 801) (l, int(species_properties(l, 2)), species_properties(l, 3), species_properties(l, 4), &
-                    species_properties(l, 5), species_concentration(l) * 1.0d27 / avno, l = 1, num_species)
+                    species_properties(l, 5), species_concentration(l) * 1.0d27 / avogadro_number, l = 1, num_species)
    write(unit_output, 802) dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, nkonf, &
                    dble(nkonf / num_particles), nwtot
 
@@ -203,7 +203,7 @@ program bulk
             ' number of conf. per part    =', f10.1, /, &
             ' widom test per species      =', i10, /)
 
-   energy_conversion_factor= elementary_charge** 2 * 1.0d10 * avogadro_number/ (eps * vacuum_permittivity* 4.0 * pi)
+   energy_conversion_factor= elementary_charge** 2 * 1.0d10 * avogadro_number/ (dielectric_constant * vacuum_permittivity* 4.0 * pi)
 
 
    ! ==========================================================================
@@ -289,7 +289,7 @@ program bulk
 
 65          uula(1) = uula(1) + xww1
 
-            if (mod(step_inner, nwint) == 0) then
+            if (mod(step_inner, widom_interval) == 0) then
                call collision1
                call widom1
             end if
@@ -387,11 +387,11 @@ program bulk
 
    pid = 0.0
    do k = 1, num_species
-      pid = pid + species_concentration(k) * 1.0d27 / avno
+      pid = pid + species_concentration(k) * 1.0d27 / avogadro_number
    end do
 
-   pexen  = uuta(1) * 1.0d30 / (3 * gas_constant* temperature* box_size_size** 3 * avno)
-   pexenv = uuvar   * 1.0d30 / (3 * gas_constant* temperature* box_size_size** 3 * avno)
+   pexen  = uuta(1) * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
+   pexenv = uuvar   * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
    ptot   = pid + pressure_collision_average+ pexen
    ptotv  = sqrt(pressure_collision_variance* pressure_collision_variance+ pexenv * pexenv)
 
@@ -534,9 +534,9 @@ subroutine slump
       ddx = x6tt - particle_x(i)
       ddy = y6tt - particle_y(i)
       ddz = z6tt - particle_z(i)
-      ddx = ddx - aint(ddx * box_size_half_inverse) * box_size
-      ddy = ddy - aint(ddy * box_size_half_inverse) * box_size
-      ddz = ddz - aint(ddz * box_size_half_inverse) * box_size
+      ddx = ddx - aint(ddx * box_half_inverse) * box_size
+      ddy = ddy - aint(ddy * box_half_inverse) * box_size
+      ddz = ddz - aint(ddz * box_half_inverse) * box_size
       r2  = ddx ** 2 + ddy ** 2 + ddz ** 2
 
       if (r2 < hard_core_distance_sq(i, ispec)) go to 1
@@ -635,9 +635,9 @@ subroutine liv
          ddx = trial_x- particle_x(k)
          ddy = trial_y- particle_y(k)
          ddz = trial_z- particle_z(k)
-         ddx = ddx - aint(ddx * box_size_half_inverse) * box_size
-         ddy = ddy - aint(ddy * box_size_half_inverse) * box_size
-         ddz = ddz - aint(ddz * box_size_half_inverse) * box_size
+         ddx = ddx - aint(ddx * box_half_inverse) * box_size
+         ddy = ddy - aint(ddy * box_half_inverse) * box_size
+         ddz = ddz - aint(ddz * box_half_inverse) * box_size
          distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
       end do
 
@@ -722,9 +722,9 @@ subroutine collision
             g2  = sqrt(dis * dis - aa * aa) + 0.00001
             wx6 = particle_x(nnn) + g2 * cos(v)
             wy6 = particle_y(nnn) + g2 * sin(v)
-            wx6 = wx6 - aint(wx6 * box_size_half_inverse) * box_size
-            wy6 = wy6 - aint(wy6 * box_size_half_inverse) * box_size
-            wz6 = wz6 - aint(wz6 * box_size_half_inverse) * box_size
+            wx6 = wx6 - aint(wx6 * box_half_inverse) * box_size
+            wy6 = wy6 - aint(wy6 * box_half_inverse) * box_size
+            wz6 = wz6 - aint(wz6 * box_half_inverse) * box_size
             urej = 0
 
             do k = 1, num_particles
@@ -767,7 +767,7 @@ subroutine collision
 
    entry collision2
 
-   nwtot = num_widom_insertions* int(mc_steps_inner / nwint) * mc_steps_middle
+   nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
 
    write (unit_macro, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
    write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', nwtot
@@ -1029,7 +1029,7 @@ subroutine widom
    end do
 
    nwtot = mwcn(current_macro_step) * nwins
-   nwtot = num_widom_insertions* int(mc_steps_inner / nwint) * mc_steps_middle
+   nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
 
    do i = 1, ntocp
       ihc(i) = ihc(i) + ihcall(int((i - 1) / num_species))
