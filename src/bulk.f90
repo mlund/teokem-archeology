@@ -666,6 +666,7 @@ subroutine evaluate_trial_move
    ! Local variables
    integer :: i
    double precision :: delta_x, delta_y, delta_z, current_particle_charge
+   double precision :: distance_squared(max_ions)  ! Squared distances for overlap checking
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -719,6 +720,7 @@ subroutine recalculate_total_energy
    ! Local variables
    integer :: i, j, next_particle_index
    double precision :: delta_x, delta_y, delta_z, pairwise_energy
+   double precision :: distance_squared(max_ions)  ! Squared distances for energy calculation
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -796,6 +798,9 @@ subroutine calculate_collision_pressure
    double precision :: ghost_x, ghost_y, ghost_z
    double precision :: total_electrostatic_potential
    double precision :: collision_avg, collision_var
+   double precision :: temp_array(25)  ! Temporary array for statistical calculations
+   double precision :: distance_squared(max_ions)  ! Squared distances for collision calculation
+   double precision :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -991,6 +996,9 @@ subroutine calculate_widom_insertion
    double precision :: simpson_weight_1, simpson_weight_2, simpson_weight_4, distance_sum
    double precision :: pairwise_energy
    double precision :: correlation_avg, correlation_var
+   double precision :: temp_array(25)  ! Temporary array for statistical calculations
+   double precision :: distance_squared(max_ions)  ! Squared distances for Widom insertion
+   double precision :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
    character(len=80) :: location_description(max_species)
 
    ! Note: Variable names have been updated to be more descriptive

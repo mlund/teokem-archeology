@@ -34,13 +34,6 @@ double precision :: trial_energy(max_ions)             ! Energy for trial partic
 
 
 ! =============================================================================
-! Distance Arrays (working arrays for calculations)
-! =============================================================================
-double precision :: distance_squared(max_ions)   ! Squared distances between particles
-double precision :: distance_inverse(max_ions)   ! Inverse distances (1/r) between particles
-
-
-! =============================================================================
 ! Species Properties Arrays
 ! =============================================================================
 ! Species properties matrix: (species, property_index)
@@ -153,12 +146,6 @@ integer :: unit_macro   ! File unit for macro step output
 
 
 ! =============================================================================
-! Temporary Working Arrays
-! =============================================================================
-double precision :: temp_array(25)  ! Temporary array for statistical calculations
-
-
-! =============================================================================
 ! Common Block Declaration
 ! This preserves the memory layout for compatibility with legacy code
 ! NOTE: Physical constants (pi, avogadro_number, gas_constant, vacuum_permittivity,
@@ -166,9 +153,9 @@ double precision :: temp_array(25)  ! Temporary array for statistical calculatio
 ! =============================================================================
 common /arr1/ energy_matrix, trial_energy, &
               species_concentration, species_interaction_matrix, &
-              contact_correlation, temp_array, &
+              contact_correlation, &
               particle_x, particle_y, particle_z, particle_charge, displacement_max, &
-              distance_squared, distance_inverse, hard_core_distance_sq, species_properties, particle_species, &
+              hard_core_distance_sq, species_properties, particle_species, &
               dielectric_constant, energy_conversion_factor, beta_inverse_temp, temperature, &
               trial_x, trial_y, trial_z, total_coulomb_energy, &
               pressure_widom_wall, pressure_widom_midplane, &
