@@ -200,9 +200,9 @@ program bulk
       write(unit_output, *) 'Configuration read from file'
    end if
 
-   if (initial_config_type== 1) call slump
-   call collision
-   call widom
+   if (initial_config_type== 1) call initialize_random_configuration
+   call calculate_collision_pressure
+   call calculate_widom_insertion
 
 
    ! ==========================================================================
@@ -235,7 +235,7 @@ program bulk
    ! Energy evaluation initial configuration
    ! ==========================================================================
 
-   call liv
+   call recalculate_total_energy
 
    initial_energy_scaled = total_coulomb_energy* energy_conversion_factor* 1.0d-3
 
@@ -277,7 +277,7 @@ program bulk
             if (trial_z< -box_half) trial_z= trial_z+ box_size
 
             overlap_status= 99
-            call qin
+            call evaluate_trial_move
 
             if (overlap_status/= 0) go to 63
 
@@ -315,15 +315,15 @@ program bulk
 65          energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
-               call collision1
-               call widom1
+               call calculate_collision_pressure1
+               call calculate_widom_insertion1
             end if
 
          end do
       end do
 
       energy_consistency_check = total_coulomb_energy
-      call liv
+      call recalculate_total_energy
 
       if (total_coulomb_energy/= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy) / total_coulomb_energy
 
@@ -333,11 +333,11 @@ program bulk
 
       if (abs(energy_consistency_check) > 0.001) stop
 
-      call liv
+      call recalculate_total_energy
 
       if (widom_interval<= mc_steps_inner) then
-         call collision2
-         call widom2
+         call calculate_collision_pressure2
+         call calculate_widom_insertion2
       end if
 
       energy_accumulator_current(1) = energy_accumulator_current(1) / dble(mc_steps_inner * mc_steps_middle)
@@ -380,7 +380,7 @@ program bulk
    energy_accumulator_total(1) = macro_step_inverse * energy_accumulator_total(1)
    energy_accumulator_total(1) = energy_accumulator_total(1) * energy_conversion_factor* 1.0d-3
 
-   call earth(energy_per_macrostep, energy_variance, energy_accumulator_total(1), mc_steps_outer)
+   call calculate_statistics(energy_per_macrostep, energy_variance, energy_accumulator_total(1), mc_steps_outer)
 
    write(unit_output, '(/)')
    write(unit_output, 44)
@@ -394,8 +394,8 @@ program bulk
    write(unit_output, *)
 
    if (widom_interval<= mc_steps_inner) then
-      call collision3
-      call widom3
+      call calculate_collision_pressure3
+      call calculate_widom_insertion3
    end if
 
    rewind unit_conf
@@ -448,7 +448,7 @@ end program bulk
 ! =============================================================================
 ! =============================================================================
 
-subroutine earth(data_array, standard_deviation, mean_value, array_size)
+subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
 
    implicit none
    integer :: loop_index, array_size
@@ -474,7 +474,7 @@ subroutine earth(data_array, standard_deviation, mean_value, array_size)
 
    return
 
-end subroutine earth
+end subroutine calculate_statistics
 
 
 ! =============================================================================
@@ -488,7 +488,7 @@ end subroutine earth
 ! =============================================================================
 ! =============================================================================
 
-subroutine earth2(a, bbbwww, xb, nnn, num)
+subroutine calculate_statistics_per_species(a, bbbwww, xb, nnn, num)
 
    implicit none
    integer, parameter :: max_species = 10
@@ -518,7 +518,7 @@ subroutine earth2(a, bbbwww, xb, nnn, num)
 
    return
 
-end subroutine earth2
+end subroutine calculate_statistics_per_species
 
 
 ! =============================================================================
@@ -531,7 +531,7 @@ end subroutine earth2
 ! =============================================================================
 ! =============================================================================
 
-subroutine slump
+subroutine initialize_random_configuration
 
    implicit none
    real :: ran2
@@ -583,7 +583,7 @@ subroutine slump
 
    go to 1
 
-end subroutine slump
+end subroutine initialize_random_configuration
 
 
 ! =============================================================================
@@ -597,7 +597,7 @@ end subroutine slump
 ! =============================================================================
 ! =============================================================================
 
-subroutine qin
+subroutine evaluate_trial_move
 
    implicit none
    include 'bulk_f90.inc'
@@ -637,7 +637,7 @@ subroutine qin
 
    return
 
-end subroutine qin
+end subroutine evaluate_trial_move
 
 
 ! =============================================================================
@@ -651,7 +651,7 @@ end subroutine qin
 ! =============================================================================
 ! =============================================================================
 
-subroutine liv
+subroutine recalculate_total_energy
 
    implicit none
    include 'bulk_f90.inc'
@@ -700,7 +700,7 @@ subroutine liv
 
    return
 
-end subroutine liv
+end subroutine recalculate_total_energy
 
 
 ! =============================================================================
@@ -718,7 +718,7 @@ end subroutine liv
 ! =============================================================================
 ! =============================================================================
 
-subroutine collision
+subroutine calculate_collision_pressure
 
    implicit none
    real :: ran2
@@ -749,7 +749,7 @@ subroutine collision
 
    ! -------------------------------------------------------------------------
 
-   entry collision1
+   entry calculate_collision_pressure1
 
    do i = 1, num_widom_insertions
       num = 1
@@ -809,7 +809,7 @@ subroutine collision
 
    ! -------------------------------------------------------------------------
 
-   entry collision2
+   entry calculate_collision_pressure2
 
    nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
 
@@ -835,7 +835,7 @@ subroutine collision
 
    ! -------------------------------------------------------------------------
 
-   entry collision3
+   entry calculate_collision_pressure3
 
    write(unit_output, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
    write (unit_output, 2010) (i, i = 1, num_species)
@@ -849,7 +849,7 @@ subroutine collision
             temp_array(j) = scoll(j, i, k)
          end do
 
-         call earth(temp_array, collv, collav, mc_steps_outer)
+         call calculate_statistics(temp_array, collv, collav, mc_steps_outer)
 
          rel(k) = 0
          if (collav /= 0) rel(k) = collv / collav
@@ -863,7 +863,7 @@ subroutine collision
 
    return
 
-end subroutine collision
+end subroutine calculate_collision_pressure
 
 
 ! =============================================================================
@@ -884,7 +884,7 @@ end subroutine collision
 ! =============================================================================
 ! =============================================================================
 
-subroutine widom
+subroutine calculate_widom_insertion
 
    implicit none
    real :: ran2
@@ -957,7 +957,7 @@ subroutine widom
    return
 
 
-   entry widom1
+   entry calculate_widom_insertion1
 
    mwcn(current_macro_step) = mwcn(current_macro_step) + 1
 
@@ -1052,7 +1052,7 @@ subroutine widom
    return
 
 
-   entry widom2
+   entry calculate_widom_insertion2
 
    ntocp = num_species* (measurement_location+ 1)
 
@@ -1106,7 +1106,7 @@ subroutine widom
    return
 
 
-   entry widom3
+   entry calculate_widom_insertion3
 
    nwtot = 0
 
@@ -1117,11 +1117,11 @@ subroutine widom
    ntocp = num_species* (measurement_location+ 1)
    i = 1
 
-   call earth2(chel,  chelv,  chelav,  mc_steps_outer, ntocp)
-   call earth2(chexw, chexwv, chexwa,  mc_steps_outer, ntocp)
-   call earth2(chhc,  chhcv,  chhcav,  mc_steps_outer, ntocp)
-   call earth2(chex,  chexv,  chexav,  mc_steps_outer, ntocp)
-   call earth2(chto,  chtov,  chtoav,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chel,  chelv,  chelav,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chexw, chexwv, chexwa,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chhc,  chhcv,  chhcav,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chex,  chexv,  chexav,  mc_steps_outer, ntocp)
+   call calculate_statistics_per_species(chto,  chtov,  chtoav,  mc_steps_outer, ntocp)
 
    write (unit_output, '(a, /)') 'CONTACT CORRELATION g(r)'
    write (unit_output, 2001) (i, i = 1, num_species)
@@ -1135,7 +1135,7 @@ subroutine widom
             temp_array(j) = contact_correlation(j, i, k) * exp(chexw(j, k))
          end do
 
-         call earth(temp_array, cwiv, cwiav, mc_steps_outer)
+         call calculate_statistics(temp_array, cwiv, cwiav, mc_steps_outer)
          contact_correlation(11, i, k) = cwiv
          contact_correlation(12, i, k) = cwiav
       end do
@@ -1153,7 +1153,7 @@ subroutine widom
                      exp(chexw(j, k) + chid(k)) * (species_properties(i, 3) + species_properties(k, 3)) ** 3
          end do
 
-         call earth(temp_array, cwiv, cwiav, mc_steps_outer)
+         call calculate_statistics(temp_array, cwiv, cwiav, mc_steps_outer)
          contact_correlation(11, i, k) = cwiv
          contact_correlation(12, i, k) = cwiav
          pressure_collision_average= pressure_collision_average+ cwiav
@@ -1205,4 +1205,4 @@ subroutine widom
 
    return
 
-end subroutine widom
+end subroutine calculate_widom_insertion
