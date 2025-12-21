@@ -20,10 +20,9 @@ TARGET_F77 = bulk_f77
 all: $(TARGET)
 
 # Compile the program (Fortran 90 free-form)
-$(TARGET): $(SRCDIR)/ran2.f90 $(SRCDIR)/bulk.f90
-	$(FC) $(RAN2FLAGS) -c $(SRCDIR)/ran2.f90 -o ran2.o
+$(TARGET): $(SRCDIR)/bulk.f90
 	$(FC) $(FFLAGS) -c $(SRCDIR)/bulk.f90 -o bulk.o
-	$(FC) ran2.o bulk.o -o $(TARGET) -lm
+	$(FC) bulk.o -o $(TARGET) -lm
 
 # Compile the original Fortran 77 version
 $(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f

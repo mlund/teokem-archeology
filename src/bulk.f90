@@ -10,7 +10,7 @@
 program bulk
 
    implicit none
-   real :: ran2
+   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Explicit interfaces for subroutines
@@ -161,7 +161,6 @@ program bulk
    read(unit_input, *)
    read(unit_input, *)
    read(unit_input, *) initial_config_type, random_seed
-   random_seed = -random_seed
    read(unit_input, *)
    read(unit_input, *)
    read(unit_input, *) box_size
@@ -175,6 +174,11 @@ program bulk
    if (measurement_location> 2)  measurement_location= 2
    if (random_seed == 0) random_seed = 7
    if (widom_interval== 0) widom_interval= 2 * mc_steps_inner
+
+   ! Initialize built-in random number generator with seed
+   ! Note: The common block contains a variable named random_seed which conflicts
+   ! with the intrinsic random_seed subroutine, so we use a helper subroutine
+   call initialize_rng(random_seed)
 
 
    ! ==========================================================================
@@ -301,9 +305,12 @@ program bulk
             total_mc_steps = total_mc_steps + 1
             moves_per_species_total(current_species) = moves_per_species_total(current_species) + 1
 
-            trial_x= particle_x(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
-            trial_y= particle_y(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
-            trial_z= particle_z(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
+            call random_number(random_value)
+            trial_x= particle_x(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
+            call random_number(random_value)
+            trial_y= particle_y(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
+            call random_number(random_value)
+            trial_z= particle_z(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
 
             if (trial_x>  box_half) trial_x= trial_x- box_size
             if (trial_x< -box_half) trial_x= trial_x+ box_size
@@ -326,7 +333,8 @@ program bulk
 
             if (boltzmann_factor < -80.0) go to 64
             if (boltzmann_factor >   0.0) go to 62
-            if (exp(boltzmann_factor) < ran2(random_seed)) go to 64
+            call random_number(random_value)
+            if (exp(boltzmann_factor) < random_value) go to 64
 
 62          moves_per_species_accepted(current_species) = moves_per_species_accepted(current_species) + 1
 
@@ -572,7 +580,7 @@ end subroutine calculate_statistics_per_species
 subroutine initialize_random_configuration
 
    implicit none
-   real :: ran2
+   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
@@ -596,9 +604,12 @@ subroutine initialize_random_configuration
       stop
    end if
 
-   trial_position_x = (ran2(random_seed) - 0.5) * box_size
-   trial_position_y = (ran2(random_seed) - 0.5) * box_size
-   trial_position_z = (ran2(random_seed) - 0.5) * box_size
+   call random_number(random_value)
+   trial_position_x = (random_value - 0.5) * box_size
+   call random_number(random_value)
+   trial_position_y = (random_value - 0.5) * box_size
+   call random_number(random_value)
+   trial_position_z = (random_value - 0.5) * box_size
    current_species  = particle_species(particles_placed + 1)
 
    do i = 1, particles_placed
@@ -760,7 +771,7 @@ end subroutine recalculate_total_energy
 subroutine calculate_collision_pressure
 
    implicit none
-   real :: ran2
+   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
@@ -804,10 +815,13 @@ subroutine calculate_collision_pressure
          num_particles_in_species = int(species_properties(species_i, 2))
 
          do species_k = 1, num_species
-            random_particle_index = int(ran2(random_seed) * num_particles_in_species) + particle_list_start
+            call random_number(random_value)
+            random_particle_index = int(random_value * num_particles_in_species) + particle_list_start
             contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
-            axial_displacement = (2 * ran2(random_seed) - 1) * contact_distance
-            angle = 2 * pi * ran2(random_seed)
+            call random_number(random_value)
+            axial_displacement = (2 * random_value - 1) * contact_distance
+            call random_number(random_value)
+            angle = 2 * pi * random_value
             ghost_z = particle_z(random_particle_index) + axial_displacement
             radial_distance = sqrt(contact_distance * contact_distance - axial_displacement * axial_displacement) + 0.00001
             ghost_x = particle_x(random_particle_index) + radial_distance * cos(angle)
@@ -929,7 +943,7 @@ end subroutine calculate_collision_pressure
 subroutine calculate_widom_insertion
 
    implicit none
-   real :: ran2
+   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
@@ -1025,12 +1039,15 @@ subroutine calculate_widom_insertion
 
    do measurement_position = 0, measurement_location
       do k = 1, num_widom_insertions
-         test_particle_x = box_size * (ran2(random_seed) - 0.5)
-         test_particle_y = box_size * (ran2(random_seed) - 0.5)
+         call random_number(random_value)
+         test_particle_x = box_size * (random_value - 0.5)
+         call random_number(random_value)
+         test_particle_y = box_size * (random_value - 0.5)
          test_particle_z = 0
 
          if (measurement_position <= 1) then
-            test_particle_z = box_size * (ran2(random_seed) - 0.5)
+            call random_number(random_value)
+            test_particle_z = box_size * (random_value - 0.5)
             if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
          end if
 
@@ -1297,3 +1314,28 @@ subroutine calculate_widom_insertion
    return
 
 end subroutine calculate_widom_insertion
+
+
+! =============================================================================
+! Helper subroutine to initialize the random number generator
+! This is needed because the common block contains a variable named random_seed
+! which conflicts with the intrinsic random_seed subroutine name
+! =============================================================================
+subroutine initialize_rng(seed_value)
+   implicit none
+   integer, intent(in) :: seed_value
+   integer :: seed_size
+   integer, allocatable :: seed_array(:)
+
+   ! Get the size of the seed array
+   call random_seed(size=seed_size)
+
+   ! Allocate and initialize the seed array
+   allocate(seed_array(seed_size))
+   seed_array = seed_value
+
+   ! Set the seed
+   call random_seed(put=seed_array)
+
+   deallocate(seed_array)
+end subroutine initialize_rng
