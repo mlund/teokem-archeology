@@ -13,6 +13,53 @@ program bulk
    real :: ran2
    include 'bulk_f90.inc'
 
+   ! Explicit interfaces for subroutines
+   interface
+      subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
+         integer :: array_size
+         double precision :: data_array(25), standard_deviation, mean_value
+      end subroutine calculate_statistics
+
+      subroutine calculate_statistics_per_species(a, bbbwww, xb, nnn, num)
+         integer, parameter :: max_species = 10
+         integer :: nnn, num
+         double precision :: a(25, max_species), xb(max_species), bbbwww(max_species)
+      end subroutine calculate_statistics_per_species
+
+      subroutine initialize_random_configuration()
+      end subroutine initialize_random_configuration
+
+      subroutine evaluate_trial_move()
+      end subroutine evaluate_trial_move
+
+      subroutine recalculate_total_energy()
+      end subroutine recalculate_total_energy
+
+      subroutine calculate_collision_pressure()
+      end subroutine calculate_collision_pressure
+
+      subroutine calculate_collision_pressure1()
+      end subroutine calculate_collision_pressure1
+
+      subroutine calculate_collision_pressure2()
+      end subroutine calculate_collision_pressure2
+
+      subroutine calculate_collision_pressure3()
+      end subroutine calculate_collision_pressure3
+
+      subroutine calculate_widom_insertion()
+      end subroutine calculate_widom_insertion
+
+      subroutine calculate_widom_insertion1()
+      end subroutine calculate_widom_insertion1
+
+      subroutine calculate_widom_insertion2()
+      end subroutine calculate_widom_insertion2
+
+      subroutine calculate_widom_insertion3()
+      end subroutine calculate_widom_insertion3
+   end interface
+
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 

@@ -65,8 +65,20 @@ function ran2(random_seed)
         generator_2_state = random_seed
 
         ! Fill shuffle table using generator 1
-        ! Extra iterations (table_size + 8) ensure table is well shuffled
-        do table_index = shuffle_table_size + 8, 1, -1
+        ! Extra iterations (8) ensure table is well shuffled before storing values
+        ! First do 8 warm-up iterations
+        do table_index = 1, 8
+            ! Schrage's method: compute (multiplier_1 * seed) mod modulus_1
+            ! without overflow by using seed = quotient * Q + remainder
+            temp_value  = random_seed / quotient_1
+            random_seed = multiplier_1 * (random_seed - temp_value * quotient_1) - temp_value * remainder_1
+
+            ! Ensure result is positive
+            if (random_seed < 0) random_seed = random_seed + modulus_1
+        end do
+
+        ! Now fill the shuffle table
+        do table_index = shuffle_table_size, 1, -1
             ! Schrage's method: compute (multiplier_1 * seed) mod modulus_1
             ! without overflow by using seed = quotient * Q + remainder
             temp_value  = random_seed / quotient_1
@@ -75,8 +87,8 @@ function ran2(random_seed)
             ! Ensure result is positive
             if (random_seed < 0) random_seed = random_seed + modulus_1
 
-            ! Store in shuffle table (only the first shuffle_table_size values)
-            if (table_index <= shuffle_table_size) shuffle_table(table_index) = random_seed
+            ! Store in shuffle table
+            shuffle_table(table_index) = random_seed
         end do
 
         ! Initialize previous output with first table entry
