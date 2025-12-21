@@ -891,16 +891,18 @@ subroutine calculate_widom_insertion
    include 'bulk_f90.inc'
 
    ! Local variables
+   ! max_widom_species accounts for species at multiple measurement locations (bulk, wall, midplane)
+   integer, parameter :: max_widom_species = max_species * 3  ! max_species * (max_measurement_locations + 1)
    integer :: i, j, k, mp, ntel, ntocp, nwtot, nh, nl, jm, k1, irsum
-   integer :: ihc(max_species), irej(max_species), mwcn(25), ihcall(0:5)
-   double precision :: chel(25, max_species), chhc(25, max_species), chex(25, max_species)
-   double precision :: chto(25, max_species), chexw(25, max_species), dch1(25, max_species)
-   double precision :: dch2(25, max_species), chint(max_species, 11), ewnom(max_species, 11)
-   double precision :: ewden(max_species, 11), chinta(max_species, 11)
-   double precision :: expuw(max_species), chid(max_species)
-   double precision :: chelav(max_species), chelv(max_species), chhcav(max_species), chhcv(max_species)
-   double precision :: chexav(max_species), chexv(max_species), chtoav(max_species), chtov(max_species)
-   double precision :: chexwa(max_species), chexwv(max_species)
+   integer :: ihc(max_widom_species), irej(max_widom_species), mwcn(25), ihcall(0:5)
+   double precision :: chel(25, max_widom_species), chhc(25, max_widom_species), chex(25, max_widom_species)
+   double precision :: chto(25, max_widom_species), chexw(25, max_widom_species), dch1(25, max_widom_species)
+   double precision :: dch2(25, max_widom_species), chint(max_widom_species, 11), ewnom(max_widom_species, 11)
+   double precision :: ewden(max_widom_species, 11), chinta(max_widom_species, 11)
+   double precision :: expuw(max_widom_species), chid(max_widom_species)
+   double precision :: chelav(max_widom_species), chelv(max_widom_species), chhcav(max_widom_species), chhcv(max_widom_species)
+   double precision :: chexav(max_widom_species), chexv(max_widom_species), chtoav(max_widom_species), chtov(max_widom_species)
+   double precision :: chexwa(max_widom_species), chexwv(max_widom_species)
    double precision :: ddx, ddy, ddz, x, y, z, ew, ewd, ewla, wtot2, wtot3, aint1, aint2, aint4, wsum
    double precision :: uj1, pcollav, pcollv, cwiav, cwiv
    character(len=80) :: str(max_species)
