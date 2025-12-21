@@ -1,0 +1,7 @@
+indent: 4
+space_around_operators: true
+space_before_paren: false
+line_length: 100
+strict_indent: true
+case: lower
+

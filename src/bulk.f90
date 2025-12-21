@@ -6,7 +6,6 @@
 ! =============================================================================
 ! =============================================================================
 
-
 program bulk
 
    implicit none
@@ -20,7 +19,7 @@ program bulk
          double precision :: data_array(25), standard_deviation, mean_value
       end subroutine calculate_statistics
 
-      subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
+     subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
          integer, parameter :: max_species = 10
          integer :: num_samples, num_species_to_process
          double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
@@ -96,32 +95,30 @@ program bulk
    double precision :: macro_step_inverse                    ! Inverse of number of macro steps (1/N)
    double precision :: initial_energy_scaled                 ! Initial configuration energy (scaled to kJ/mol)
 
-   data energy_accumulator_total  / 2*0.0 /
-   data energy_per_macrostep   / 25*0.0 /
+   data energy_accumulator_total/2*0.0/
+   data energy_per_macrostep/25*0.0/
    data moves_per_species_total, moves_per_species_accepted, &
-        moves_per_species_energy_rejected, moves_per_species_hardcore_rejected / 40*0 /
+      moves_per_species_energy_rejected, moves_per_species_hardcore_rejected/40*0/
    data total_hardcore_rejections, total_energy_rejections, &
-        total_accepted_moves, total_mc_steps / 4*0 /
-   data time_array  / 10*0.0 /
+      total_accepted_moves, total_mc_steps/4*0/
+   data time_array/10*0.0/
 
    unit_macro = 12
    unit_conf = 13
    unit_input = 15
    unit_output = 6
 
-   write(unit_output, '(/, "************************************************************", &
-            &"************************", /)')
-   write(unit_output, '("MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ", &
-            &"IONIC SYSTEM  ", /, /, "Written by Peter Bolhuis, February", &
-            &"1992", /)')
-   write(unit_output, '(/, "************************************************************", &
-            &"************************", /)')
-
+   write (unit_output, '(/, "************************************************************", &
+   &"************************", /)')
+   write (unit_output, '("MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ", &
+   &"IONIC SYSTEM  ", /, /, "Written by Peter Bolhuis, February", &
+   &"1992", /)')
+   write (unit_output, '(/, "************************************************************", &
+   &"************************", /)')
 
    ! ==========================================================================
    ! Physical constants are now defined as parameters in bulk_f90.inc
    ! ==========================================================================
-
 
    ! ==========================================================================
    ! Sample units are angstrom and elementary charge
@@ -146,48 +143,46 @@ program bulk
    ! ==========================================================================
    ! ==========================================================================
 
-   open(unit_conf, file='bulk.conf', form='formatted')
-   open(unit_input, file='bulk.inp',  form='formatted')
-   open(unit_macro, file='bulk.macro', form='formatted')
+   open (unit_conf, file='bulk.conf', form='formatted')
+   open (unit_input, file='bulk.inp', form='formatted')
+   open (unit_macro, file='bulk.macro', form='formatted')
 
-   read(unit_input, *)
-   read(unit_input, *) num_species
-   read(unit_input, *)
-   read(unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) num_species
+   read (unit_input, *)
+   read (unit_input, *)
    read(unit_input, *) (species_properties(loop_l, 1), species_properties(loop_l, 2), species_properties(loop_l, 3), species_properties(loop_l, 4), species_properties(loop_l, 5), loop_l = 1, num_species)
-   read(unit_input, *)
-   read(unit_input, *)
-   read(unit_input, *) mc_steps_inner, mc_steps_middle, mc_steps_outer
-   read(unit_input, *)
-   read(unit_input, *)
-   read(unit_input, *) initial_config_type, random_seed
-   read(unit_input, *)
-   read(unit_input, *)
-   read(unit_input, *) box_size
-   read(unit_input, *)
-   read(unit_input, *)
-   read(unit_input, *) temperature, dielectric_constant
-   read(unit_input, *)
-   read(unit_input, *)
-   read(unit_input, *) num_widom_insertions, widom_interval, measurement_location
+   read (unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) mc_steps_inner, mc_steps_middle, mc_steps_outer
+   read (unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) initial_config_type, random_seed
+   read (unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) box_size
+   read (unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) temperature, dielectric_constant
+   read (unit_input, *)
+   read (unit_input, *)
+   read (unit_input, *) num_widom_insertions, widom_interval, measurement_location
 
-   if (measurement_location> 2)  measurement_location= 2
+   if (measurement_location > 2) measurement_location = 2
    if (random_seed == 0) random_seed = 7
-   if (widom_interval== 0) widom_interval= 2 * mc_steps_inner
+   if (widom_interval == 0) widom_interval = 2*mc_steps_inner
 
    ! Initialize built-in random number generator with seed
    ! Note: The common block contains a variable named random_seed which conflicts
    ! with the intrinsic random_seed subroutine, so we use a helper subroutine
    call initialize_rng(random_seed)
 
-
    ! ==========================================================================
    ! Boxsize variables
    ! ==========================================================================
 
-   box_half = box_size/ 2.0
-   box_half_inverse = 1.0 / box_half
-
+   box_half = box_size/2.0
+   box_half_inverse = 1.0/box_half
 
    ! ==========================================================================
    ! Set up hard core and charge vectors
@@ -199,77 +194,74 @@ program bulk
    ! num_particlesis the total number of particles
    ! ==========================================================================
 
-   num_particles= 0
+   num_particles = 0
 
    do species_index = 1, num_species
       particle_count_temp = int(species_properties(species_index, 2))
 
       do particle_index = 1, particle_count_temp
-         num_particles= num_particles+ 1
+         num_particles = num_particles + 1
          particle_species(num_particles) = species_index
 
          do loop_k = 1, num_species
-            hard_core_distance_sq(num_particles, loop_k) = (species_properties(species_index, 3) + species_properties(loop_k, 3)) ** 2
+            hard_core_distance_sq(num_particles, loop_k) = (species_properties(species_index, 3) + species_properties(loop_k, 3))**2
          end do
 
          particle_charge(num_particles) = species_properties(species_index, 4)
-         displacement_max(num_particles)  = species_properties(species_index, 5)
+         displacement_max(num_particles) = species_properties(species_index, 5)
       end do
    end do
 
    do species_index = 1, num_species
-      species_concentration(species_index) = (species_properties(species_index, 2)) / (box_size** 3)
+      species_concentration(species_index) = (species_properties(species_index, 2))/(box_size**3)
    end do
 
    do particle_index = 1, num_particles
       trial_energy(particle_index) = 0.0
    end do
 
-   total_configurations = mc_steps_inner * mc_steps_middle * mc_steps_outer
+   total_configurations = mc_steps_inner*mc_steps_middle*mc_steps_outer
 
    if (mc_steps_outer > 25) mc_steps_outer = 25
 
    temp_kelvin = temperature
-   beta_inverse_temp= -1.0 / (gas_constant * temperature)
-
+   beta_inverse_temp = -1.0/(gas_constant*temperature)
 
    ! ==========================================================================
    ! Read configuration from file
    ! ==========================================================================
 
-   if (initial_config_type== 0) then
-      read(unit_conf, *) (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
-      write(unit_output, *) 'Configuration read from file'
+   if (initial_config_type == 0) then
+      read (unit_conf, *) (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l=1, num_particles)
+      write (unit_output, *) 'Configuration read from file'
    end if
 
-   if (initial_config_type== 1) call initialize_random_configuration
+   if (initial_config_type == 1) call initialize_random_configuration
    call calculate_collision_pressure
    call calculate_widom_insertion
-
 
    ! ==========================================================================
    ! Write input data
    ! ==========================================================================
 
-   total_widom_tests = num_widom_insertions* (int(mc_steps_inner / widom_interval) * mc_steps_middle * mc_steps_outer)
+   total_widom_tests = num_widom_insertions*(int(mc_steps_inner/widom_interval)*mc_steps_middle*mc_steps_outer)
 
-   write(unit_output, '(/, "VARIABLES FROM INPUT FILE", /, &
-            &/, " number of particles        =", i10, /, &
-            &/, " species   number   radius    charge   dp   average conc", /)') num_particles
-   write(unit_output, '(i6, i10, f10.1, f10.1, f10.2, f10.6)') &
+   write (unit_output, '(/, "VARIABLES FROM INPUT FILE", /, &
+   &/, " number of particles        =", i10, /, &
+   &/, " species   number   radius    charge   dp   average conc", /)') num_particles
+   write (unit_output, '(i6, i10, f10.1, f10.1, f10.2, f10.6)') &
       (loop_l, int(species_properties(loop_l, 2)), species_properties(loop_l, 3), species_properties(loop_l, 4), &
-       species_properties(loop_l, 5), species_concentration(loop_l) * 1.0d27 / avogadro_number, loop_l = 1, num_species)
-   write(unit_output, '(/, " dielectric constant         =", f10.1, /, &
-            &" temperature                 =", f10.1, /, &
-            &" box_sizesize (AA)               =", f10.1, /, &
-            &" number of configurations    =", i6, " *", i6, " *", i6, " =", i8, /, &
-            &" number of conf. per part    =", f10.1, /, &
-            &" widom test per species      =", i10, /)') &
+       species_properties(loop_l, 5), species_concentration(loop_l)*1.0d27/avogadro_number, loop_l=1, num_species)
+   write (unit_output, '(/, " dielectric constant         =", f10.1, /, &
+   &" temperature                 =", f10.1, /, &
+   &" box_sizesize (AA)               =", f10.1, /, &
+   &" number of configurations    =", i6, " *", i6, " *", i6, " =", i8, /, &
+   &" number of conf. per part    =", f10.1, /, &
+   &" widom test per species      =", i10, /)') &
       dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, total_configurations, &
-      dble(total_configurations / num_particles), total_widom_tests
+      dble(total_configurations/num_particles), total_widom_tests
 
-   energy_conversion_factor= elementary_charge** 2 * 1.0d10 * avogadro_number/ (dielectric_constant * vacuum_permittivity* 4.0 * pi)
-
+   energy_conversion_factor = elementary_charge**2*1.0d10*avogadro_number/(dielectric_constant*vacuum_permittivity*4.0*pi)
 
    ! ==========================================================================
    ! Energy evaluation initial configuration
@@ -277,11 +269,10 @@ program bulk
 
    call recalculate_total_energy
 
-   initial_energy_scaled = total_coulomb_energy* energy_conversion_factor* 1.0d-3
+   initial_energy_scaled = total_coulomb_energy*energy_conversion_factor*1.0d-3
 
-   write(unit_output, '(a)') 'Initial configuration'
-   write(unit_output, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', initial_energy_scaled
-
+   write (unit_output, '(a)') 'Initial configuration'
+   write (unit_output, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', initial_energy_scaled
 
    ! ==========================================================================
    ! Start of Monte Carlo loop
@@ -300,26 +291,26 @@ program bulk
 
       do step_middle = 1, mc_steps_middle
          do step_inner = 1, mc_steps_inner
-            current_particle   = 1 + mod(total_mc_steps, num_particles)
-            current_species= particle_species(current_particle)
+            current_particle = 1 + mod(total_mc_steps, num_particles)
+            current_species = particle_species(current_particle)
             total_mc_steps = total_mc_steps + 1
             moves_per_species_total(current_species) = moves_per_species_total(current_species) + 1
 
             call random_number(random_value)
-            trial_x= particle_x(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
+            trial_x = particle_x(current_particle) + displacement_max(current_particle)*(random_value - 0.5)
             call random_number(random_value)
-            trial_y= particle_y(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
+            trial_y = particle_y(current_particle) + displacement_max(current_particle)*(random_value - 0.5)
             call random_number(random_value)
-            trial_z= particle_z(current_particle) + displacement_max(current_particle) * (random_value - 0.5)
+            trial_z = particle_z(current_particle) + displacement_max(current_particle)*(random_value - 0.5)
 
-            if (trial_x>  box_half) trial_x= trial_x- box_size
-            if (trial_x< -box_half) trial_x= trial_x+ box_size
-            if (trial_y>  box_half) trial_y= trial_y- box_size
-            if (trial_y< -box_half) trial_y= trial_y+ box_size
-            if (trial_z>  box_half) trial_z= trial_z- box_size
-            if (trial_z< -box_half) trial_z= trial_z+ box_size
+            if (trial_x > box_half) trial_x = trial_x - box_size
+            if (trial_x < -box_half) trial_x = trial_x + box_size
+            if (trial_y > box_half) trial_y = trial_y - box_size
+            if (trial_y < -box_half) trial_y = trial_y + box_size
+            if (trial_z > box_half) trial_z = trial_z - box_size
+            if (trial_z < -box_half) trial_z = trial_z + box_size
 
-            overlap_status= 99
+            overlap_status = 99
             call evaluate_trial_move
 
             if (overlap_status == 0) then
@@ -329,7 +320,7 @@ program bulk
                   energy_difference = energy_difference + trial_energy(loop_j) - energy_matrix(loop_j, current_particle)
                end do
 
-               boltzmann_factor = beta_inverse_temp* (energy_difference * energy_conversion_factor)
+               boltzmann_factor = beta_inverse_temp*(energy_difference*energy_conversion_factor)
 
                ! Metropolis acceptance criterion
                if (boltzmann_factor < -80.0 .or. boltzmann_factor > 0.0) then
@@ -347,7 +338,7 @@ program bulk
                      energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
                   end do
 
-                  total_coulomb_energy= total_coulomb_energy+ energy_difference
+                  total_coulomb_energy = total_coulomb_energy + energy_difference
                else
                   ! Probabilistic acceptance for uphill moves
                   call random_number(random_value)
@@ -366,7 +357,7 @@ program bulk
                         energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
                      end do
 
-                     total_coulomb_energy= total_coulomb_energy+ energy_difference
+                     total_coulomb_energy = total_coulomb_energy + energy_difference
                   else
                      ! Reject move due to energy
                      moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
@@ -390,26 +381,26 @@ program bulk
       energy_consistency_check = total_coulomb_energy
       call recalculate_total_energy
 
-      if (total_coulomb_energy/= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy) / total_coulomb_energy
+    if (total_coulomb_energy /= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy)/total_coulomb_energy
 
-      write(unit_macro, *)
-      write(unit_macro, '(/, "************************************************************", &
-            &"************************", /)')
-      write(unit_macro, '(/ " MACROSTEP  ", i10, /, /, "Checkparameters : ", e10.3)') &
+      write (unit_macro, *)
+      write (unit_macro, '(/, "************************************************************", &
+      &"************************", /)')
+      write (unit_macro, '(/ " MACROSTEP  ", i10, /, /, "Checkparameters : ", e10.3)') &
          current_macro_step, energy_consistency_check
 
       if (abs(energy_consistency_check) > 0.001) stop
 
       call recalculate_total_energy
 
-      if (widom_interval<= mc_steps_inner) then
+      if (widom_interval <= mc_steps_inner) then
          call calculate_collision_pressure2
          call calculate_widom_insertion2
       end if
 
-      energy_accumulator_current(1) = energy_accumulator_current(1) / dble(mc_steps_inner * mc_steps_middle)
+      energy_accumulator_current(1) = energy_accumulator_current(1)/dble(mc_steps_inner*mc_steps_middle)
       energy_accumulator_total(1) = energy_accumulator_total(1) + energy_accumulator_current(1)
-      energy_accumulator_current(1) = energy_accumulator_current(1) * energy_conversion_factor* 1.0d-3
+      energy_accumulator_current(1) = energy_accumulator_current(1)*energy_conversion_factor*1.0d-3
       energy_per_macrostep(current_macro_step) = energy_accumulator_current(1)
 
       ! Calculate total acceptance and rejection
@@ -423,14 +414,13 @@ program bulk
          total_energy_rejections = total_energy_rejections + moves_per_species_energy_rejected(loop_i)
       end do
 
-      write(unit_macro, '(/, " total number of configurations    =", i8, /, &
-            &" accepted configurations           =", i8, /, &
-            &" energy rejected configurations    =", i8, /, &
-            &" hard core rejected configurations =", i8, /)') &
+      write (unit_macro, '(/, " total number of configurations    =", i8, /, &
+      &" accepted configurations           =", i8, /, &
+      &" energy rejected configurations    =", i8, /, &
+      &" hard core rejected configurations =", i8, /)') &
          total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
-      write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_current(1)
+      write (unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_current(1)
    end do
-
 
    ! ==========================================================================
    ! End of Monte Carlo loop
@@ -439,40 +429,39 @@ program bulk
    !
    ! ==========================================================================
 
-   macro_step_inverse = 1.0 / float(mc_steps_outer)
-   energy_accumulator_total(1) = macro_step_inverse * energy_accumulator_total(1)
-   energy_accumulator_total(1) = energy_accumulator_total(1) * energy_conversion_factor* 1.0d-3
+   macro_step_inverse = 1.0/float(mc_steps_outer)
+   energy_accumulator_total(1) = macro_step_inverse*energy_accumulator_total(1)
+   energy_accumulator_total(1) = energy_accumulator_total(1)*energy_conversion_factor*1.0d-3
 
    call calculate_statistics(energy_per_macrostep, energy_variance, energy_accumulator_total(1), mc_steps_outer)
 
-   write(unit_output, '(/)')
-   write(unit_output, '(/, "************************************************************", &
-            &"************************", /)')
-   write(unit_output, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', mc_steps_outer, &
-                                  ' MACROSTEPS'
-   write(unit_output, '(/, " total number of configurations    =", i8, /, &
-            &" accepted configurations           =", i8, /, &
-            &" energy rejected configurations    =", i8, /, &
-            &" hard core rejected configurations =", i8, /)') &
+   write (unit_output, '(/)')
+   write (unit_output, '(/, "************************************************************", &
+   &"************************", /)')
+   write (unit_output, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', mc_steps_outer, &
+      ' MACROSTEPS'
+   write (unit_output, '(/, " total number of configurations    =", i8, /, &
+   &" accepted configurations           =", i8, /, &
+   &" energy rejected configurations    =", i8, /, &
+   &" hard core rejected configurations =", i8, /)') &
       total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
-   write(unit_output, '(/, "Divided per species", /, "species      accepted   ", &
-            &" energy rej.   hard core rej.", /, 10(i6, 3(6x, f8.4), /), /)') &
-      (loop_l, dble(moves_per_species_accepted(loop_l)) / moves_per_species_total(loop_l), &
-       dble(moves_per_species_energy_rejected(loop_l)) / moves_per_species_total(loop_l), &
-       dble(moves_per_species_hardcore_rejected(loop_l)) / moves_per_species_total(loop_l), loop_l = 1, num_species)
-   write(unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_total(1), energy_variance
-   write(unit_output, *)
+   write (unit_output, '(/, "Divided per species", /, "species      accepted   ", &
+   &" energy rej.   hard core rej.", /, 10(i6, 3(6x, f8.4), /), /)') &
+      (loop_l, dble(moves_per_species_accepted(loop_l))/moves_per_species_total(loop_l), &
+      dble(moves_per_species_energy_rejected(loop_l))/moves_per_species_total(loop_l), &
+      dble(moves_per_species_hardcore_rejected(loop_l))/moves_per_species_total(loop_l), loop_l=1, num_species)
+   write (unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_total(1), energy_variance
+   write (unit_output, *)
 
-   if (widom_interval<= mc_steps_inner) then
+   if (widom_interval <= mc_steps_inner) then
       call calculate_collision_pressure3
       call calculate_widom_insertion3
    end if
 
    rewind unit_conf
-   write(unit_conf, '(5e16.8)') (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
+   write (unit_conf, '(5e16.8)') (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l=1, num_particles)
 
-   close(unit_conf)
-
+   close (unit_conf)
 
    ! ==========================================================================
    !
@@ -482,26 +471,24 @@ program bulk
 
    pressure_ideal = 0.0
    do loop_k = 1, num_species
-      pressure_ideal = pressure_ideal + species_concentration(loop_k) * 1.0d27 / avogadro_number
+      pressure_ideal = pressure_ideal + species_concentration(loop_k)*1.0d27/avogadro_number
    end do
 
-   pressure_excess_energy  = energy_accumulator_total(1) * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
-   pressure_excess_variance = energy_variance   * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
-   pressure_total   = pressure_ideal + pressure_collision_average+ pressure_excess_energy
+   pressure_excess_energy = energy_accumulator_total(1)*1.0d30/(3*gas_constant*temperature*box_size**3*avogadro_number)
+   pressure_excess_variance = energy_variance*1.0d30/(3*gas_constant*temperature*box_size**3*avogadro_number)
+   pressure_total = pressure_ideal + pressure_collision_average + pressure_excess_energy
    pressure_total_variance  = sqrt(pressure_collision_variance* pressure_collision_variance+ pressure_excess_variance * pressure_excess_variance)
 
-   write(unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
-   write(unit_output, '(a, f12.4, f10.4)') 'Ideal pressure       ', pressure_ideal, 0.0
-   write(unit_output, '(a, f12.4, f10.4)') 'Energy con. <E/3V>   ', pressure_excess_energy, pressure_excess_variance
-   write(unit_output, '(a, f12.4, f10.4)') 'Collision press      ', pressure_collision_average, pressure_collision_variance
-   write(unit_output, '(70("_"))')
-   write(unit_output, '(a, f12.4, f10.4)') 'Bulk pressure        ' , pressure_total, pressure_total_variance
+   write (unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
+   write (unit_output, '(a, f12.4, f10.4)') 'Ideal pressure       ', pressure_ideal, 0.0
+   write (unit_output, '(a, f12.4, f10.4)') 'Energy con. <E/3V>   ', pressure_excess_energy, pressure_excess_variance
+   write (unit_output, '(a, f12.4, f10.4)') 'Collision press      ', pressure_collision_average, pressure_collision_variance
+   write (unit_output, '(70("_"))')
+   write (unit_output, '(a, f12.4, f10.4)') 'Bulk pressure        ', pressure_total, pressure_total_variance
 
    stop
 
 end program bulk
-
-
 
 ! =============================================================================
 ! =============================================================================
@@ -521,27 +508,26 @@ subroutine calculate_statistics(data_array, standard_deviation, mean_value, arra
    double precision :: data_array(25), standard_deviation, mean_value
    double precision :: sum_squared_deviations, normalization_factor
 
-   normalization_factor = 1.0 / (array_size * (array_size - 1))
-   sum_squared_deviations   = 0.0
-   mean_value  = 0.0
+   normalization_factor = 1.0/(array_size*(array_size - 1))
+   sum_squared_deviations = 0.0
+   mean_value = 0.0
 
    do i = 1, array_size
       mean_value = mean_value + data_array(i)
    end do
 
-   mean_value = mean_value / array_size
+   mean_value = mean_value/array_size
 
    do i = 1, array_size
-      sum_squared_deviations = sum_squared_deviations + (data_array(i) - mean_value) * (data_array(i) - mean_value)
+      sum_squared_deviations = sum_squared_deviations + (data_array(i) - mean_value)*(data_array(i) - mean_value)
    end do
 
-   sum_squared_deviations = sqrt(normalization_factor * sum_squared_deviations)
+   sum_squared_deviations = sqrt(normalization_factor*sum_squared_deviations)
    standard_deviation = sum_squared_deviations
 
    return
 
 end subroutine calculate_statistics
-
 
 ! =============================================================================
 ! =============================================================================
@@ -562,7 +548,7 @@ subroutine calculate_statistics_per_species(data_matrix, standard_deviations, me
    double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
    double precision :: current_std_dev, normalization_factor
 
-   normalization_factor = 1.0 / (num_samples * (num_samples - 1))
+   normalization_factor = 1.0/(num_samples*(num_samples - 1))
 
    do i = 1, num_species_to_process
       current_std_dev = 0.0
@@ -572,21 +558,20 @@ subroutine calculate_statistics_per_species(data_matrix, standard_deviations, me
          mean_values(i) = mean_values(i) + data_matrix(j, i)
       end do
 
-      mean_values(i) = mean_values(i) / num_samples
+      mean_values(i) = mean_values(i)/num_samples
 
       do j = 1, num_samples
-         current_std_dev = current_std_dev + (data_matrix(j, i) - mean_values(i)) * &
-                                              (data_matrix(j, i) - mean_values(i))
+         current_std_dev = current_std_dev + (data_matrix(j, i) - mean_values(i))* &
+                           (data_matrix(j, i) - mean_values(i))
       end do
 
-      current_std_dev = sqrt(normalization_factor * current_std_dev)
+      current_std_dev = sqrt(normalization_factor*current_std_dev)
       standard_deviations(i) = current_std_dev
    end do
 
    return
 
 end subroutine calculate_statistics_per_species
-
 
 ! =============================================================================
 ! =============================================================================
@@ -612,27 +597,27 @@ subroutine initialize_random_configuration
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
-   write(unit_output, *) 'Random configuration generated'
+   write (unit_output, *) 'Random configuration generated'
 
-   placement_attempts     = 0
+   placement_attempts = 0
    max_placement_attempts = 100000
-   particles_placed       = 0
+   particles_placed = 0
 
    do while (particles_placed < num_particles)
       placement_attempts = placement_attempts + 1
 
       if (placement_attempts > max_placement_attempts) then
-         write(unit_output, *)' too dense system'
+         write (unit_output, *) ' too dense system'
          stop
       end if
 
       call random_number(random_value)
-      trial_position_x = (random_value - 0.5) * box_size
+      trial_position_x = (random_value - 0.5)*box_size
       call random_number(random_value)
-      trial_position_y = (random_value - 0.5) * box_size
+      trial_position_y = (random_value - 0.5)*box_size
       call random_number(random_value)
-      trial_position_z = (random_value - 0.5) * box_size
-      current_species  = particle_species(particles_placed + 1)
+      trial_position_z = (random_value - 0.5)*box_size
+      current_species = particle_species(particles_placed + 1)
 
       ! Check for overlaps with already placed particles
       overlap_status = 0
@@ -640,10 +625,10 @@ subroutine initialize_random_configuration
          delta_x = trial_position_x - particle_x(i)
          delta_y = trial_position_y - particle_y(i)
          delta_z = trial_position_z - particle_z(i)
-         delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
-         delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
-         delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
-         dist_squared = delta_x ** 2 + delta_y ** 2 + delta_z ** 2
+         delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+         delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+         delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
+         dist_squared = delta_x**2 + delta_y**2 + delta_z**2
 
          if (dist_squared < hard_core_distance_sq(i, current_species)) then
             overlap_status = 1
@@ -661,7 +646,6 @@ subroutine initialize_random_configuration
    end do
 
 end subroutine initialize_random_configuration
-
 
 ! =============================================================================
 ! =============================================================================
@@ -695,7 +679,7 @@ subroutine evaluate_trial_move
       if (delta_y > box_half) delta_y = delta_y - box_size
       if (delta_z > box_half) delta_z = delta_z - box_size
 
-      distance_squared(i) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
+      distance_squared(i) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
 
       ! Cancel out the hard core overlap with itself
       distance_squared(current_particle) = 1000000
@@ -707,7 +691,7 @@ subroutine evaluate_trial_move
    current_particle_charge = particle_charge(current_particle)
 
    do i = 1, num_particles
-      trial_energy(i) = current_particle_charge * particle_charge(i) / sqrt(distance_squared(i))
+      trial_energy(i) = current_particle_charge*particle_charge(i)/sqrt(distance_squared(i))
    end do
 
    trial_energy(current_particle) = 0
@@ -715,7 +699,6 @@ subroutine evaluate_trial_move
    return
 
 end subroutine evaluate_trial_move
-
 
 ! =============================================================================
 ! =============================================================================
@@ -752,14 +735,14 @@ subroutine recalculate_total_energy
          delta_x = trial_x - particle_x(j)
          delta_y = trial_y - particle_y(j)
          delta_z = trial_z - particle_z(j)
-         delta_x = delta_x - aint(delta_x * box_half_inverse) * box_size
-         delta_y = delta_y - aint(delta_y * box_half_inverse) * box_size
-         delta_z = delta_z - aint(delta_z * box_half_inverse) * box_size
-         distance_squared(j) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
+         delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+         delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+         delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
+         distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
       end do
 
       do j = next_particle_index, num_particles
-         pairwise_energy = particle_charge(i) * particle_charge(j) / sqrt(distance_squared(j))
+         pairwise_energy = particle_charge(i)*particle_charge(j)/sqrt(distance_squared(j))
          total_coulomb_energy = total_coulomb_energy + pairwise_energy
          energy_matrix(i, j) = pairwise_energy
       end do
@@ -778,7 +761,6 @@ subroutine recalculate_total_energy
    return
 
 end subroutine recalculate_total_energy
-
 
 ! =============================================================================
 !
@@ -830,7 +812,6 @@ subroutine calculate_collision_pressure
 
    return
 
-
    ! -------------------------------------------------------------------------
 
    entry calculate_collision_pressure1
@@ -843,19 +824,19 @@ subroutine calculate_collision_pressure
 
          do species_k = 1, num_species
             call random_number(random_value)
-            random_particle_index = int(random_value * num_particles_in_species) + particle_list_start
+            random_particle_index = int(random_value*num_particles_in_species) + particle_list_start
             contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
             call random_number(random_value)
-            axial_displacement = (2 * random_value - 1) * contact_distance
+            axial_displacement = (2*random_value - 1)*contact_distance
             call random_number(random_value)
-            angle = 2 * pi * random_value
+            angle = 2*pi*random_value
             ghost_z = particle_z(random_particle_index) + axial_displacement
-            radial_distance = sqrt(contact_distance * contact_distance - axial_displacement * axial_displacement) + 0.00001
-            ghost_x = particle_x(random_particle_index) + radial_distance * cos(angle)
-            ghost_y = particle_y(random_particle_index) + radial_distance * sin(angle)
-            ghost_x = ghost_x - aint(ghost_x * box_half_inverse) * box_size
-            ghost_y = ghost_y - aint(ghost_y * box_half_inverse) * box_size
-            ghost_z = ghost_z - aint(ghost_z * box_half_inverse) * box_size
+            radial_distance = sqrt(contact_distance*contact_distance - axial_displacement*axial_displacement) + 0.00001
+            ghost_x = particle_x(random_particle_index) + radial_distance*cos(angle)
+            ghost_y = particle_y(random_particle_index) + radial_distance*sin(angle)
+            ghost_x = ghost_x - aint(ghost_x*box_half_inverse)*box_size
+            ghost_y = ghost_y - aint(ghost_y*box_half_inverse)*box_size
+            ghost_z = ghost_z - aint(ghost_z*box_half_inverse)*box_size
 
             ! Check for hard core overlaps and compute distances
             overlap_status = 0
@@ -868,7 +849,7 @@ subroutine calculate_collision_pressure
                if (delta_y > box_half) delta_y = delta_y - box_size
                if (delta_z > box_half) delta_z = delta_z - box_size
 
-               distance_squared(k) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
+               distance_squared(k) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
 
                if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
                   overlap_status = 1
@@ -879,17 +860,17 @@ subroutine calculate_collision_pressure
             ! Only compute electrostatic potential if no hard core overlap
             if (overlap_status == 0) then
                do k = 1, num_particles
-                  distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
+                  distance_inverse(k) = 1.0/sqrt(distance_squared(k))
                end do
 
                total_electrostatic_potential = 0
 
                do k = 1, num_particles
-                  total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k) * particle_charge(k)
+                  total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k)*particle_charge(k)
                end do
 
-               collision_matrix(species_i, species_k) = exp(beta_inverse_temp * total_electrostatic_potential * &
-                  species_properties(species_k, 4) * energy_conversion_factor) + collision_matrix(species_i, species_k)
+               collision_matrix(species_i, species_k) = exp(beta_inverse_temp*total_electrostatic_potential* &
+                                 species_properties(species_k, 4)*energy_conversion_factor) + collision_matrix(species_i, species_k)
             end if
          end do
 
@@ -899,35 +880,33 @@ subroutine calculate_collision_pressure
 
    return
 
-
    ! -------------------------------------------------------------------------
 
    entry calculate_collision_pressure2
 
-   total_collision_tests = num_widom_insertions * int(mc_steps_inner / widom_interval) * mc_steps_middle
+   total_collision_tests = num_widom_insertions*int(mc_steps_inner/widom_interval)*mc_steps_middle
 
    write (unit_macro, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
    write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', total_collision_tests
-   write (unit_macro, '("Species          ", 10(12x, i6), /)') (i, i = 1, num_species)
+   write (unit_macro, '("Species          ", 10(12x, i6), /)') (i, i=1, num_species)
 
    do k = 1, num_species
       do i = 1, num_species
-         collision_samples(current_macro_step, i, k) = collision_matrix(i, k) / total_collision_tests
+         collision_samples(current_macro_step, i, k) = collision_matrix(i, k)/total_collision_tests
          collision_matrix(i, k) = 0
       end do
 
-      write(unit_macro, '("        pressure    ", 10e18.6, /)') (collision_samples(current_macro_step, i, k), i = 1, num_species)
+      write (unit_macro, '("        pressure    ", 10e18.6, /)') (collision_samples(current_macro_step, i, k), i=1, num_species)
    end do
 
    return
-
 
    ! -------------------------------------------------------------------------
 
    entry calculate_collision_pressure3
 
-   write(unit_output, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
-   write (unit_output, '("Species          ", 10(12x, i6), /)') (i, i = 1, num_species)
+   write (unit_output, '(/, a, /)') 'COLLISION MATRIX  AND RELATIVE ERROR'
+   write (unit_output, '("Species          ", 10(12x, i6), /)') (i, i=1, num_species)
 
    do i = 1, num_species
       do k = 1, num_species
@@ -941,19 +920,18 @@ subroutine calculate_collision_pressure
          call calculate_statistics(temp_array, collision_var, collision_avg, mc_steps_outer)
 
          relative_error(k) = 0
-         if (collision_avg /= 0) relative_error(k) = collision_var / collision_avg
-         collision_matrix(i, k) = species_concentration(i) * collision_avg
+         if (collision_avg /= 0) relative_error(k) = collision_var/collision_avg
+         collision_matrix(i, k) = species_concentration(i)*collision_avg
       end do
 
-      write(unit_output, '(i4, "        ", 20e12.5)') i, (collision_matrix(i, k), relative_error(k), k = 1, num_species)
+      write (unit_output, '(i4, "        ", 20e12.5)') i, (collision_matrix(i, k), relative_error(k), k=1, num_species)
    end do
 
-   write(unit_output, '(/)')
+   write (unit_output, '(/)')
 
    return
 
 end subroutine calculate_collision_pressure
-
 
 ! =============================================================================
 ! =============================================================================
@@ -981,7 +959,7 @@ subroutine calculate_widom_insertion
 
    ! Local variables
    ! max_widom_species accounts for species at multiple measurement locations (bulk, wall, midplane)
-   integer, parameter :: max_widom_species = max_species * 3  ! max_species * (max_measurement_locations + 1)
+   integer, parameter :: max_widom_species = max_species*3  ! max_species * (max_measurement_locations + 1)
    integer :: i, j, k
    integer :: measurement_position, total_chemical_potentials, total_widom_tests
    integer :: num_particles_in_species, particle_list_start, species_measurement_index
@@ -1021,10 +999,10 @@ subroutine calculate_widom_insertion
    do measurement_position = 0, measurement_location
       do i = 1, num_species
          if (species_concentration(i) /= 0) then
-            chem_pot_ideal(i + num_species * measurement_position) = &
-               dlog(species_concentration(i) / avogadro_number * 1.0d27)
+            chem_pot_ideal(i + num_species*measurement_position) = &
+               dlog(species_concentration(i)/avogadro_number*1.0d27)
          else
-            chem_pot_ideal(i + num_species * measurement_position) = -77
+            chem_pot_ideal(i + num_species*measurement_position) = -77
          end if
       end do
    end do
@@ -1065,7 +1043,6 @@ subroutine calculate_widom_insertion
 
    return
 
-
    entry calculate_widom_insertion1
 
    widom_count_per_macrostep(current_macro_step) = widom_count_per_macrostep(current_macro_step) + 1
@@ -1073,14 +1050,14 @@ subroutine calculate_widom_insertion
    do measurement_position = 0, measurement_location
       do k = 1, num_widom_insertions
          call random_number(random_value)
-         test_particle_x = box_size * (random_value - 0.5)
+         test_particle_x = box_size*(random_value - 0.5)
          call random_number(random_value)
-         test_particle_y = box_size * (random_value - 0.5)
+         test_particle_y = box_size*(random_value - 0.5)
          test_particle_z = 0
 
          if (measurement_position <= 1) then
             call random_number(random_value)
-            test_particle_z = box_size * (random_value - 0.5)
+            test_particle_z = box_size*(random_value - 0.5)
             if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
          end if
 
@@ -1091,13 +1068,13 @@ subroutine calculate_widom_insertion
             if (delta_y > box_half) delta_y = delta_y - box_size
             delta_z = abs(test_particle_z - particle_z(j))
             if (delta_z > box_half) delta_z = delta_z - box_size
-            distance_squared(j) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
+            distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
          end do
 
          rejection_sum = 0
 
          do i = 1, num_species
-            species_measurement_index = measurement_position * num_species + i
+            species_measurement_index = measurement_position*num_species + i
             is_rejected(species_measurement_index) = 0
 
             do j = 1, num_particles
@@ -1115,7 +1092,7 @@ subroutine calculate_widom_insertion
          end if
 
          do j = 1, num_particles
-            distance_inverse(j) = 1.0 / sqrt(distance_squared(j))
+            distance_inverse(j) = 1.0/sqrt(distance_squared(j))
          end do
 
          total_electrostatic_potential = 0
@@ -1131,14 +1108,14 @@ subroutine calculate_widom_insertion
             end do
 
             particle_list_start = particle_list_start + num_particles_in_species
-            total_electrostatic_potential = total_electrostatic_potential + distance_sum * species_properties(i, 4)
+            total_electrostatic_potential = total_electrostatic_potential + distance_sum*species_properties(i, 4)
             total_inverse_distance = total_inverse_distance + distance_sum
          end do
 
          total_electrostatic_potential = total_electrostatic_potential + pairwise_energy
 
          do i = 1, num_species
-            species_measurement_index = measurement_position * num_species + i
+            species_measurement_index = measurement_position*num_species + i
 
             if (is_rejected(species_measurement_index) == 1) then
                ! Species rejected due to hard core overlap
@@ -1146,20 +1123,20 @@ subroutine calculate_widom_insertion
             else
                ! Species accepted, compute Widom insertion chemical potential
                exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
-                  exp(beta_inverse_temp * total_electrostatic_potential * species_properties(i, 4) * energy_conversion_factor)
+                              exp(beta_inverse_temp*total_electrostatic_potential*species_properties(i, 4)*energy_conversion_factor)
 
                do integration_point_index = 0, 10
                   integration_index = integration_point_index + 1
-                  energy_weighted = species_properties(i, 4) * &
-                     (total_electrostatic_potential - integration_point_index * 0.1 * species_properties(i, 4) * &
-                      total_inverse_distance / num_particles)
-                  energy_weighted_lambda = energy_weighted * integration_point_index * 0.1
-                  energy_weighted_exponential = exp(beta_inverse_temp * energy_conversion_factor * energy_weighted_lambda)
+                  energy_weighted = species_properties(i, 4)* &
+                                    (total_electrostatic_potential - integration_point_index*0.1*species_properties(i, 4)* &
+                                     total_inverse_distance/num_particles)
+                  energy_weighted_lambda = energy_weighted*integration_point_index*0.1
+                  energy_weighted_exponential = exp(beta_inverse_temp*energy_conversion_factor*energy_weighted_lambda)
                   energy_weighted_denominator(species_measurement_index, integration_index) = &
                      energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
                   energy_weighted_numerator(species_measurement_index, integration_index) = &
                      energy_weighted_numerator(species_measurement_index, integration_index) - &
-                     energy_weighted * beta_inverse_temp * energy_conversion_factor * energy_weighted_exponential
+                     energy_weighted*beta_inverse_temp*energy_conversion_factor*energy_weighted_exponential
                end do
             end if
          end do
@@ -1168,22 +1145,21 @@ subroutine calculate_widom_insertion
 
    return
 
-
    entry calculate_widom_insertion2
 
-   total_chemical_potentials = num_species * (measurement_location + 1)
+   total_chemical_potentials = num_species*(measurement_location + 1)
 
    do i = 1, total_chemical_potentials
       do j = 1, 11
          if (energy_weighted_denominator(i, j) == 0) then
-            write(unit_output, *) ' WIDOM DENOMINATOR EQUALS ZERO', i, j
+            write (unit_output, *) ' WIDOM DENOMINATOR EQUALS ZERO', i, j
          else
             chem_pot_integration(i, j) = &
-               energy_weighted_numerator(i, j) / energy_weighted_denominator(i, j)
+               energy_weighted_numerator(i, j)/energy_weighted_denominator(i, j)
             energy_weighted_numerator(i, j) = 0
             energy_weighted_denominator(i, j) = 0
             chem_pot_integration_avg(i, j) = chem_pot_integration_avg(i, j) + &
-               1.0 / mc_steps_outer * chem_pot_integration(i, j)
+                                             1.0/mc_steps_outer*chem_pot_integration(i, j)
          end if
       end do
 
@@ -1194,19 +1170,19 @@ subroutine calculate_widom_insertion
                          chem_pot_integration(i, 7) + chem_pot_integration(i, 9)
       simpson_weight_1 = chem_pot_integration(i, 1) + chem_pot_integration(i, 11)
       chem_pot_electrostatic(current_macro_step, i) = &
-         1.0 / 30.0 * (simpson_weight_1 + 2 * simpson_weight_2 + 4 * simpson_weight_4)
+         1.0/30.0*(simpson_weight_1 + 2*simpson_weight_2 + 4*simpson_weight_4)
    end do
 
-   total_widom_tests = widom_count_per_macrostep(current_macro_step) * num_widom_insertions
-   total_widom_tests = num_widom_insertions * int(mc_steps_inner / widom_interval) * mc_steps_middle
+   total_widom_tests = widom_count_per_macrostep(current_macro_step)*num_widom_insertions
+   total_widom_tests = num_widom_insertions*int(mc_steps_inner/widom_interval)*mc_steps_middle
 
    do i = 1, total_chemical_potentials
       hardcore_rejection_count(i) = hardcore_rejection_count(i) + &
-         hardcore_rejection_all(int((i - 1) / num_species))
+                                    hardcore_rejection_all(int((i - 1)/num_species))
       chem_pot_hardcore(current_macro_step, i) = &
-         -dlog(dble(total_widom_tests - hardcore_rejection_count(i)) / total_widom_tests)
+         -dlog(dble(total_widom_tests - hardcore_rejection_count(i))/total_widom_tests)
       chem_pot_excess_widom(current_macro_step, i) = &
-         -dlog(exponential_widom_sum(i) / total_widom_tests)
+         -dlog(exponential_widom_sum(i)/total_widom_tests)
       chem_pot_excess(current_macro_step, i) = &
          chem_pot_electrostatic(current_macro_step, i) + chem_pot_hardcore(current_macro_step, i)
       chem_pot_total(current_macro_step, i) = &
@@ -1219,49 +1195,48 @@ subroutine calculate_widom_insertion
       chem_pot_diff_wall(current_macro_step, i) = &
          chem_pot_total(current_macro_step, i) - chem_pot_excess(current_macro_step, num_species + i)
       chem_pot_diff_midplane(current_macro_step, i) = &
-         chem_pot_total(current_macro_step, i) - chem_pot_excess(current_macro_step, 2 * num_species + i)
+         chem_pot_total(current_macro_step, i) - chem_pot_excess(current_macro_step, 2*num_species + i)
    end do
 
-   write(unit_macro, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
+   write (unit_macro, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
 
    do measurement_position = 0, measurement_location
       hardcore_rejection_all(measurement_position) = 0
-      write(unit_macro, '(/, a)') location_description(measurement_position + 1)
-      write(unit_macro, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
-            &"         Total         Uncorrected Excess")')
-      write(unit_macro, '(10(i3, f8.4, 5(f9.4, "       "), /))') &
+      write (unit_macro, '(/, a)') location_description(measurement_position + 1)
+      write (unit_macro, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
+      &"         Total         Uncorrected Excess")')
+      write (unit_macro, '(10(i3, f8.4, 5(f9.4, "       "), /))') &
          (i, chem_pot_ideal(i), chem_pot_hardcore(current_macro_step, i), &
           chem_pot_electrostatic(current_macro_step, i), chem_pot_excess(current_macro_step, i), &
           chem_pot_total(current_macro_step, i), chem_pot_excess_widom(current_macro_step, i), &
-          i = measurement_position * num_species + 1, (measurement_position + 1) * num_species)
+          i=measurement_position*num_species + 1, (measurement_position + 1)*num_species)
    end do
 
    return
-
 
    entry calculate_widom_insertion3
 
    total_widom_tests = 0
 
    do i = 1, mc_steps_outer
-      total_widom_tests = total_widom_tests + widom_count_per_macrostep(i) * num_widom_insertions
+      total_widom_tests = total_widom_tests + widom_count_per_macrostep(i)*num_widom_insertions
    end do
 
-   total_chemical_potentials = num_species * (measurement_location + 1)
+   total_chemical_potentials = num_species*(measurement_location + 1)
 
    call calculate_statistics_per_species(chem_pot_electrostatic, chem_pot_elec_var, chem_pot_elec_avg, &
-                                          mc_steps_outer, total_chemical_potentials)
+                                         mc_steps_outer, total_chemical_potentials)
    call calculate_statistics_per_species(chem_pot_excess_widom, chem_pot_widom_var, chem_pot_widom_avg, &
-                                          mc_steps_outer, total_chemical_potentials)
+                                         mc_steps_outer, total_chemical_potentials)
    call calculate_statistics_per_species(chem_pot_hardcore, chem_pot_hc_var, chem_pot_hc_avg, &
-                                          mc_steps_outer, total_chemical_potentials)
+                                         mc_steps_outer, total_chemical_potentials)
    call calculate_statistics_per_species(chem_pot_excess, chem_pot_ex_var, chem_pot_ex_avg, &
-                                          mc_steps_outer, total_chemical_potentials)
+                                         mc_steps_outer, total_chemical_potentials)
    call calculate_statistics_per_species(chem_pot_total, chem_pot_tot_var, chem_pot_tot_avg, &
-                                          mc_steps_outer, total_chemical_potentials)
+                                         mc_steps_outer, total_chemical_potentials)
 
    write (unit_output, '(a, /)') 'CONTACT CORRELATION g(r)'
-   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i = 1, num_species)
+   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i=1, num_species)
 
    pressure_collision_average = 0.0
    pressure_collision_variance = 0.0
@@ -1269,8 +1244,8 @@ subroutine calculate_widom_insertion
    do i = 1, num_species
       do k = 1, num_species
          do j = 1, mc_steps_outer
-            temp_array(j) = contact_correlation(j, i, k) * &
-               exp(chem_pot_excess_widom(j, k))
+            temp_array(j) = contact_correlation(j, i, k)* &
+                            exp(chem_pot_excess_widom(j, k))
          end do
 
          call calculate_statistics(temp_array, correlation_var, correlation_avg, mc_steps_outer)
@@ -1278,58 +1253,57 @@ subroutine calculate_widom_insertion
          contact_correlation(12, i, k) = correlation_avg
       end do
 
-      write(unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
+      write (unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
          (contact_correlation(12, i, k), contact_correlation(11, i, k), &
-          k = 1, num_species)
+          k=1, num_species)
    end do
 
    write (unit_output, '(/, a, /)') 'CONTACT PRESSURE MATRIX'
-   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i = 1, num_species)
+   write (unit_output, '("Species      ", 10(i12, 12x))') (i, i=1, num_species)
 
    do i = 1, num_species
       do k = 1, num_species
          do j = 1, mc_steps_outer
-            temp_array(j) = 2.0 / 3.0 * pi * species_concentration(i) * &
-               contact_correlation(j, i, k) * &
-               exp(chem_pot_excess_widom(j, k) + chem_pot_ideal(k)) * &
-               (species_properties(i, 3) + species_properties(k, 3)) ** 3
+            temp_array(j) = 2.0/3.0*pi*species_concentration(i)* &
+                            contact_correlation(j, i, k)* &
+                            exp(chem_pot_excess_widom(j, k) + chem_pot_ideal(k))* &
+                            (species_properties(i, 3) + species_properties(k, 3))**3
          end do
 
          call calculate_statistics(temp_array, correlation_var, correlation_avg, mc_steps_outer)
          contact_correlation(11, i, k) = correlation_var
          contact_correlation(12, i, k) = correlation_avg
          pressure_collision_average = pressure_collision_average + correlation_avg
-         pressure_collision_variance = pressure_collision_variance + correlation_var * correlation_var
+         pressure_collision_variance = pressure_collision_variance + correlation_var*correlation_var
       end do
 
-      write(unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
+      write (unit_output, '(i4, "        ", 10(f12.5, f10.5))') i, &
          (contact_correlation(12, i, k), contact_correlation(11, i, k), &
-          k = 1, num_species)
+          k=1, num_species)
    end do
 
    pressure_collision_variance = sqrt(pressure_collision_variance)
 
-   write(unit_output, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
-                                          &', pressure_collision_average, pressure_collision_variance
+   write (unit_output, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
+   &', pressure_collision_average, pressure_collision_variance
 
-
-   write(unit_output, '(/, "************************************************************", &
-            &"**********************************************")')
-   write(unit_output, '(/, /, "INTEGRAND IN WIDOM CORRECTION FOR DIFFERENT CHARGE PARAMETERS")')
-   write(unit_output, '("TYPE", 11("  ", f4.2, "  "), /)') ((i - 1.0) / 10.0, i = 1, 11)
+   write (unit_output, '(/, "************************************************************", &
+   &"**********************************************")')
+   write (unit_output, '(/, /, "INTEGRAND IN WIDOM CORRECTION FOR DIFFERENT CHARGE PARAMETERS")')
+   write (unit_output, '("TYPE", 11("  ", f4.2, "  "), /)') ((i - 1.0)/10.0, i=1, 11)
 
    do i = 1, total_chemical_potentials
-      write(unit_output, '(10(i3, 11f8.3), /)') i, &
-         (chem_pot_integration_avg(i, j), j = 1, 11)
+      write (unit_output, '(10(i3, 11f8.3), /)') i, &
+         (chem_pot_integration_avg(i, j), j=1, 11)
    end do
 
-   write(unit_output, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
+   write (unit_output, '(/, /, "CHEMICAL POTENTIALS IN UNITS OF KT, MEASURED", i8, " TIMES")') total_widom_tests
 
    do measurement_position = 0, measurement_location
-      write(unit_output, '(/, a)') location_description(measurement_position + 1)
-      write(unit_output, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
-            &"         Total         Uncorrected Excess")')
-      write(unit_output, '(10(i3, f8.4, 5(f9.4, f7.4), /))') &
+      write (unit_output, '(/, a)') location_description(measurement_position + 1)
+      write (unit_output, '(/, "Type  Ideal     Hard Core       El. Static       Excess", &
+      &"         Total         Uncorrected Excess")')
+      write (unit_output, '(10(i3, f8.4, 5(f9.4, f7.4), /))') &
          (mod(i - 1, num_species) + 1, &
           chem_pot_ideal(i), &
           chem_pot_hc_avg(i), chem_pot_hc_var(i), &
@@ -1337,15 +1311,14 @@ subroutine calculate_widom_insertion
           chem_pot_ex_avg(i), chem_pot_ex_var(i), &
           chem_pot_tot_avg(i), chem_pot_tot_var(i), &
           chem_pot_widom_avg(i), chem_pot_widom_var(i), &
-          i = measurement_position * num_species + 1, num_species * (measurement_position + 1))
-      write(unit_output, '("2:1 ", 10(f8.4), /)') (exp((2 * chem_pot_ex_avg(i - 2) + &
-                                         chem_pot_ex_avg(i - 1)) / 3))
+          i=measurement_position*num_species + 1, num_species*(measurement_position + 1))
+      write (unit_output, '("2:1 ", 10(f8.4), /)') (exp((2*chem_pot_ex_avg(i - 2) + &
+                                                         chem_pot_ex_avg(i - 1))/3))
    end do
 
    return
 
 end subroutine calculate_widom_insertion
-
 
 ! =============================================================================
 ! Helper subroutine to initialize the random number generator
@@ -1362,11 +1335,11 @@ subroutine initialize_rng(seed_value)
    call random_seed(size=seed_size)
 
    ! Allocate and initialize the seed array
-   allocate(seed_array(seed_size))
+   allocate (seed_array(seed_size))
    seed_array = seed_value
 
    ! Set the seed
    call random_seed(put=seed_array)
 
-   deallocate(seed_array)
+   deallocate (seed_array)
 end subroutine initialize_rng
