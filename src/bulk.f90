@@ -671,20 +671,25 @@ subroutine evaluate_trial_move
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
+   ! Compute all distances (vectorizable with branchless periodic boundary conditions)
    do i = 1, num_particles
-      delta_x = abs(trial_x - particle_x(i))
-      delta_y = abs(trial_y - particle_y(i))
-      delta_z = abs(trial_z - particle_z(i))
+      delta_x = trial_x - particle_x(i)
+      delta_y = trial_y - particle_y(i)
+      delta_z = trial_z - particle_z(i)
 
-      if (delta_x > box_half) delta_x = delta_x - box_size
-      if (delta_y > box_half) delta_y = delta_y - box_size
-      if (delta_z > box_half) delta_z = delta_z - box_size
+      ! Branchless periodic boundary conditions using aint
+      delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+      delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+      delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
 
       distance_squared(i) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+   end do
 
-      ! Cancel out the hard core overlap with itself
-      distance_squared(current_particle) = 1000000
+   ! Cancel out the hard core overlap with itself
+   distance_squared(current_particle) = 1000000
 
+   ! Check for hard core overlaps (early exit if found)
+   do i = 1, num_particles
       if (distance_squared(i) < hard_core_distance_sq(i, current_species)) return
    end do
 
