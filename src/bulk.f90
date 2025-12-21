@@ -768,21 +768,28 @@ subroutine calculate_collision_pressure
    include 'bulk_f90.inc'
 
    ! Local variables
-   integer :: i, j, k, isp, ksp, nisp, nnn, num, nwtot
-   double precision :: rel(max_species)
-   double precision :: scoll(25, max_species, max_species), coll(max_species, max_species)
-   double precision :: ddx, ddy, ddz, aa, dis, v, g2, wx6, wy6, wz6, urej, wtot2
-   double precision :: collav, collv
+   integer :: i, j, k
+   integer :: species_i, species_k
+   integer :: num_particles_in_species, random_particle_index
+   integer :: particle_list_start, total_collision_tests
+   double precision :: relative_error(max_species)
+   double precision :: collision_samples(25, max_species, max_species)
+   double precision :: collision_matrix(max_species, max_species)
+   double precision :: delta_x, delta_y, delta_z
+   double precision :: axial_displacement, contact_distance, angle, radial_distance
+   double precision :: ghost_x, ghost_y, ghost_z
+   double precision :: total_electrostatic_potential
+   double precision :: collision_avg, collision_var
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
 
    do i = 1, max_species
       do k = 1, max_species
-         coll(i, k) = 0.0
+         collision_matrix(i, k) = 0.0
 
          do j = 1, mc_steps_outer
-            scoll(j, i, k) = 0.0
+            collision_samples(j, i, k) = 0.0
          end do
       end do
    end do
@@ -795,55 +802,55 @@ subroutine calculate_collision_pressure
    entry calculate_collision_pressure1
 
    do i = 1, num_widom_insertions
-      num = 1
+      particle_list_start = 1
 
-      do isp = 1, num_species
-         nisp = int(species_properties(isp, 2))
+      do species_i = 1, num_species
+         num_particles_in_species = int(species_properties(species_i, 2))
 
-         do ksp = 1, num_species
-            nnn = int(ran2(random_seed) * nisp) + num
-            dis = species_properties(isp, 3) + species_properties(ksp, 3)
-            aa  = (2 * ran2(random_seed) - 1) * dis
-            v   = 2 * pi * ran2(random_seed)
-            wz6 = particle_z(nnn) + aa
-            g2  = sqrt(dis * dis - aa * aa) + 0.00001
-            wx6 = particle_x(nnn) + g2 * cos(v)
-            wy6 = particle_y(nnn) + g2 * sin(v)
-            wx6 = wx6 - aint(wx6 * box_half_inverse) * box_size
-            wy6 = wy6 - aint(wy6 * box_half_inverse) * box_size
-            wz6 = wz6 - aint(wz6 * box_half_inverse) * box_size
-            urej = 0
+         do species_k = 1, num_species
+            random_particle_index = int(ran2(random_seed) * num_particles_in_species) + particle_list_start
+            contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
+            axial_displacement = (2 * ran2(random_seed) - 1) * contact_distance
+            angle = 2 * pi * ran2(random_seed)
+            ghost_z = particle_z(random_particle_index) + axial_displacement
+            radial_distance = sqrt(contact_distance * contact_distance - axial_displacement * axial_displacement) + 0.00001
+            ghost_x = particle_x(random_particle_index) + radial_distance * cos(angle)
+            ghost_y = particle_y(random_particle_index) + radial_distance * sin(angle)
+            ghost_x = ghost_x - aint(ghost_x * box_half_inverse) * box_size
+            ghost_y = ghost_y - aint(ghost_y * box_half_inverse) * box_size
+            ghost_z = ghost_z - aint(ghost_z * box_half_inverse) * box_size
 
             do k = 1, num_particles
-               ddx = dabs(wx6 - particle_x(k))
-               ddy = dabs(wy6 - particle_y(k))
-               ddz = dabs(wz6 - particle_z(k))
+               delta_x = dabs(ghost_x - particle_x(k))
+               delta_y = dabs(ghost_y - particle_y(k))
+               delta_z = dabs(ghost_z - particle_z(k))
 
-               if (ddx > box_half) ddx = ddx - box_size
-               if (ddy > box_half) ddy = ddy - box_size
-               if (ddz > box_half) ddz = ddz - box_size
+               if (delta_x > box_half) delta_x = delta_x - box_size
+               if (delta_y > box_half) delta_y = delta_y - box_size
+               if (delta_z > box_half) delta_z = delta_z - box_size
 
-               distance_squared(k) = ddx * ddx + ddy * ddy + ddz * ddz
+               distance_squared(k) = delta_x * delta_x + delta_y * delta_y + delta_z * delta_z
 
-               if (distance_squared(k) < hard_core_distance_sq(k, ksp)) go to 121
+               if (distance_squared(k) < hard_core_distance_sq(k, species_k)) go to 121
             end do
 
             do k = 1, num_particles
                distance_inverse(k) = 1.0 / sqrt(distance_squared(k))
             end do
 
-            wtot2 = 0
+            total_electrostatic_potential = 0
 
             do k = 1, num_particles
-               wtot2 = wtot2 + distance_inverse(k) * particle_charge(k)
+               total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k) * particle_charge(k)
             end do
 
-            coll(isp, ksp) = exp(beta_inverse_temp* wtot2 * species_properties(ksp, 4) * energy_conversion_factor) + coll(isp, ksp)
+            collision_matrix(species_i, species_k) = exp(beta_inverse_temp * total_electrostatic_potential * &
+               species_properties(species_k, 4) * energy_conversion_factor) + collision_matrix(species_i, species_k)
 
 121         continue
          end do
 
-         num = num + nisp
+         particle_list_start = particle_list_start + num_particles_in_species
       end do
    end do
 
@@ -854,19 +861,19 @@ subroutine calculate_collision_pressure
 
    entry calculate_collision_pressure2
 
-   nwtot = num_widom_insertions* int(mc_steps_inner / widom_interval) * mc_steps_middle
+   total_collision_tests = num_widom_insertions * int(mc_steps_inner / widom_interval) * mc_steps_middle
 
    write (unit_macro, '(/, /, a)') 'COLLISION PRESSURE MATRIX'
-   write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', nwtot
+   write (unit_macro, '(/, a, i6)') 'Total collision trials per species ', total_collision_tests
    write (unit_macro, 2010) (i, i = 1, num_species)
 
    do k = 1, num_species
       do i = 1, num_species
-         scoll(current_macro_step, i, k) = coll(i, k) / nwtot
-         coll(i, k) = 0
+         collision_samples(current_macro_step, i, k) = collision_matrix(i, k) / total_collision_tests
+         collision_matrix(i, k) = 0
       end do
 
-      write(unit_macro, 2012) (scoll(current_macro_step, i, k), i = 1, num_species)
+      write(unit_macro, 2012) (collision_samples(current_macro_step, i, k), i = 1, num_species)
    end do
 
    return
@@ -885,21 +892,21 @@ subroutine calculate_collision_pressure
 
    do i = 1, num_species
       do k = 1, num_species
-         collav = 0
+         collision_avg = 0
 
          do j = 1, mc_steps_outer
-            contact_correlation(j, i, k) = scoll(j, i, k)
-            temp_array(j) = scoll(j, i, k)
+            contact_correlation(j, i, k) = collision_samples(j, i, k)
+            temp_array(j) = collision_samples(j, i, k)
          end do
 
-         call calculate_statistics(temp_array, collv, collav, mc_steps_outer)
+         call calculate_statistics(temp_array, collision_var, collision_avg, mc_steps_outer)
 
-         rel(k) = 0
-         if (collav /= 0) rel(k) = collv / collav
-         coll(i, k) = species_concentration(i) * collav
+         relative_error(k) = 0
+         if (collision_avg /= 0) relative_error(k) = collision_var / collision_avg
+         collision_matrix(i, k) = species_concentration(i) * collision_avg
       end do
 
-      write(unit_output, 2013) i, (coll(i, k), rel(k), k = 1, num_species)
+      write(unit_output, 2013) i, (collision_matrix(i, k), relative_error(k), k = 1, num_species)
    end do
 
    write(unit_output, '(/)')
