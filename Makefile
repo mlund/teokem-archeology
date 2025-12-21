@@ -2,11 +2,11 @@
 FC = gfortran
 
 # Compiler flags for Fortran 90 free-form
-FFLAGS = -O3 -g -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wimplicit-interface -Wimplicit-procedure -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs
-RAN2FLAGS = -O3 -g -fimplicit-none -Wshadow
+FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wimplicit-interface -Wimplicit-procedure -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
+RAN2FLAGS = -O3 -g -fimplicit-none -Wshadow -Wextra
 
 # Compiler flags for legacy Fortran 77
-FFLAGS_F77 = -std=legacy -O3 -g -funroll-loops -fno-automatic -finit-local-zero
+FFLAGS_F77 = -std=legacy -ftree-vectorize -march=native -O3 -g -funroll-loops -fno-automatic -finit-local-zero -Wall -Wshadow
 RAN2FLAGS_F77 = -std=legacy -O3 -g
 
 # Source files
@@ -33,7 +33,7 @@ $(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
 
 # Clean up compiled files
 clean:
-	rm -f $(TARGET) $(TARGET_F77) *.o
+	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM
 
 # Run bulk test script
 test_bulk: $(TARGET)
