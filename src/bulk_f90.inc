@@ -64,17 +64,21 @@ integer :: particle_species(max_ions)  ! Species index for each particle
 
 
 ! =============================================================================
-! Physical Constants
+! Physical Constants (read-only parameters)
 ! =============================================================================
-double precision :: pi                      ! Mathematical constant π
-double precision :: avogadro_number         ! Avogadro's number (N_A)
-double precision :: gas_constant            ! Gas constant R (kJ/mol/K)
+double precision, parameter :: pi = acos(-1.0d0)                 ! Mathematical constant π
+double precision, parameter :: avogadro_number = 6.0223d23       ! Avogadro's number (N_A)
+double precision, parameter :: gas_constant = 8.314d0            ! Gas constant R (kJ/mol/K)
+double precision, parameter :: vacuum_permittivity = 8.85418782d-12  ! Vacuum permittivity (ε_0) in F/m
+double precision, parameter :: elementary_charge = 1.60219d-19   ! Elementary charge (e) in C
+
+! =============================================================================
+! System Parameters (set from input or calculated)
+! =============================================================================
 double precision :: dielectric_constant     ! Relative dielectric constant (ε_r)
-double precision :: vacuum_permittivity     ! Vacuum permittivity (ε_0)
-double precision :: energy_conversion_factor ! Energy conversion factor for Coulomb interactions
-double precision :: elementary_charge       ! Elementary charge (e)
-double precision :: beta_inverse_temp       ! β = -1/(kT) for Metropolis criterion
 double precision :: temperature             ! Temperature (K)
+double precision :: energy_conversion_factor ! Energy conversion factor for Coulomb interactions
+double precision :: beta_inverse_temp       ! β = -1/(kT) for Metropolis criterion
 
 
 ! =============================================================================
@@ -157,15 +161,15 @@ double precision :: temp_array(25)  ! Temporary array for statistical calculatio
 ! =============================================================================
 ! Common Block Declaration
 ! This preserves the memory layout for compatibility with legacy code
-! The order MUST match the original bulk.inc file exactly
+! NOTE: Physical constants (pi, avogadro_number, gas_constant, vacuum_permittivity,
+!       elementary_charge) are now parameters and cannot be in common blocks
 ! =============================================================================
 common /arr1/ energy_matrix, trial_energy, &
               species_concentration, species_interaction_matrix, &
               contact_correlation, temp_array, &
               particle_x, particle_y, particle_z, particle_charge, displacement_max, &
               distance_squared, distance_inverse, hard_core_distance_sq, species_properties, particle_species, &
-              pi, avogadro_number, gas_constant, dielectric_constant, vacuum_permittivity, &
-              energy_conversion_factor, elementary_charge, beta_inverse_temp, temperature, &
+              dielectric_constant, energy_conversion_factor, beta_inverse_temp, temperature, &
               trial_x, trial_y, trial_z, total_coulomb_energy, &
               pressure_widom_wall, pressure_widom_midplane, &
               pressure_widom_wall_variance, pressure_widom_midplane_variance, &

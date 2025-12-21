@@ -2,7 +2,7 @@
 FC = gfortran
 
 # Compiler flags for Fortran 90 free-form
-FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
+FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
 RAN2FLAGS = -O3 -g -fimplicit-none -Wshadow -Wextra
 
 # Compiler flags for legacy Fortran 77

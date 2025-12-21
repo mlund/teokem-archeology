@@ -122,14 +122,8 @@ program bulk
 
 
    ! ==========================================================================
-   ! Physical constants and conversion factors
+   ! Physical constants are now defined as parameters in bulk_f90.inc
    ! ==========================================================================
-
-   pi   = acos(-1.0d0)
-   vacuum_permittivity= 8.85418782d-12
-   elementary_charge = 1.60219d-19
-   avogadro_number= 6.0223d23
-   gas_constant  = 8.314
 
 
    ! ==========================================================================
