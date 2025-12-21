@@ -1079,13 +1079,16 @@ subroutine calculate_widom_insertion
             if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
          end if
 
+         ! Compute distances with branchless periodic boundary conditions (vectorizable)
          do j = 1, num_particles
-            delta_x = abs(test_particle_x - particle_x(j))
-            if (delta_x > box_half) delta_x = delta_x - box_size
-            delta_y = abs(test_particle_y - particle_y(j))
-            if (delta_y > box_half) delta_y = delta_y - box_size
-            delta_z = abs(test_particle_z - particle_z(j))
-            if (delta_z > box_half) delta_z = delta_z - box_size
+            delta_x = test_particle_x - particle_x(j)
+            delta_y = test_particle_y - particle_y(j)
+            delta_z = test_particle_z - particle_z(j)
+
+            delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+            delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+            delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
+
             distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
          end do
 
