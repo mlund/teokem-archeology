@@ -448,29 +448,29 @@ end program bulk
 ! =============================================================================
 ! =============================================================================
 
-subroutine earth(a, bbbwww, xb, nnn)
+subroutine earth(data_array, standard_deviation, mean_value, array_size)
 
    implicit none
-   integer :: k, nnn
-   double precision :: a(25), bbbwww, xb
-   double precision :: b, yak
+   integer :: loop_index, array_size
+   double precision :: data_array(25), standard_deviation, mean_value
+   double precision :: sum_squared_deviations, normalization_factor
 
-   yak = 1.0 / (nnn * (nnn - 1))
-   b   = 0.0
-   xb  = 0.0
+   normalization_factor = 1.0 / (array_size * (array_size - 1))
+   sum_squared_deviations   = 0.0
+   mean_value  = 0.0
 
-   do k = 1, nnn
-      xb = xb + a(k)
+   do loop_index = 1, array_size
+      mean_value = mean_value + data_array(loop_index)
    end do
 
-   xb = xb / nnn
+   mean_value = mean_value / array_size
 
-   do k = 1, nnn
-      b = b + (a(k) - xb) * (a(k) - xb)
+   do loop_index = 1, array_size
+      sum_squared_deviations = sum_squared_deviations + (data_array(loop_index) - mean_value) * (data_array(loop_index) - mean_value)
    end do
 
-   b = sqrt(yak * b)
-   bbbwww = b
+   sum_squared_deviations = sqrt(normalization_factor * sum_squared_deviations)
+   standard_deviation = sum_squared_deviations
 
    return
 
