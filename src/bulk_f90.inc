@@ -13,7 +13,7 @@ integer, parameter :: max_species = 10   ! Maximum number of ionic species
 ! =============================================================================
 ! Character Variables
 ! =============================================================================
-character*16 :: title  ! Simulation title
+! character(len=16) :: title  ! Simulation title (currently unused)
 
 
 ! =============================================================================
@@ -97,7 +97,7 @@ double precision :: box_half_inverse  ! Inverse of half box size (for efficiency
 ! Energy Tracking Variables
 ! =============================================================================
 double precision :: total_coulomb_energy  ! Total Coulomb energy of system
-double precision :: energy_check_parameter ! Parameter for energy consistency checks
+! double precision :: energy_check_parameter ! Parameter for energy consistency checks (currently unused)
 
 
 ! =============================================================================

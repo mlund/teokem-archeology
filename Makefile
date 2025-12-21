@@ -2,7 +2,7 @@
 FC = gfortran
 
 # Compiler flags for Fortran 90 free-form
-FFLAGS = -O3 -g -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wshadow
+FFLAGS = -O3 -g -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow
 RAN2FLAGS = -O3 -g -fimplicit-none -Wshadow
 
 # Compiler flags for legacy Fortran 77

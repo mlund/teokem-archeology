@@ -5,6 +5,7 @@ bulk
 *.temp
 *.inp
 *.log
+*.macro
 
 # Prerequisites
 *.d

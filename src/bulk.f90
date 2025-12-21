@@ -329,7 +329,7 @@ program bulk
 
       write(unit_macro, *)
       write(unit_macro, 44)
-      write(unit_macro, 73) current_macro_step, energy_consistency_check, energy_check_parameter
+      write(unit_macro, 73) current_macro_step, energy_consistency_check
 
       if (abs(energy_consistency_check) > 0.001) stop
 
@@ -360,7 +360,7 @@ program bulk
       write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_current(1)
    end do
 
-73  format(/ ' MACROSTEP  ', i10, /, /, 'Checkparameters : ', 3e10.3)
+73  format(/ ' MACROSTEP  ', i10, /, /, 'Checkparameters : ', e10.3)
 810 format(/, ' total number of configurations    =', i8, /, &
            ' accepted configurations           =', i8, /, &
            ' energy rejected configurations    =', i8, /, &
@@ -492,7 +492,7 @@ subroutine earth2(a, bbbwww, xb, nnn, num)
 
    implicit none
    integer, parameter :: max_species = 10
-   integer :: i, j, k, nnn, num
+   integer :: i, k, nnn, num
    double precision :: a(25, max_species), xb(max_species), bbbwww(max_species)
    double precision :: b, yak
 
@@ -729,7 +729,7 @@ subroutine collision
    double precision :: rel(max_species)
    double precision :: scoll(25, max_species, max_species), coll(max_species, max_species)
    double precision :: ddx, ddy, ddz, aa, dis, v, g2, wx6, wy6, wz6, urej, wtot2
-   double precision :: collav, collv, cwiav, cwiv
+   double precision :: collav, collv
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -758,7 +758,7 @@ subroutine collision
          nisp = int(species_properties(isp, 2))
 
          do ksp = 1, num_species
-            nnn = ran2(random_seed) * nisp + num
+            nnn = int(ran2(random_seed) * nisp) + num
             dis = species_properties(isp, 3) + species_properties(ksp, 3)
             aa  = (2 * ran2(random_seed) - 1) * dis
             v   = 2 * pi * ran2(random_seed)
@@ -829,7 +829,6 @@ subroutine collision
    return
 
 2010 format('Species          ', 10(12x, i6), /)
-2011 format(/, i4, '    Col. samples', 10('            ', i6))
 2012 format('        pressure    ', 10e18.6, /)
 2013 format(i4, '        ', 20e12.5)
 
@@ -904,7 +903,7 @@ subroutine widom
    double precision :: chexwa(max_species), chexwv(max_species)
    double precision :: ddx, ddy, ddz, x, y, z, ew, ewd, ewla, wtot2, wtot3, aint1, aint2, aint4, wsum
    double precision :: uj1, pcollav, pcollv, cwiav, cwiv
-   character*80 str(max_species)
+   character(len=80) :: str(max_species)
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -1167,7 +1166,7 @@ subroutine widom
    pressure_collision_variance= sqrt(pcollv)
 
    write(unit_output, '(/, a, f12.5, f10.5, /)') 'Total Collision pressure   =        &
-                                          ', pcollav, pcollv
+                                          &', pcollav, pcollv
 
 
    write(unit_output, 44)
