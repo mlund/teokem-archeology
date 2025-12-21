@@ -17,24 +17,45 @@ program bulk
    ! See bulk_f90.inc for the complete variable declarations
 
    ! Local variables for Monte Carlo simulation
-   integer :: step_inner, step_middle         ! Loop counters for inner and middle MC loops
-   integer :: kn1, kn2, key, kntot            ! Counters for accepted/rejected moves
-   integer :: i, j, k, l, num                 ! Loop counters and temporary variables
-   integer :: iclk, lclk, nkonf, nwtot        ! Clock and configuration counters
-   integer :: mtot(max_species), macc(max_species), menrj(max_species), mhcrj(max_species)
+   integer :: step_inner, step_middle                        ! Loop counters for inner and middle MC loops
+   integer :: total_hardcore_rejections                      ! Total hard core overlap rejections
+   integer :: total_energy_rejections                        ! Total energy-based rejections
+   integer :: total_accepted_moves                           ! Total accepted Monte Carlo moves
+   integer :: total_mc_steps                                 ! Total Monte Carlo steps attempted
+   integer :: species_index, particle_index                  ! Loop indices for species and particles
+   integer :: loop_i, loop_j, loop_k, loop_l                 ! Generic loop counters
+   integer :: particle_count_temp                            ! Temporary particle count
+   integer :: total_configurations                           ! Total number of configurations
+   integer :: total_widom_tests                              ! Total Widom test particle insertions
+   integer :: moves_per_species_total(max_species)           ! Total moves attempted per species
+   integer :: moves_per_species_accepted(max_species)        ! Accepted moves per species
+   integer :: moves_per_species_energy_rejected(max_species) ! Energy rejected moves per species
+   integer :: moves_per_species_hardcore_rejected(max_species) ! Hard core rejected moves per species
 
-   double precision :: uula(2), uuta(2), suu(25), tijd(10)
-   double precision :: deltae, dzxp, uuvar     ! Energy and variance variables
-   double precision :: t                       ! Temperature variable
-   double precision :: pexen, pexenv, pid      ! Pressure variables
-   double precision :: ptot, ptotv             ! Total pressure variables
-   double precision :: qww1, yn3, ytot1        ! Energy check and averaging variables
+   double precision :: energy_accumulator_current(2)         ! Energy accumulator for current macro step
+   double precision :: energy_accumulator_total(2)           ! Total energy accumulator across all macro steps
+   double precision :: energy_per_macrostep(25)              ! Energy stored for each macro step
+   double precision :: time_array(10)                        ! Time measurements array (currently unused)
+   double precision :: energy_difference                     ! Energy difference for MC acceptance
+   double precision :: boltzmann_factor                      ! Boltzmann factor for MC acceptance
+   double precision :: energy_variance                       ! Variance of energy measurements
+   double precision :: temp_kelvin                           ! Temperature in Kelvin
+   double precision :: pressure_excess_energy                ! Excess pressure from energy
+   double precision :: pressure_excess_variance              ! Variance of excess pressure
+   double precision :: pressure_ideal                        ! Ideal gas pressure contribution
+   double precision :: pressure_total                        ! Total system pressure
+   double precision :: pressure_total_variance               ! Variance of total pressure
+   double precision :: energy_consistency_check              ! Relative energy consistency check
+   double precision :: macro_step_inverse                    ! Inverse of number of macro steps (1/N)
+   double precision :: initial_energy_scaled                 ! Initial configuration energy (scaled to kJ/mol)
 
-   data uuta  / 2*0.0 /
-   data suu   / 25*0.0 /
-   data mtot, macc, menrj, mhcrj / 40*0 /
-   data kn1, kn2, key, kntot / 4*0 /
-   data tijd  / 10*0.0 /
+   data energy_accumulator_total  / 2*0.0 /
+   data energy_per_macrostep   / 25*0.0 /
+   data moves_per_species_total, moves_per_species_accepted, &
+        moves_per_species_energy_rejected, moves_per_species_hardcore_rejected / 40*0 /
+   data total_hardcore_rejections, total_energy_rejections, &
+        total_accepted_moves, total_mc_steps / 4*0 /
+   data time_array  / 10*0.0 /
 
 43 format( 'MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ', &
             'IONIC SYSTEM  ', /, /, 'Written by Peter Bolhuis, February', &
@@ -42,9 +63,6 @@ program bulk
 
 44 format( '************************************************************', &
             '************************', / )
-
-   iclk = 0
-   lclk = 0
 
    unit_macro = 12
    unit_conf = 13
@@ -98,7 +116,7 @@ program bulk
    read(unit_input, *) num_species
    read(unit_input, *)
    read(unit_input, *)
-   read(unit_input, *) (species_properties(l, 1), species_properties(l, 2), species_properties(l, 3), species_properties(l, 4), species_properties(l, 5), l = 1, num_species)
+   read(unit_input, *) (species_properties(loop_l, 1), species_properties(loop_l, 2), species_properties(loop_l, 3), species_properties(loop_l, 4), species_properties(loop_l, 5), loop_l = 1, num_species)
    read(unit_input, *)
    read(unit_input, *)
    read(unit_input, *) mc_steps_inner, mc_steps_middle, mc_steps_outer
@@ -141,35 +159,35 @@ program bulk
 
    num_particles= 0
 
-   do i = 1, num_species
-      num = int(species_properties(i, 2))
+   do species_index = 1, num_species
+      particle_count_temp = int(species_properties(species_index, 2))
 
-      do j = 1, num
+      do particle_index = 1, particle_count_temp
          num_particles= num_particles+ 1
-         particle_species(num_particles) = i
+         particle_species(num_particles) = species_index
 
-         do k = 1, num_species
-            hard_core_distance_sq(num_particles, k) = (species_properties(i, 3) + species_properties(k, 3)) ** 2
+         do loop_k = 1, num_species
+            hard_core_distance_sq(num_particles, loop_k) = (species_properties(species_index, 3) + species_properties(loop_k, 3)) ** 2
          end do
 
-         particle_charge(num_particles) = species_properties(i, 4)
-         displacement_max(num_particles)  = species_properties(i, 5)
+         particle_charge(num_particles) = species_properties(species_index, 4)
+         displacement_max(num_particles)  = species_properties(species_index, 5)
       end do
    end do
 
-   do i = 1, num_species
-      species_concentration(i) = (species_properties(i, 2)) / (box_size** 3)
+   do species_index = 1, num_species
+      species_concentration(species_index) = (species_properties(species_index, 2)) / (box_size** 3)
    end do
 
-   do i = 1, num_particles
-      trial_energy(i) = 0.0
+   do particle_index = 1, num_particles
+      trial_energy(particle_index) = 0.0
    end do
 
-   nkonf = mc_steps_inner * mc_steps_middle * mc_steps_outer
+   total_configurations = mc_steps_inner * mc_steps_middle * mc_steps_outer
 
    if (mc_steps_outer > 25) mc_steps_outer = 25
 
-   t     = temperature
+   temp_kelvin = temperature
    beta_inverse_temp= -1.0 / (gas_constant * temperature)
 
 
@@ -178,7 +196,7 @@ program bulk
    ! ==========================================================================
 
    if (initial_config_type== 0) then
-      read(unit_conf, *) (particle_x(l), particle_y(l), particle_z(l), l = 1, num_particles)
+      read(unit_conf, *) (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
       write(unit_output, *) 'Configuration read from file'
    end if
 
@@ -191,13 +209,13 @@ program bulk
    ! Write input data
    ! ==========================================================================
 
-   nwtot = num_widom_insertions* (int(mc_steps_inner / widom_interval) * mc_steps_middle * mc_steps_outer)
+   total_widom_tests = num_widom_insertions* (int(mc_steps_inner / widom_interval) * mc_steps_middle * mc_steps_outer)
 
    write(unit_output, 800) num_particles
-   write(unit_output, 801) (l, int(species_properties(l, 2)), species_properties(l, 3), species_properties(l, 4), &
-                    species_properties(l, 5), species_concentration(l) * 1.0d27 / avogadro_number, l = 1, num_species)
-   write(unit_output, 802) dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, nkonf, &
-                   dble(nkonf / num_particles), nwtot
+   write(unit_output, 801) (loop_l, int(species_properties(loop_l, 2)), species_properties(loop_l, 3), species_properties(loop_l, 4), &
+                    species_properties(loop_l, 5), species_concentration(loop_l) * 1.0d27 / avogadro_number, loop_l = 1, num_species)
+   write(unit_output, 802) dielectric_constant, temperature, box_size, mc_steps_inner, mc_steps_middle, mc_steps_outer, total_configurations, &
+                   dble(total_configurations / num_particles), total_widom_tests
 
 800 format (/, 'VARIABLES FROM INPUT FILE', /, &
             /, ' number of particles        =', i10, /, &
@@ -219,10 +237,10 @@ program bulk
 
    call liv
 
-   ytot1 = total_coulomb_energy* energy_conversion_factor* 1.0d-3
+   initial_energy_scaled = total_coulomb_energy* energy_conversion_factor* 1.0d-3
 
    write(unit_output, '(a)') 'Initial configuration'
-   write(unit_output, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', ytot1
+   write(unit_output, '(a, e12.5)') 'Coulomb energy (kJ/mol)  =', initial_energy_scaled
 
 
    ! ==========================================================================
@@ -238,14 +256,14 @@ program bulk
    ! ==========================================================================
 
    do current_macro_step = 1, mc_steps_outer
-      uula(1) = 0.0
+      energy_accumulator_current(1) = 0.0
 
       do step_middle = 1, mc_steps_middle
          do step_inner = 1, mc_steps_inner
-            current_particle   = 1 + mod(kntot, num_particles)
+            current_particle   = 1 + mod(total_mc_steps, num_particles)
             current_species= particle_species(current_particle)
-            kntot = kntot + 1
-            mtot(current_species) = mtot(current_species) + 1
+            total_mc_steps = total_mc_steps + 1
+            moves_per_species_total(current_species) = moves_per_species_total(current_species) + 1
 
             trial_x= particle_x(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
             trial_y= particle_y(current_particle) + displacement_max(current_particle) * (ran2(random_seed) - 0.5)
@@ -263,38 +281,38 @@ program bulk
 
             if (overlap_status/= 0) go to 63
 
-            deltae = 0.0
-            do j = 1, num_particles
-               deltae = deltae + trial_energy(j) - energy_matrix(j, current_particle)
+            energy_difference = 0.0
+            do loop_j = 1, num_particles
+               energy_difference = energy_difference + trial_energy(loop_j) - energy_matrix(loop_j, current_particle)
             end do
 
-            dzxp = beta_inverse_temp* (deltae * energy_conversion_factor)
+            boltzmann_factor = beta_inverse_temp* (energy_difference * energy_conversion_factor)
 
-            if (dzxp < -80.0) go to 64
-            if (dzxp >   0.0) go to 62
-            if (exp(dzxp) < ran2(random_seed)) go to 64
+            if (boltzmann_factor < -80.0) go to 64
+            if (boltzmann_factor >   0.0) go to 62
+            if (exp(boltzmann_factor) < ran2(random_seed)) go to 64
 
-62          macc(current_species) = macc(current_species) + 1
+62          moves_per_species_accepted(current_species) = moves_per_species_accepted(current_species) + 1
 
             ! Trial config accepted
             particle_x(current_particle) = trial_x
             particle_y(current_particle) = trial_y
             particle_z(current_particle) = trial_z
 
-            do j = 1, num_particles
-               energy_matrix(current_particle, j) = trial_energy(j)
-               energy_matrix(j, current_particle) = trial_energy(j)
+            do loop_j = 1, num_particles
+               energy_matrix(current_particle, loop_j) = trial_energy(loop_j)
+               energy_matrix(loop_j, current_particle) = trial_energy(loop_j)
             end do
 
-            total_coulomb_energy= total_coulomb_energy+ deltae
+            total_coulomb_energy= total_coulomb_energy+ energy_difference
             go to 65
 
-63          mhcrj(current_species) = mhcrj(current_species) + 1
+63          moves_per_species_hardcore_rejected(current_species) = moves_per_species_hardcore_rejected(current_species) + 1
             go to 65
 
-64          menrj(current_species) = menrj(current_species) + 1
+64          moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
 
-65          uula(1) = uula(1) + total_coulomb_energy
+65          energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
                call collision1
@@ -304,16 +322,16 @@ program bulk
          end do
       end do
 
-      qww1 = total_coulomb_energy
+      energy_consistency_check = total_coulomb_energy
       call liv
 
-      if (total_coulomb_energy/= 0) qww1 = (qww1 - total_coulomb_energy) / total_coulomb_energy
+      if (total_coulomb_energy/= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy) / total_coulomb_energy
 
       write(unit_macro, *)
       write(unit_macro, 44)
-      write(unit_macro, 73) current_macro_step, qww1, energy_check_parameter
+      write(unit_macro, 73) current_macro_step, energy_consistency_check, energy_check_parameter
 
-      if (abs(qww1) > 0.001) stop
+      if (abs(energy_consistency_check) > 0.001) stop
 
       call liv
 
@@ -322,24 +340,24 @@ program bulk
          call widom2
       end if
 
-      uula(1) = uula(1) / dble(mc_steps_inner * mc_steps_middle)
-      uuta(1) = uuta(1) + uula(1)
-      uula(1) = uula(1) * energy_conversion_factor* 1.0d-3
-      suu(current_macro_step) = uula(1)
+      energy_accumulator_current(1) = energy_accumulator_current(1) / dble(mc_steps_inner * mc_steps_middle)
+      energy_accumulator_total(1) = energy_accumulator_total(1) + energy_accumulator_current(1)
+      energy_accumulator_current(1) = energy_accumulator_current(1) * energy_conversion_factor* 1.0d-3
+      energy_per_macrostep(current_macro_step) = energy_accumulator_current(1)
 
       ! Calculate total acceptance and rejection
-      key = 0
-      kn1 = 0
-      kn2 = 0
+      total_accepted_moves = 0
+      total_hardcore_rejections = 0
+      total_energy_rejections = 0
 
-      do i = 1, num_species
-         key = key + macc(i)
-         kn1 = kn1 + mhcrj(i)
-         kn2 = kn2 + menrj(i)
+      do loop_i = 1, num_species
+         total_accepted_moves = total_accepted_moves + moves_per_species_accepted(loop_i)
+         total_hardcore_rejections = total_hardcore_rejections + moves_per_species_hardcore_rejected(loop_i)
+         total_energy_rejections = total_energy_rejections + moves_per_species_energy_rejected(loop_i)
       end do
 
-      write(unit_macro, 810) kntot, key, kn2, kn1
-      write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', uula(1)
+      write(unit_macro, 810) total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
+      write(unit_macro, '(a, e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_current(1)
    end do
 
 73  format(/ ' MACROSTEP  ', i10, /, /, 'Checkparameters : ', 3e10.3)
@@ -358,20 +376,21 @@ program bulk
    !
    ! ==========================================================================
 
-   yn3     = 1.0 / float(mc_steps_outer)
-   uuta(1) = yn3 * uuta(1)
-   uuta(1) = uuta(1) * energy_conversion_factor* 1.0d-3
+   macro_step_inverse = 1.0 / float(mc_steps_outer)
+   energy_accumulator_total(1) = macro_step_inverse * energy_accumulator_total(1)
+   energy_accumulator_total(1) = energy_accumulator_total(1) * energy_conversion_factor* 1.0d-3
 
-   call earth(suu, uuvar, uuta(1), mc_steps_outer)
+   call earth(energy_per_macrostep, energy_variance, energy_accumulator_total(1), mc_steps_outer)
 
    write(unit_output, '(/)')
    write(unit_output, 44)
    write(unit_output, '(/, a, i3, a, /)') 'FINAL RESULTS AFTER ', mc_steps_outer, &
                                   ' MACROSTEPS'
-   write(unit_output, 810) kntot, key, kn2, kn1
-   write(unit_output, 811) (l, dble(macc(l)) / mtot(l), dble(menrj(l)) &
-                    / mtot(l), dble(mhcrj(l)) / mtot(l), l = 1, num_species)
-   write(unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', uuta(1), uuvar
+   write(unit_output, 810) total_mc_steps, total_accepted_moves, total_energy_rejections, total_hardcore_rejections
+   write(unit_output, 811) (loop_l, dble(moves_per_species_accepted(loop_l)) / moves_per_species_total(loop_l), &
+                    dble(moves_per_species_energy_rejected(loop_l)) / moves_per_species_total(loop_l), &
+                    dble(moves_per_species_hardcore_rejected(loop_l)) / moves_per_species_total(loop_l), loop_l = 1, num_species)
+   write(unit_output, '(a, 2e12.5)') 'Coulomb energy (kj/mol)  =', energy_accumulator_total(1), energy_variance
    write(unit_output, *)
 
    if (widom_interval<= mc_steps_inner) then
@@ -380,7 +399,7 @@ program bulk
    end if
 
    rewind unit_conf
-   write(unit_conf, 771) (particle_x(l), particle_y(l), particle_z(l), l = 1, num_particles)
+   write(unit_conf, 771) (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l = 1, num_particles)
 771 format(5e16.8)
 
    close(unit_conf)
@@ -392,22 +411,22 @@ program bulk
    !
    ! ==========================================================================
 
-   pid = 0.0
-   do k = 1, num_species
-      pid = pid + species_concentration(k) * 1.0d27 / avogadro_number
+   pressure_ideal = 0.0
+   do loop_k = 1, num_species
+      pressure_ideal = pressure_ideal + species_concentration(loop_k) * 1.0d27 / avogadro_number
    end do
 
-   pexen  = uuta(1) * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
-   pexenv = uuvar   * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
-   ptot   = pid + pressure_collision_average+ pexen
-   ptotv  = sqrt(pressure_collision_variance* pressure_collision_variance+ pexenv * pexenv)
+   pressure_excess_energy  = energy_accumulator_total(1) * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
+   pressure_excess_variance = energy_variance   * 1.0d30 / (3 * gas_constant* temperature* box_size** 3 * avogadro_number)
+   pressure_total   = pressure_ideal + pressure_collision_average+ pressure_excess_energy
+   pressure_total_variance  = sqrt(pressure_collision_variance* pressure_collision_variance+ pressure_excess_variance * pressure_excess_variance)
 
    write(unit_output, '(/, a, /)') 'TOTAL BULK PRESSURE '
-   write(unit_output, 729) 'Ideal pressure       ', pid, 0.0
-   write(unit_output, 729) 'Energy con. <E/3V>   ', pexen, pexenv
+   write(unit_output, 729) 'Ideal pressure       ', pressure_ideal, 0.0
+   write(unit_output, 729) 'Energy con. <E/3V>   ', pressure_excess_energy, pressure_excess_variance
    write(unit_output, 729) 'Collision press      ', pressure_collision_average, pressure_collision_variance
    write(unit_output, 731)
-   write(unit_output, 729) 'Bulk pressure        ' , ptot, ptotv
+   write(unit_output, 729) 'Bulk pressure        ' , pressure_total, pressure_total_variance
 
 729 format(a, f12.4, f10.4)
 731 format(70('_'))
