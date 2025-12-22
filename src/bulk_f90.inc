@@ -146,6 +146,16 @@ integer :: unit_macro   ! File unit for macro step output
 
 
 ! =============================================================================
+! Radial Distribution Function (RDF) Variables
+! =============================================================================
+integer, parameter :: rdf_num_bins = 500                           ! Number of RDF histogram bins
+double precision :: rdf_bin_width                                  ! Width of each RDF bin
+double precision :: rdf_max_distance                               ! Maximum distance for RDF calculation
+double precision :: rdf_histogram(rdf_num_bins, max_species, max_species)  ! RDF histogram for each species pair
+double precision :: rdf_samples                                    ! Number of RDF samples accumulated
+
+
+! =============================================================================
 ! Common Block Declaration
 ! This preserves the memory layout for compatibility with legacy code
 ! NOTE: Physical constants (pi, avogadro_number, gas_constant, vacuum_permittivity,
@@ -155,13 +165,15 @@ common /arr1/ energy_matrix, trial_energy, &
               species_concentration, species_interaction_matrix, &
               contact_correlation, &
               particle_x, particle_y, particle_z, particle_charge, displacement_max, &
-              hard_core_distance_sq, species_properties, particle_species, &
+              hard_core_distance_sq, species_properties, &
               dielectric_constant, energy_conversion_factor, beta_inverse_temp, temperature, &
               trial_x, trial_y, trial_z, total_coulomb_energy, &
               pressure_widom_wall, pressure_widom_midplane, &
               pressure_widom_wall_variance, pressure_widom_midplane_variance, &
               pressure_collision_average, pressure_collision_variance, &
               box_size, box_half, box_half_inverse, &
+              rdf_bin_width, rdf_max_distance, rdf_histogram, rdf_samples, &
+              particle_species, &
               mc_steps_inner, mc_steps_middle, mc_steps_outer, current_macro_step, &
               num_species, current_species, num_particles, &
               num_widom_insertions, widom_interval, measurement_location, &
