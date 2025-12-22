@@ -120,8 +120,7 @@ program bulk
    write (unit_output, '(/, "************************************************************", &
    &"************************", /)')
    write (unit_output, '("MONTE CARLO SIMULATION OF MULTICOMPONENT ISOTROPIC    ", &
-   &"IONIC SYSTEM  ", /, /, "Written by Peter Bolhuis, February", &
-   &"1992", /)')
+   &"IONIC SYSTEM  ", /, /, "Division of Theoretical Chemistry, Lund University", /)')
    write (unit_output, '(/, "************************************************************", &
    &"************************", /)')
 
