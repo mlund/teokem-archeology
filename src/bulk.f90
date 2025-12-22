@@ -57,6 +57,15 @@ program bulk
 
       subroutine calculate_widom_insertion3()
       end subroutine calculate_widom_insertion3
+
+      subroutine initialize_rdf()
+      end subroutine initialize_rdf
+
+      subroutine accumulate_rdf()
+      end subroutine accumulate_rdf
+
+      subroutine finalize_and_write_rdf()
+      end subroutine finalize_and_write_rdf
    end interface
 
    ! Note: Variable names have been updated to be more descriptive
@@ -237,6 +246,7 @@ program bulk
    end if
 
    if (initial_config_type == 1) call initialize_random_configuration
+   call initialize_rdf
    call calculate_collision_pressure
    call calculate_widom_insertion
 
@@ -376,6 +386,9 @@ program bulk
             end if
 
          end do
+
+         ! Accumulate RDF data at the end of each middle loop
+         call accumulate_rdf
       end do
 
       energy_consistency_check = total_coulomb_energy
@@ -485,6 +498,9 @@ program bulk
    write (unit_output, '(a, f12.4, f10.4)') 'Collision press      ', pressure_collision_average, pressure_collision_variance
    write (unit_output, '(70("_"))')
    write (unit_output, '(a, f12.4, f10.4)') 'Bulk pressure        ', pressure_total, pressure_total_variance
+
+   ! Finalize and write RDF data
+   call finalize_and_write_rdf
 
    stop
 
@@ -1340,6 +1356,215 @@ subroutine calculate_widom_insertion
    return
 
 end subroutine calculate_widom_insertion
+
+! =============================================================================
+! =============================================================================
+!
+! Subroutine: initialize_rdf
+!
+! Initializes the radial distribution function (RDF) arrays and parameters
+!
+! =============================================================================
+! =============================================================================
+
+subroutine initialize_rdf
+
+   implicit none
+   include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, j, k
+
+   ! Set RDF parameters
+   ! Maximum distance is half the box size (due to periodic boundaries)
+   rdf_max_distance = box_half
+   rdf_bin_width = rdf_max_distance / rdf_num_bins
+
+   ! Initialize histogram to zero
+   do i = 1, num_species
+      do j = 1, num_species
+         do k = 1, rdf_num_bins
+            rdf_histogram(k, i, j) = 0.0
+         end do
+      end do
+   end do
+
+   ! Initialize sample counter
+   rdf_samples = 0.0
+
+   write (unit_output, '(a)') 'RDF analysis initialized'
+   write (unit_output, '(a, i6)') '  Number of bins: ', rdf_num_bins
+   write (unit_output, '(a, f10.4)') '  Bin width (Angstrom): ', rdf_bin_width
+   write (unit_output, '(a, f10.4, /)') '  Maximum distance (Angstrom): ', rdf_max_distance
+
+   return
+
+end subroutine initialize_rdf
+
+! =============================================================================
+! =============================================================================
+!
+! Subroutine: accumulate_rdf
+!
+! Accumulates histogram data for the radial distribution function
+! by calculating all pairwise distances in the current configuration
+!
+! =============================================================================
+! =============================================================================
+
+subroutine accumulate_rdf
+
+   implicit none
+   include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, j, bin_index, species_i, species_j
+   double precision :: delta_x, delta_y, delta_z, distance
+
+   rdf_samples = rdf_samples + 1.0
+
+   ! Loop over all unique particle pairs
+   do i = 1, num_particles - 1
+      species_i = particle_species(i)
+
+      do j = i + 1, num_particles
+         species_j = particle_species(j)
+
+         ! Calculate distance with periodic boundary conditions
+         delta_x = particle_x(i) - particle_x(j)
+         delta_y = particle_y(i) - particle_y(j)
+         delta_z = particle_z(i) - particle_z(j)
+
+         ! Apply minimum image convention
+         delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+         delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+         delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
+
+         distance = sqrt(delta_x*delta_x + delta_y*delta_y + delta_z*delta_z)
+
+         ! Add to histogram if within maximum distance
+         if (distance < rdf_max_distance) then
+            bin_index = int(distance/rdf_bin_width) + 1
+
+            if (bin_index <= rdf_num_bins) then
+               ! Add to histograms
+               ! For same species: count both directions (i->j and j->i) by adding 2.0
+               ! For different species: add to both histogram(i,j) and histogram(j,i)
+               if (species_i == species_j) then
+                  rdf_histogram(bin_index, species_i, species_j) = &
+                     rdf_histogram(bin_index, species_i, species_j) + 2.0
+               else
+                  rdf_histogram(bin_index, species_i, species_j) = &
+                     rdf_histogram(bin_index, species_i, species_j) + 1.0
+                  rdf_histogram(bin_index, species_j, species_i) = &
+                     rdf_histogram(bin_index, species_j, species_i) + 1.0
+               end if
+            end if
+         end if
+      end do
+   end do
+
+   return
+
+end subroutine accumulate_rdf
+
+! =============================================================================
+! =============================================================================
+!
+! Subroutine: finalize_and_write_rdf
+!
+! Normalizes the RDF histograms and writes them to a CSV file
+!
+! =============================================================================
+! =============================================================================
+
+subroutine finalize_and_write_rdf
+
+   implicit none
+   include 'bulk_f90.inc'
+
+   ! Local variables
+   integer :: i, j, k, unit_rdf
+   integer :: num_particles_i, num_particles_j
+   double precision :: r_lower, r_upper, r_mid, shell_volume, number_density_j
+   double precision :: ideal_count, normalization_factor, g_r
+
+   unit_rdf = 20
+
+   if (rdf_samples < 1.0) then
+      write (unit_output, '(a)') 'Warning: No RDF samples collected'
+      return
+   end if
+
+   ! Open CSV file for writing
+   open (unit_rdf, file='rdf.csv', form='formatted', status='replace')
+
+   ! Write header - simple approach
+   write (unit_rdf, '(a)', advance='no') 'r'
+   do i = 1, num_species
+      do j = 1, num_species
+         write (unit_rdf, '(a, i0, a, i0, a)', advance='no') ',g_', i, '_', j, '(r)'
+      end do
+   end do
+   write (unit_rdf, *)  ! End header line
+
+   ! Calculate and write normalized RDF for each bin
+   do k = 1, rdf_num_bins
+      r_lower = (k - 1)*rdf_bin_width
+      r_upper = k*rdf_bin_width
+      r_mid = (r_lower + r_upper)/2.0
+
+      ! Write distance in first column
+      write (unit_rdf, '(es15.7)', advance='no') r_mid
+
+      ! Calculate and write g(r) for each species pair
+      do i = 1, num_species
+         num_particles_i = int(species_properties(i, 2))
+
+         do j = 1, num_species
+            num_particles_j = int(species_properties(j, 2))
+
+            ! Calculate shell volume
+            shell_volume = 4.0*pi/3.0*(r_upper**3 - r_lower**3)
+
+            ! Number density of species j
+            ! For same species, exclude self-particle from density
+            if (i == j) then
+               number_density_j = (num_particles_j - 1.0)/(box_size**3)
+            else
+               number_density_j = num_particles_j/(box_size**3)
+            end if
+
+            ! Expected number of j particles in shell around an i particle
+            ! (for an ideal gas)
+            ideal_count = shell_volume*number_density_j
+
+            ! Normalization factor
+            normalization_factor = rdf_samples*num_particles_i*ideal_count
+
+            ! Calculate normalized g(r)
+            if (normalization_factor > 0.0) then
+               g_r = rdf_histogram(k, i, j)/normalization_factor
+            else
+               g_r = 0.0
+            end if
+
+            write (unit_rdf, '(a, es15.7)', advance='no') ',', g_r
+         end do
+      end do
+
+      write (unit_rdf, *)  ! End of data line
+   end do
+
+   close (unit_rdf)
+
+   write (unit_output, '(/, a)') 'RDF analysis completed'
+   write (unit_output, '(a, f12.0)') '  Number of configurations sampled: ', rdf_samples
+   write (unit_output, '(a, /)') '  RDF data written to rdf.csv'
+
+   return
+
+end subroutine finalize_and_write_rdf
 
 ! =============================================================================
 ! Helper subroutine to initialize the random number generator
