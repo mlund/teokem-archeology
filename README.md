@@ -23,21 +23,39 @@ make
 
 The `bulk` program automatically calculates and exports radial distribution functions g(r) for all species pairs to `rdf.csv`. The RDF data is accumulated during the simulation and normalized using ideal gas reference states.
 
+#### Static Plotting (Command Line)
+
 To visualize the RDF data, use the provided Python plotting script:
 
 ```sh
 ./plot_rdf.py rdf.csv
 ```
 
+The script generates two plots:
+- `rdf_plot.png` - Individual subplots for each species pair
+- `rdf_plot_combined.png` - All g(r) functions overlaid on a single plot
+
+#### Interactive Plotting (Jupyter Notebook)
+
+For interactive exploration of RDF data in Jupyter notebooks:
+
+```python
+from plot_rdf import plot_interactive
+plot_interactive('rdf.csv')
+```
+
+The interactive mode provides:
+- **Dropdown menu** to select specific species pairs or view all pairs combined
+- **Checkbox** to toggle the g(r) = 1 reference line
+- **Slider** to adjust line width
+- Real-time plot updates
+
 **Requirements:**
 - Python 3
 - pandas
 - matplotlib
 - numpy
-
-The script generates two plots:
-- `rdf_plot.png` - Individual subplots for each species pair
-- `rdf_plot_combined.png` - All g(r) functions overlaid on a single plot
+- ipywidgets (for interactive mode only)
 
 ## Contributors
 
