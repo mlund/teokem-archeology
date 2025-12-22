@@ -22,27 +22,8 @@ make
 Fortran 90 source files (.f90) can be automatically formatted using `fprettify`:
 
 ```sh
-make format
-```
-
-This target:
-- Formats all `.f90` files using settings from `.fprettify.yaml`
-- Uses 4-space indentation
-- Adds whitespace around operators
-- Enforces lowercase for keywords
-- Creates backup files with `.bak` extension before formatting
-- Preserves `.f` (Fortran 77) files unchanged
-
-Formatting settings can be customized by editing `.fprettify.yaml`.
-
-To remove backup files:
-```sh
-make clean-backups
-```
-
-**Installation:**
-```sh
 pip install fprettify
+make format
 ```
 
 ## Analysis Tools

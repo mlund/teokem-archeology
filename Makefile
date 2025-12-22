@@ -32,7 +32,7 @@ $(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
 
 # Clean up compiled files
 clean:
-	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM
+	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM $(SRCDIR)/*.bak
 
 # Run bulk test script
 test_bulk: $(TARGET)
@@ -52,10 +52,6 @@ format:
 	done
 	@echo "Formatting complete! Original files backed up with .bak extension"
 	@echo "Note: .f files (Fortran 77) are not formatted to preserve legacy formatting"
-
-# Remove backup files created by format target
-clean-backups:
-	rm -f $(SRCDIR)/*.bak
 
 # Phony targets
 .PHONY: all clean test_bulk bulk_f77 format clean-backups
