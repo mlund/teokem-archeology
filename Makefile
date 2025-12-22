@@ -43,7 +43,7 @@ test_bulk: $(TARGET)
 # Formats .f90 and .inc files (legacy .f files are not formatted)
 format:
 	@echo "Formatting Fortran 90 source files with fprettify..."
-	@for file in $(SRCDIR)/*.f90 $(SRCDIR)/*.inc; do \
+	@for file in $(SRCDIR)/*.f90 $(SRCDIR)/*_f90.inc; do \
 		if [ -f "$$file" ]; then \
 			echo "Formatting $$file..."; \
 			fprettify "$$file"; \

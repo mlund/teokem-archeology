@@ -7,15 +7,13 @@
 ! Parameters
 ! =============================================================================
 integer, parameter :: dp = selected_real_kind(15, 307)  ! Double precision kind parameter
-integer, parameter :: max_ions    = 600  ! Maximum number of ions in simulation
+integer, parameter :: max_ions = 600  ! Maximum number of ions in simulation
 integer, parameter :: max_species = 10   ! Maximum number of ionic species
-
 
 ! =============================================================================
 ! Character Variables
 ! =============================================================================
 ! character(len=16) :: title  ! Simulation title (currently unused)
-
 
 ! =============================================================================
 ! Particle Position and Property Arrays
@@ -26,13 +24,11 @@ real(dp) :: particle_z(max_ions)         ! Z coordinates of all particles
 real(dp) :: particle_charge(max_ions)    ! Charge of each particle
 real(dp) :: displacement_max(max_ions)   ! Maximum displacement for MC moves per particle
 
-
 ! =============================================================================
 ! Energy Arrays
 ! =============================================================================
 real(dp) :: energy_matrix(max_ions, max_ions)  ! Pair interaction energy matrix
 real(dp) :: trial_energy(max_ions)             ! Energy for trial particle configuration
-
 
 ! =============================================================================
 ! Species Properties Arrays
@@ -56,7 +52,6 @@ real(dp) :: contact_correlation(25, max_species, max_species)
 ! Particle species assignment
 integer :: particle_species(max_ions)  ! Species index for each particle
 
-
 ! =============================================================================
 ! Physical Constants (read-only parameters)
 ! =============================================================================
@@ -74,14 +69,12 @@ real(dp) :: temperature             ! Temperature (K)
 real(dp) :: energy_conversion_factor ! Energy conversion factor for Coulomb interactions
 real(dp) :: beta_inverse_temp       ! β = -1/(kT) for Metropolis criterion
 
-
 ! =============================================================================
 ! Trial Move Variables (for Monte Carlo moves)
 ! =============================================================================
 real(dp) :: trial_x  ! Trial X position for particle move
 real(dp) :: trial_y  ! Trial Y position for particle move
 real(dp) :: trial_z  ! Trial Z position for particle move
-
 
 ! =============================================================================
 ! Simulation Box Parameters
@@ -90,13 +83,11 @@ real(dp) :: box_size          ! Simulation box size (cubic box)
 real(dp) :: box_half          ! Half of box size (for periodic boundaries)
 real(dp) :: box_half_inverse  ! Inverse of half box size (for efficiency)
 
-
 ! =============================================================================
 ! Energy Tracking Variables
 ! =============================================================================
 real(dp) :: total_coulomb_energy  ! Total Coulomb energy of system
 ! real(dp) :: energy_check_parameter ! Parameter for energy consistency checks (currently unused)
-
 
 ! =============================================================================
 ! Pressure and Chemical Potential Variables
@@ -107,7 +98,6 @@ real(dp) :: pressure_widom_wall_variance    ! Variance of Widom wall pressure
 real(dp) :: pressure_widom_midplane_variance ! Variance of Widom midplane pressure
 real(dp) :: pressure_collision_average      ! Average collision pressure
 real(dp) :: pressure_collision_variance     ! Variance of collision pressure
-
 
 ! =============================================================================
 ! Monte Carlo Loop Counters and Simulation Parameters
@@ -128,13 +118,11 @@ integer :: measurement_location  ! Location for chemical potential measurement (
 integer :: current_particle  ! Index of current particle being moved
 integer :: overlap_status    ! Overlap status flag (0=no overlap, non-zero=overlap)
 
-
 ! =============================================================================
 ! Configuration and I/O Parameters
 ! =============================================================================
 integer :: initial_config_type  ! Initial configuration type (0=read from file, 1=random)
 integer :: random_seed          ! Seed for random number generator
-
 
 ! =============================================================================
 ! File Unit Numbers
@@ -145,7 +133,6 @@ integer :: unit_output  ! File unit for main output file
 integer :: unit_misc    ! File unit for miscellaneous output
 integer :: unit_macro   ! File unit for macro step output
 
-
 ! =============================================================================
 ! Radial Distribution Function (RDF) Variables
 ! =============================================================================
@@ -155,28 +142,27 @@ real(dp) :: rdf_max_distance                               ! Maximum distance fo
 real(dp) :: rdf_histogram(rdf_num_bins, max_species, max_species)  ! RDF histogram for each species pair
 real(dp) :: rdf_samples                                    ! Number of RDF samples accumulated
 
-
 ! =============================================================================
 ! Common Block Declaration
 ! This preserves the memory layout for compatibility with legacy code
 ! NOTE: Physical constants (pi, avogadro_number, gas_constant, vacuum_permittivity,
 !       elementary_charge) are now parameters and cannot be in common blocks
 ! =============================================================================
-common /arr1/ energy_matrix, trial_energy, &
-              species_concentration, species_interaction_matrix, &
-              contact_correlation, &
-              particle_x, particle_y, particle_z, particle_charge, displacement_max, &
-              hard_core_distance_sq, species_properties, &
-              dielectric_constant, energy_conversion_factor, beta_inverse_temp, temperature, &
-              trial_x, trial_y, trial_z, total_coulomb_energy, &
-              pressure_widom_wall, pressure_widom_midplane, &
-              pressure_widom_wall_variance, pressure_widom_midplane_variance, &
-              pressure_collision_average, pressure_collision_variance, &
-              box_size, box_half, box_half_inverse, &
-              rdf_bin_width, rdf_max_distance, rdf_histogram, rdf_samples, &
-              particle_species, &
-              mc_steps_inner, mc_steps_middle, mc_steps_outer, current_macro_step, &
-              num_species, current_species, num_particles, &
-              num_widom_insertions, widom_interval, measurement_location, &
-              current_particle, overlap_status, random_seed, initial_config_type, &
-              unit_conf, unit_input, unit_output, unit_misc, unit_macro
+common/arr1/energy_matrix, trial_energy, &
+   species_concentration, species_interaction_matrix, &
+   contact_correlation, &
+   particle_x, particle_y, particle_z, particle_charge, displacement_max, &
+   hard_core_distance_sq, species_properties, &
+   dielectric_constant, energy_conversion_factor, beta_inverse_temp, temperature, &
+   trial_x, trial_y, trial_z, total_coulomb_energy, &
+   pressure_widom_wall, pressure_widom_midplane, &
+   pressure_widom_wall_variance, pressure_widom_midplane_variance, &
+   pressure_collision_average, pressure_collision_variance, &
+   box_size, box_half, box_half_inverse, &
+   rdf_bin_width, rdf_max_distance, rdf_histogram, rdf_samples, &
+   particle_species, &
+   mc_steps_inner, mc_steps_middle, mc_steps_outer, current_macro_step, &
+   num_species, current_species, num_particles, &
+   num_widom_insertions, widom_interval, measurement_location, &
+   current_particle, overlap_status, random_seed, initial_config_type, &
+   unit_conf, unit_input, unit_output, unit_misc, unit_macro
