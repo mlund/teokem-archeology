@@ -6,7 +6,7 @@ Collection of old fortran codes for computational chemistry.
 
 Name        | Description
 --------    |:-----------------
-`bulk`      | Metropolis Monte Carlo simulation of multicomponent electrolyte solutions. Ions are modelled as charged, hard particles using the primitive model of electrolytes. Uses [scaled Widom analysis](https://doi.org/10.1080/00268978800100203) for calculating single ion activity coefficients. Both the original Fortran 77 code is available (`make bulk_f77`) as well as a modernized version (`make bulk`). They give identical results. The code has been used to study [excess chemical potentials of seasalt](https://doi.org/10.1016/S0304-4203(02)00039-7) and the [validity of primitive models](https://doi.org/10.1021/jp808427f).
+`bulk`      | Metropolis Monte Carlo simulation of multicomponent electrolyte solutions. Ions are modelled as charged, hard particles using the primitive model of electrolytes. Uses [scaled Widom analysis](https://doi.org/10.1080/00268978800100203) for calculating single ion activity coefficients. Calculates radial distribution functions g(r) for all species pairs. Both the original Fortran 77 code is available (`make bulk_f77`) as well as a modernized version (`make bulk`). They give identical results. The code has been used to study [excess chemical potentials of seasalt](https://doi.org/10.1016/S0304-4203(02)00039-7) and the [validity of primitive models](https://doi.org/10.1021/jp808427f).
 
 ## Building
 
@@ -16,6 +16,28 @@ The build uses `gfortran`, but it should be easy to modify to other compilers.
 make clean
 make
 ```
+
+## Analysis Tools
+
+### Radial Distribution Function (RDF) Analysis
+
+The `bulk` program automatically calculates and exports radial distribution functions g(r) for all species pairs to `rdf.csv`. The RDF data is accumulated during the simulation and normalized using ideal gas reference states.
+
+To visualize the RDF data, use the provided Python plotting script:
+
+```sh
+./plot_rdf.py rdf.csv
+```
+
+**Requirements:**
+- Python 3
+- pandas
+- matplotlib
+- numpy
+
+The script generates two plots:
+- `rdf_plot.png` - Individual subplots for each species pair
+- `rdf_plot_combined.png` - All g(r) functions overlaid on a single plot
 
 ## Contributors
 
