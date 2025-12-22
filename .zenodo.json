@@ -1,0 +1,37 @@
+{
+    "title": "Scientific Software Archeology: Legacy Fortran Codes for Monte Carlo Simulation of Chemical Systems",
+    "description": "Collection of legacy Fortran codes for computational chemistry from Division of Theoretical Chemistry, Lund University. The main program, bulk, performs Metropolis Monte Carlo simulations of multicomponent electrolyte solutions using the primitive model. Features include scaled Widom analysis for single ion activity coefficients and radial distribution function calculations. The repository preserves both original Fortran 77 code and modernized Fortran 90 versions with performance optimizations including vectorization. These codes have been used in published research on excess chemical potentials of sea salt and validation of primitive electrolyte models.",
+    "creators": [
+        {
+            "name": "Mikael Lund",
+            "affiliation": "Division of Theoretical Chemistry, Department of Chemistry, Lund University, Sweden",
+            "orcid": "0000-0001-8178-8175"
+        }
+    ],
+    "keywords": [
+        "statistical thermodynamics",
+        "electrostatics",
+        "monte carlo simulation",
+        "computational chemistry",
+        "fortran"
+    ],
+    "related_identifiers": [
+        {
+            "scheme": "url",
+            "identifier": "https://github.com/mlund/teokem-archeology",
+            "relation": "isSupplementTo"
+        },
+        {
+            "scheme": "doi",
+            "identifier": "10.1016/S0304-4203(02)00039-7",
+            "relation": "isSupplementTo"
+        },
+        {
+            "scheme": "doi",
+            "identifier": "10.1080/00268978800100203",
+            "relation": "isSupplementTo"
+        }
+    ],
+    "access_right": "open",
+    "upload_type": "software"
+}
