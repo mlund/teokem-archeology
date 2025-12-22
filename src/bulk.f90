@@ -1447,10 +1447,15 @@ subroutine accumulate_rdf
             bin_index = int(distance/rdf_bin_width) + 1
 
             if (bin_index <= rdf_num_bins) then
-               ! Add to both i-j and j-i histograms (symmetric)
-               rdf_histogram(bin_index, species_i, species_j) = &
-                  rdf_histogram(bin_index, species_i, species_j) + 1.0
-               if (species_i /= species_j) then
+               ! Add to histograms
+               ! For same species: count both directions (i->j and j->i) by adding 2.0
+               ! For different species: add to both histogram(i,j) and histogram(j,i)
+               if (species_i == species_j) then
+                  rdf_histogram(bin_index, species_i, species_j) = &
+                     rdf_histogram(bin_index, species_i, species_j) + 2.0
+               else
+                  rdf_histogram(bin_index, species_i, species_j) = &
+                     rdf_histogram(bin_index, species_i, species_j) + 1.0
                   rdf_histogram(bin_index, species_j, species_i) = &
                      rdf_histogram(bin_index, species_j, species_i) + 1.0
                end if
@@ -1523,18 +1528,19 @@ subroutine finalize_and_write_rdf
             shell_volume = 4.0*pi/3.0*(r_upper**3 - r_lower**3)
 
             ! Number density of species j
-            number_density_j = num_particles_j/(box_size**3)
+            ! For same species, exclude self-particle from density
+            if (i == j) then
+               number_density_j = (num_particles_j - 1.0)/(box_size**3)
+            else
+               number_density_j = num_particles_j/(box_size**3)
+            end if
 
             ! Expected number of j particles in shell around an i particle
             ! (for an ideal gas)
             ideal_count = shell_volume*number_density_j
 
-            ! For same species, account for not counting self-pairs
-            if (i == j) then
-               normalization_factor = rdf_samples*num_particles_i*ideal_count
-            else
-               normalization_factor = rdf_samples*num_particles_i*ideal_count
-            end if
+            ! Normalization factor
+            normalization_factor = rdf_samples*num_particles_i*ideal_count
 
             ! Calculate normalized g(r)
             if (normalization_factor > 0.0) then
