@@ -4,10 +4,12 @@
 
 *.dSYM
 bulk
+bulk_f77
 *.temp
 *.inp
 *.log
 *.macro
+*.bak
 
 # Prerequisites
 *.d

@@ -17,6 +17,15 @@ make clean
 make
 ```
 
+## Code Formatting
+
+Fortran 90 source files (.f90) can be automatically formatted using `fprettify`:
+
+```sh
+pip install fprettify
+make format
+```
+
 ## Analysis Tools
 
 ### Radial Distribution Function (RDF) Analysis

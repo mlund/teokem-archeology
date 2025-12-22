@@ -1377,7 +1377,7 @@ subroutine initialize_rdf
    ! Set RDF parameters
    ! Maximum distance is half the box size (due to periodic boundaries)
    rdf_max_distance = box_half
-   rdf_bin_width = rdf_max_distance / rdf_num_bins
+   rdf_bin_width = rdf_max_distance/rdf_num_bins
 
    ! Initialize histogram to zero
    do i = 1, num_species
