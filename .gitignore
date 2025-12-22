@@ -48,3 +48,17 @@ bulk
 
 # debug information files
 *.dwo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+*.egg-info/
+dist/
+build/
+
+# RDF output files
+rdf.csv
+rdf_plot*.png
