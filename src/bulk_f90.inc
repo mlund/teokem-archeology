@@ -6,6 +6,7 @@
 ! =============================================================================
 ! Parameters
 ! =============================================================================
+integer, parameter :: dp = selected_real_kind(15, 307)  ! Double precision kind parameter
 integer, parameter :: max_ions    = 600  ! Maximum number of ions in simulation
 integer, parameter :: max_species = 10   ! Maximum number of ionic species
 
@@ -19,18 +20,18 @@ integer, parameter :: max_species = 10   ! Maximum number of ionic species
 ! =============================================================================
 ! Particle Position and Property Arrays
 ! =============================================================================
-double precision :: particle_x(max_ions)         ! X coordinates of all particles
-double precision :: particle_y(max_ions)         ! Y coordinates of all particles
-double precision :: particle_z(max_ions)         ! Z coordinates of all particles
-double precision :: particle_charge(max_ions)    ! Charge of each particle
-double precision :: displacement_max(max_ions)   ! Maximum displacement for MC moves per particle
+real(dp) :: particle_x(max_ions)         ! X coordinates of all particles
+real(dp) :: particle_y(max_ions)         ! Y coordinates of all particles
+real(dp) :: particle_z(max_ions)         ! Z coordinates of all particles
+real(dp) :: particle_charge(max_ions)    ! Charge of each particle
+real(dp) :: displacement_max(max_ions)   ! Maximum displacement for MC moves per particle
 
 
 ! =============================================================================
 ! Energy Arrays
 ! =============================================================================
-double precision :: energy_matrix(max_ions, max_ions)  ! Pair interaction energy matrix
-double precision :: trial_energy(max_ions)             ! Energy for trial particle configuration
+real(dp) :: energy_matrix(max_ions, max_ions)  ! Pair interaction energy matrix
+real(dp) :: trial_energy(max_ions)             ! Energy for trial particle configuration
 
 
 ! =============================================================================
@@ -38,19 +39,19 @@ double precision :: trial_energy(max_ions)             ! Energy for trial partic
 ! =============================================================================
 ! Species properties matrix: (species, property_index)
 ! property_index: 1=species_id, 2=number_of_particles, 3=radius, 4=charge, 5=displacement
-double precision :: species_properties(max_species, 5)
+real(dp) :: species_properties(max_species, 5)
 
 ! Hard core interaction matrix (squared distances)
-double precision :: hard_core_distance_sq(max_ions, max_species)
+real(dp) :: hard_core_distance_sq(max_ions, max_species)
 
 ! Average concentration per species
-double precision :: species_concentration(max_species)
+real(dp) :: species_concentration(max_species)
 
 ! Species interaction matrix
-double precision :: species_interaction_matrix(max_species, max_species)
+real(dp) :: species_interaction_matrix(max_species, max_species)
 
 ! Contact correlation function g(r) at contact
-double precision :: contact_correlation(25, max_species, max_species)
+real(dp) :: contact_correlation(25, max_species, max_species)
 
 ! Particle species assignment
 integer :: particle_species(max_ions)  ! Species index for each particle
@@ -59,53 +60,53 @@ integer :: particle_species(max_ions)  ! Species index for each particle
 ! =============================================================================
 ! Physical Constants (read-only parameters)
 ! =============================================================================
-double precision, parameter :: pi = acos(-1.0d0)                 ! Mathematical constant π
-double precision, parameter :: avogadro_number = 6.0223d23       ! Avogadro's number (N_A)
-double precision, parameter :: gas_constant = 8.314d0            ! Gas constant R (kJ/mol/K)
-double precision, parameter :: vacuum_permittivity = 8.85418782d-12  ! Vacuum permittivity (ε_0) in F/m
-double precision, parameter :: elementary_charge = 1.60219d-19   ! Elementary charge (e) in C
+real(dp), parameter :: pi = acos(-1.0d0)                 ! Mathematical constant π
+real(dp), parameter :: avogadro_number = 6.0223d23       ! Avogadro's number (N_A)
+real(dp), parameter :: gas_constant = 8.314d0            ! Gas constant R (kJ/mol/K)
+real(dp), parameter :: vacuum_permittivity = 8.85418782d-12  ! Vacuum permittivity (ε_0) in F/m
+real(dp), parameter :: elementary_charge = 1.60219d-19   ! Elementary charge (e) in C
 
 ! =============================================================================
 ! System Parameters (set from input or calculated)
 ! =============================================================================
-double precision :: dielectric_constant     ! Relative dielectric constant (ε_r)
-double precision :: temperature             ! Temperature (K)
-double precision :: energy_conversion_factor ! Energy conversion factor for Coulomb interactions
-double precision :: beta_inverse_temp       ! β = -1/(kT) for Metropolis criterion
+real(dp) :: dielectric_constant     ! Relative dielectric constant (ε_r)
+real(dp) :: temperature             ! Temperature (K)
+real(dp) :: energy_conversion_factor ! Energy conversion factor for Coulomb interactions
+real(dp) :: beta_inverse_temp       ! β = -1/(kT) for Metropolis criterion
 
 
 ! =============================================================================
 ! Trial Move Variables (for Monte Carlo moves)
 ! =============================================================================
-double precision :: trial_x  ! Trial X position for particle move
-double precision :: trial_y  ! Trial Y position for particle move
-double precision :: trial_z  ! Trial Z position for particle move
+real(dp) :: trial_x  ! Trial X position for particle move
+real(dp) :: trial_y  ! Trial Y position for particle move
+real(dp) :: trial_z  ! Trial Z position for particle move
 
 
 ! =============================================================================
 ! Simulation Box Parameters
 ! =============================================================================
-double precision :: box_size          ! Simulation box size (cubic box)
-double precision :: box_half          ! Half of box size (for periodic boundaries)
-double precision :: box_half_inverse  ! Inverse of half box size (for efficiency)
+real(dp) :: box_size          ! Simulation box size (cubic box)
+real(dp) :: box_half          ! Half of box size (for periodic boundaries)
+real(dp) :: box_half_inverse  ! Inverse of half box size (for efficiency)
 
 
 ! =============================================================================
 ! Energy Tracking Variables
 ! =============================================================================
-double precision :: total_coulomb_energy  ! Total Coulomb energy of system
-! double precision :: energy_check_parameter ! Parameter for energy consistency checks (currently unused)
+real(dp) :: total_coulomb_energy  ! Total Coulomb energy of system
+! real(dp) :: energy_check_parameter ! Parameter for energy consistency checks (currently unused)
 
 
 ! =============================================================================
 ! Pressure and Chemical Potential Variables
 ! =============================================================================
-double precision :: pressure_widom_wall             ! Widom pressure at wall
-double precision :: pressure_widom_midplane         ! Widom pressure at midplane
-double precision :: pressure_widom_wall_variance    ! Variance of Widom wall pressure
-double precision :: pressure_widom_midplane_variance ! Variance of Widom midplane pressure
-double precision :: pressure_collision_average      ! Average collision pressure
-double precision :: pressure_collision_variance     ! Variance of collision pressure
+real(dp) :: pressure_widom_wall             ! Widom pressure at wall
+real(dp) :: pressure_widom_midplane         ! Widom pressure at midplane
+real(dp) :: pressure_widom_wall_variance    ! Variance of Widom wall pressure
+real(dp) :: pressure_widom_midplane_variance ! Variance of Widom midplane pressure
+real(dp) :: pressure_collision_average      ! Average collision pressure
+real(dp) :: pressure_collision_variance     ! Variance of collision pressure
 
 
 ! =============================================================================
@@ -149,10 +150,10 @@ integer :: unit_macro   ! File unit for macro step output
 ! Radial Distribution Function (RDF) Variables
 ! =============================================================================
 integer, parameter :: rdf_num_bins = 500                           ! Number of RDF histogram bins
-double precision :: rdf_bin_width                                  ! Width of each RDF bin
-double precision :: rdf_max_distance                               ! Maximum distance for RDF calculation
-double precision :: rdf_histogram(rdf_num_bins, max_species, max_species)  ! RDF histogram for each species pair
-double precision :: rdf_samples                                    ! Number of RDF samples accumulated
+real(dp) :: rdf_bin_width                                  ! Width of each RDF bin
+real(dp) :: rdf_max_distance                               ! Maximum distance for RDF calculation
+real(dp) :: rdf_histogram(rdf_num_bins, max_species, max_species)  ! RDF histogram for each species pair
+real(dp) :: rdf_samples                                    ! Number of RDF samples accumulated
 
 
 ! =============================================================================

@@ -9,22 +9,25 @@
 program bulk
 
    implicit none
-   double precision :: random_value
    include 'bulk_f90.inc'
+
+   real(dp) :: random_value
 
    ! Explicit interfaces for subroutines
    interface
       subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
+         integer, parameter :: dp = selected_real_kind(15, 307)
          integer, intent(in) :: array_size
-         double precision, intent(in) :: data_array(25)
-         double precision, intent(out) :: standard_deviation, mean_value
+         real(dp), intent(in) :: data_array(25)
+         real(dp), intent(out) :: standard_deviation, mean_value
       end subroutine calculate_statistics
 
      subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
+         integer, parameter :: dp = selected_real_kind(15, 307)
          integer, parameter :: max_species = 10
          integer, intent(in) :: num_samples, num_species_to_process
-         double precision, intent(in) :: data_matrix(25, max_species)
-         double precision, intent(out) :: mean_values(max_species), standard_deviations(max_species)
+         real(dp), intent(in) :: data_matrix(25, max_species)
+         real(dp), intent(out) :: mean_values(max_species), standard_deviations(max_species)
       end subroutine calculate_statistics_per_species
 
       subroutine initialize_random_configuration()
@@ -89,22 +92,22 @@ program bulk
    integer :: moves_per_species_energy_rejected(max_species) ! Energy rejected moves per species
    integer :: moves_per_species_hardcore_rejected(max_species) ! Hard core rejected moves per species
 
-   double precision :: energy_accumulator_current(2)         ! Energy accumulator for current macro step
-   double precision :: energy_accumulator_total(2)           ! Total energy accumulator across all macro steps
-   double precision :: energy_per_macrostep(25)              ! Energy stored for each macro step
-   double precision :: time_array(10)                        ! Time measurements array (currently unused)
-   double precision :: energy_difference                     ! Energy difference for MC acceptance
-   double precision :: boltzmann_factor                      ! Boltzmann factor for MC acceptance
-   double precision :: energy_variance                       ! Variance of energy measurements
-   double precision :: temp_kelvin                           ! Temperature in Kelvin
-   double precision :: pressure_excess_energy                ! Excess pressure from energy
-   double precision :: pressure_excess_variance              ! Variance of excess pressure
-   double precision :: pressure_ideal                        ! Ideal gas pressure contribution
-   double precision :: pressure_total                        ! Total system pressure
-   double precision :: pressure_total_variance               ! Variance of total pressure
-   double precision :: energy_consistency_check              ! Relative energy consistency check
-   double precision :: macro_step_inverse                    ! Inverse of number of macro steps (1/N)
-   double precision :: initial_energy_scaled                 ! Initial configuration energy (scaled to kJ/mol)
+   real(dp) :: energy_accumulator_current(2)         ! Energy accumulator for current macro step
+   real(dp) :: energy_accumulator_total(2)           ! Total energy accumulator across all macro steps
+   real(dp) :: energy_per_macrostep(25)              ! Energy stored for each macro step
+   real(dp) :: time_array(10)                        ! Time measurements array (currently unused)
+   real(dp) :: energy_difference                     ! Energy difference for MC acceptance
+   real(dp) :: boltzmann_factor                      ! Boltzmann factor for MC acceptance
+   real(dp) :: energy_variance                       ! Variance of energy measurements
+   real(dp) :: temp_kelvin                           ! Temperature in Kelvin
+   real(dp) :: pressure_excess_energy                ! Excess pressure from energy
+   real(dp) :: pressure_excess_variance              ! Variance of excess pressure
+   real(dp) :: pressure_ideal                        ! Ideal gas pressure contribution
+   real(dp) :: pressure_total                        ! Total system pressure
+   real(dp) :: pressure_total_variance               ! Variance of total pressure
+   real(dp) :: energy_consistency_check              ! Relative energy consistency check
+   real(dp) :: macro_step_inverse                    ! Inverse of number of macro steps (1/N)
+   real(dp) :: initial_energy_scaled                 ! Initial configuration energy (scaled to kJ/mol)
 
    data energy_accumulator_total/2*0.0/
    data energy_per_macrostep/25*0.0/
@@ -521,11 +524,12 @@ end program bulk
 subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
 
    implicit none
+   include 'bulk_f90.inc'
    integer, intent(in) :: array_size
-   double precision, intent(in) :: data_array(25)
-   double precision, intent(out) :: standard_deviation, mean_value
+   real(dp), intent(in) :: data_array(25)
+   real(dp), intent(out) :: standard_deviation, mean_value
    integer :: i
-   double precision :: sum_squared_deviations, normalization_factor
+   real(dp) :: sum_squared_deviations, normalization_factor
 
    normalization_factor = 1.0/(array_size*(array_size - 1))
    sum_squared_deviations = 0.0
@@ -562,12 +566,12 @@ end subroutine calculate_statistics
 subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
 
    implicit none
-   integer, parameter :: max_species = 10
+   include 'bulk_f90.inc'
    integer, intent(in) :: num_samples, num_species_to_process
-   double precision, intent(in) :: data_matrix(25, max_species)
-   double precision, intent(out) :: mean_values(max_species), standard_deviations(max_species)
+   real(dp), intent(in) :: data_matrix(25, max_species)
+   real(dp), intent(out) :: mean_values(max_species), standard_deviations(max_species)
    integer :: i, j
-   double precision :: current_std_dev, normalization_factor
+   real(dp) :: current_std_dev, normalization_factor
 
    normalization_factor = 1.0/(num_samples*(num_samples - 1))
 
@@ -607,13 +611,13 @@ end subroutine calculate_statistics_per_species
 subroutine initialize_random_configuration
 
    implicit none
-   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
    integer :: i, particles_placed, placement_attempts, max_placement_attempts
-   double precision :: delta_x, delta_y, delta_z, dist_squared
-   double precision :: trial_position_x, trial_position_y, trial_position_z
+   real(dp) :: random_value
+   real(dp) :: delta_x, delta_y, delta_z, dist_squared
+   real(dp) :: trial_position_x, trial_position_y, trial_position_z
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -686,8 +690,8 @@ subroutine evaluate_trial_move
 
    ! Local variables
    integer :: i
-   double precision :: delta_x, delta_y, delta_z, current_particle_charge
-   double precision :: distance_squared(max_ions)  ! Squared distances for overlap checking
+   real(dp) :: delta_x, delta_y, delta_z, current_particle_charge
+   real(dp) :: distance_squared(max_ions)  ! Squared distances for overlap checking
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -745,8 +749,8 @@ subroutine recalculate_total_energy
 
    ! Local variables
    integer :: i, j, next_particle_index
-   double precision :: delta_x, delta_y, delta_z, pairwise_energy
-   double precision :: distance_squared(max_ions)  ! Squared distances for energy calculation
+   real(dp) :: delta_x, delta_y, delta_z, pairwise_energy
+   real(dp) :: distance_squared(max_ions)  ! Squared distances for energy calculation
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -813,25 +817,25 @@ end subroutine recalculate_total_energy
 subroutine calculate_collision_pressure
 
    implicit none
-   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
    integer :: i, j, k
    integer :: species_i, species_k
    integer :: num_particles_in_species, random_particle_index
+   real(dp) :: random_value
    integer :: particle_list_start, total_collision_tests
-   double precision :: relative_error(max_species)
-   double precision :: collision_samples(25, max_species, max_species)
-   double precision :: collision_matrix(max_species, max_species)
-   double precision :: delta_x, delta_y, delta_z
-   double precision :: axial_displacement, contact_distance, angle, radial_distance
-   double precision :: ghost_x, ghost_y, ghost_z
-   double precision :: total_electrostatic_potential
-   double precision :: collision_avg, collision_var
-   double precision :: temp_array(25)  ! Temporary array for statistical calculations
-   double precision :: distance_squared(max_ions)  ! Squared distances for collision calculation
-   double precision :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
+   real(dp) :: relative_error(max_species)
+   real(dp) :: collision_samples(25, max_species, max_species)
+   real(dp) :: collision_matrix(max_species, max_species)
+   real(dp) :: delta_x, delta_y, delta_z
+   real(dp) :: axial_displacement, contact_distance, angle, radial_distance
+   real(dp) :: ghost_x, ghost_y, ghost_z
+   real(dp) :: total_electrostatic_potential
+   real(dp) :: collision_avg, collision_var
+   real(dp) :: temp_array(25)  ! Temporary array for statistical calculations
+   real(dp) :: distance_squared(max_ions)  ! Squared distances for collision calculation
+   real(dp) :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
 
    ! Note: Variable names have been updated to be more descriptive
    ! See bulk_f90.inc for the complete variable declarations
@@ -990,46 +994,46 @@ end subroutine calculate_collision_pressure
 subroutine calculate_widom_insertion
 
    implicit none
-   double precision :: random_value
    include 'bulk_f90.inc'
 
    ! Local variables
    ! max_widom_species accounts for species at multiple measurement locations (bulk, wall, midplane)
    integer, parameter :: max_widom_species = max_species*3  ! max_species * (max_measurement_locations + 1)
    integer :: i, j, k
+   real(dp) :: random_value
    integer :: measurement_position, total_chemical_potentials, total_widom_tests
    integer :: num_particles_in_species, particle_list_start, species_measurement_index
    integer :: integration_point_index, integration_index, rejection_sum
    integer :: hardcore_rejection_count(max_widom_species), is_rejected(max_widom_species)
    integer :: widom_count_per_macrostep(25), hardcore_rejection_all(0:5)
-   double precision :: chem_pot_electrostatic(25, max_widom_species)
-   double precision :: chem_pot_hardcore(25, max_widom_species)
-   double precision :: chem_pot_excess(25, max_widom_species)
-   double precision :: chem_pot_total(25, max_widom_species)
-   double precision :: chem_pot_excess_widom(25, max_widom_species)
-   double precision :: chem_pot_diff_wall(25, max_widom_species)
-   double precision :: chem_pot_diff_midplane(25, max_widom_species)
-   double precision :: chem_pot_integration(max_widom_species, 11)
-   double precision :: energy_weighted_numerator(max_widom_species, 11)
-   double precision :: energy_weighted_denominator(max_widom_species, 11)
-   double precision :: chem_pot_integration_avg(max_widom_species, 11)
-   double precision :: exponential_widom_sum(max_widom_species)
-   double precision :: chem_pot_ideal(max_widom_species)
-   double precision :: chem_pot_elec_avg(max_widom_species), chem_pot_elec_var(max_widom_species)
-   double precision :: chem_pot_hc_avg(max_widom_species), chem_pot_hc_var(max_widom_species)
-   double precision :: chem_pot_ex_avg(max_widom_species), chem_pot_ex_var(max_widom_species)
-   double precision :: chem_pot_tot_avg(max_widom_species), chem_pot_tot_var(max_widom_species)
-   double precision :: chem_pot_widom_avg(max_widom_species), chem_pot_widom_var(max_widom_species)
-   double precision :: delta_x, delta_y, delta_z
-   double precision :: test_particle_x, test_particle_y, test_particle_z
-   double precision :: energy_weighted, energy_weighted_exponential, energy_weighted_lambda
-   double precision :: total_electrostatic_potential, total_inverse_distance
-   double precision :: simpson_weight_1, simpson_weight_2, simpson_weight_4, distance_sum
-   double precision :: pairwise_energy
-   double precision :: correlation_avg, correlation_var
-   double precision :: temp_array(25)  ! Temporary array for statistical calculations
-   double precision :: distance_squared(max_ions)  ! Squared distances for Widom insertion
-   double precision :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
+   real(dp) :: chem_pot_electrostatic(25, max_widom_species)
+   real(dp) :: chem_pot_hardcore(25, max_widom_species)
+   real(dp) :: chem_pot_excess(25, max_widom_species)
+   real(dp) :: chem_pot_total(25, max_widom_species)
+   real(dp) :: chem_pot_excess_widom(25, max_widom_species)
+   real(dp) :: chem_pot_diff_wall(25, max_widom_species)
+   real(dp) :: chem_pot_diff_midplane(25, max_widom_species)
+   real(dp) :: chem_pot_integration(max_widom_species, 11)
+   real(dp) :: energy_weighted_numerator(max_widom_species, 11)
+   real(dp) :: energy_weighted_denominator(max_widom_species, 11)
+   real(dp) :: chem_pot_integration_avg(max_widom_species, 11)
+   real(dp) :: exponential_widom_sum(max_widom_species)
+   real(dp) :: chem_pot_ideal(max_widom_species)
+   real(dp) :: chem_pot_elec_avg(max_widom_species), chem_pot_elec_var(max_widom_species)
+   real(dp) :: chem_pot_hc_avg(max_widom_species), chem_pot_hc_var(max_widom_species)
+   real(dp) :: chem_pot_ex_avg(max_widom_species), chem_pot_ex_var(max_widom_species)
+   real(dp) :: chem_pot_tot_avg(max_widom_species), chem_pot_tot_var(max_widom_species)
+   real(dp) :: chem_pot_widom_avg(max_widom_species), chem_pot_widom_var(max_widom_species)
+   real(dp) :: delta_x, delta_y, delta_z
+   real(dp) :: test_particle_x, test_particle_y, test_particle_z
+   real(dp) :: energy_weighted, energy_weighted_exponential, energy_weighted_lambda
+   real(dp) :: total_electrostatic_potential, total_inverse_distance
+   real(dp) :: simpson_weight_1, simpson_weight_2, simpson_weight_4, distance_sum
+   real(dp) :: pairwise_energy
+   real(dp) :: correlation_avg, correlation_var
+   real(dp) :: temp_array(25)  ! Temporary array for statistical calculations
+   real(dp) :: distance_squared(max_ions)  ! Squared distances for Widom insertion
+   real(dp) :: distance_inverse(max_ions)  ! Inverse distances for electrostatics
    character(len=80) :: location_description(max_species)
 
    ! Note: Variable names have been updated to be more descriptive
@@ -1424,7 +1428,7 @@ subroutine accumulate_rdf
 
    ! Local variables
    integer :: i, j, bin_index, species_i, species_j
-   double precision :: delta_x, delta_y, delta_z, distance
+   real(dp) :: delta_x, delta_y, delta_z, distance
 
    rdf_samples = rdf_samples + 1.0
 
@@ -1491,8 +1495,8 @@ subroutine finalize_and_write_rdf
    ! Local variables
    integer :: i, j, k, unit_rdf
    integer :: num_particles_i, num_particles_j
-   double precision :: r_lower, r_upper, r_mid, shell_volume, number_density_j
-   double precision :: ideal_count, normalization_factor, g_r
+   real(dp) :: r_lower, r_upper, r_mid, shell_volume, number_density_j
+   real(dp) :: ideal_count, normalization_factor, g_r
 
    unit_rdf = 20
 
