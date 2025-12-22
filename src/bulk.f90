@@ -15,14 +15,16 @@ program bulk
    ! Explicit interfaces for subroutines
    interface
       subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
-         integer :: array_size
-         double precision :: data_array(25), standard_deviation, mean_value
+         integer, intent(in) :: array_size
+         double precision, intent(in) :: data_array(25)
+         double precision, intent(out) :: standard_deviation, mean_value
       end subroutine calculate_statistics
 
      subroutine calculate_statistics_per_species(data_matrix, standard_deviations, mean_values, num_samples, num_species_to_process)
          integer, parameter :: max_species = 10
-         integer :: num_samples, num_species_to_process
-         double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
+         integer, intent(in) :: num_samples, num_species_to_process
+         double precision, intent(in) :: data_matrix(25, max_species)
+         double precision, intent(out) :: mean_values(max_species), standard_deviations(max_species)
       end subroutine calculate_statistics_per_species
 
       subroutine initialize_random_configuration()
@@ -519,8 +521,10 @@ end program bulk
 subroutine calculate_statistics(data_array, standard_deviation, mean_value, array_size)
 
    implicit none
-   integer :: i, array_size
-   double precision :: data_array(25), standard_deviation, mean_value
+   integer, intent(in) :: array_size
+   double precision, intent(in) :: data_array(25)
+   double precision, intent(out) :: standard_deviation, mean_value
+   integer :: i
    double precision :: sum_squared_deviations, normalization_factor
 
    normalization_factor = 1.0/(array_size*(array_size - 1))
@@ -559,8 +563,10 @@ subroutine calculate_statistics_per_species(data_matrix, standard_deviations, me
 
    implicit none
    integer, parameter :: max_species = 10
-   integer :: i, j, num_samples, num_species_to_process
-   double precision :: data_matrix(25, max_species), mean_values(max_species), standard_deviations(max_species)
+   integer, intent(in) :: num_samples, num_species_to_process
+   double precision, intent(in) :: data_matrix(25, max_species)
+   double precision, intent(out) :: mean_values(max_species), standard_deviations(max_species)
+   integer :: i, j
    double precision :: current_std_dev, normalization_factor
 
    normalization_factor = 1.0/(num_samples*(num_samples - 1))
