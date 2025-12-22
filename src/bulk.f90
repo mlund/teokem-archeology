@@ -12,6 +12,8 @@ program bulk
    include 'bulk_f90.inc'
 
    real(dp) :: random_value
+   real(dp) :: time_start, time_end, time_mc_total, time_collision_total, time_widom_total
+   real(dp) :: time_rdf_total, time_energy_recalc_total, time_trial_move_total
 
    ! Explicit interfaces for subroutines
    interface
@@ -133,6 +135,14 @@ program bulk
    data total_hardcore_rejections, total_energy_rejections, &
       total_accepted_moves, total_mc_steps/4*0/
    data time_array/10*0.0/
+
+   ! Initialize timing variables
+   time_mc_total = 0.0
+   time_collision_total = 0.0
+   time_widom_total = 0.0
+   time_rdf_total = 0.0
+   time_energy_recalc_total = 0.0
+   time_trial_move_total = 0.0
 
    unit_macro = 12
    unit_conf = 13
@@ -322,6 +332,7 @@ program bulk
 
       do step_middle = 1, mc_steps_middle
          do step_inner = 1, mc_steps_inner
+            call cpu_time(time_start)
             current_particle = 1 + mod(total_mc_steps, num_particles)
             current_species = particle_species(current_particle)
             total_mc_steps = total_mc_steps + 1
@@ -343,8 +354,11 @@ program bulk
 
             overlap_status = 99
             call evaluate_trial_move
+            call cpu_time(time_end)
+            time_trial_move_total = time_trial_move_total + (time_end - time_start)
 
             if (overlap_status == 0) then
+               call cpu_time(time_start)
                ! No hard core overlap, evaluate energy
                energy_difference = 0.0
                do loop_j = 1, num_particles
@@ -394,6 +408,8 @@ program bulk
                      moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
                   end if
                end if
+               call cpu_time(time_end)
+               time_mc_total = time_mc_total + (time_end - time_start)
             else
                ! Reject move due to hard core overlap
                moves_per_species_hardcore_rejected(current_species) = moves_per_species_hardcore_rejected(current_species) + 1
@@ -402,18 +418,31 @@ program bulk
             energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
+               call cpu_time(time_start)
                call calculate_collision_pressure1
+               call cpu_time(time_end)
+               time_collision_total = time_collision_total + (time_end - time_start)
+
+               call cpu_time(time_start)
                call calculate_widom_insertion1
+               call cpu_time(time_end)
+               time_widom_total = time_widom_total + (time_end - time_start)
             end if
 
          end do
 
          ! Accumulate RDF data at the end of each middle loop
+         call cpu_time(time_start)
          call accumulate_rdf
+         call cpu_time(time_end)
+         time_rdf_total = time_rdf_total + (time_end - time_start)
       end do
 
       energy_consistency_check = total_coulomb_energy
+      call cpu_time(time_start)
       call recalculate_total_energy
+      call cpu_time(time_end)
+      time_energy_recalc_total = time_energy_recalc_total + (time_end - time_start)
 
     if (total_coulomb_energy /= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy)/total_coulomb_energy
 
@@ -425,11 +454,21 @@ program bulk
 
       if (abs(energy_consistency_check) > 0.001) stop
 
+      call cpu_time(time_start)
       call recalculate_total_energy
+      call cpu_time(time_end)
+      time_energy_recalc_total = time_energy_recalc_total + (time_end - time_start)
 
       if (widom_interval <= mc_steps_inner) then
+         call cpu_time(time_start)
          call calculate_collision_pressure2
+         call cpu_time(time_end)
+         time_collision_total = time_collision_total + (time_end - time_start)
+
+         call cpu_time(time_start)
          call calculate_widom_insertion2
+         call cpu_time(time_end)
+         time_widom_total = time_widom_total + (time_end - time_start)
       end if
 
       energy_accumulator_current(1) = energy_accumulator_current(1)/dble(mc_steps_inner*mc_steps_middle)
@@ -488,9 +527,49 @@ program bulk
    write (unit_output, *)
 
    if (widom_interval <= mc_steps_inner) then
+      call cpu_time(time_start)
       call calculate_collision_pressure3
+      call cpu_time(time_end)
+      time_collision_total = time_collision_total + (time_end - time_start)
+
+      call cpu_time(time_start)
       call calculate_widom_insertion3
+      call cpu_time(time_end)
+      time_widom_total = time_widom_total + (time_end - time_start)
    end if
+
+   ! Print timing summary
+   write (unit_output, '(/, "************************************************************", &
+   &"************************", /)')
+   write (unit_output, '(/, "PERFORMANCE PROFILING RESULTS", /)')
+   write (unit_output, '(a, f12.3, a)') 'MC trial moves (evaluate_trial_move):  ', time_trial_move_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'MC acceptance/energy calculations:      ', time_mc_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Energy recalculation:                   ', time_energy_recalc_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Collision pressure analysis:            ', time_collision_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Widom insertion analysis:               ', time_widom_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'RDF accumulation:                       ', time_rdf_total, ' seconds'
+   write (unit_output, '(a, f12.3, a, /)') 'TOTAL (measured components):            ', &
+      time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total, ' seconds'
+   write (unit_output, '(/, "Percentage breakdown:", /)')
+   write (unit_output, '(a, f8.2, a)') 'MC trial moves:           ', &
+      100.0*time_trial_move_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'MC acceptance/energy:     ', &
+      100.0*time_mc_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Energy recalculation:     ', &
+      100.0*time_energy_recalc_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Collision pressure:       ', &
+      100.0*time_collision_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Widom insertion:          ', &
+      100.0*time_widom_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a, /)') 'RDF accumulation:         ', &
+      100.0*time_rdf_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
 
    rewind unit_conf
    write (unit_conf, '(5e16.8)') (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l=1, num_particles)
