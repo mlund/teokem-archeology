@@ -71,6 +71,23 @@ program bulk
 
       subroutine finalize_and_write_rdf()
       end subroutine finalize_and_write_rdf
+
+      subroutine compute_widom_test_particle(measurement_position, max_widom_species, is_rejected, &
+                                             hardcore_rejection_count, exponential_widom_sum, &
+                                             energy_weighted_denominator, energy_weighted_numerator, &
+                                             hardcore_rejection_all, distance_squared, distance_inverse)
+         integer, parameter :: dp = selected_real_kind(15, 307)
+         integer, parameter :: max_species = 10
+         integer, parameter :: max_ions = 600
+         integer, intent(in) :: measurement_position, max_widom_species
+         integer, intent(inout) :: is_rejected(max_widom_species)
+         integer, intent(inout) :: hardcore_rejection_count(max_widom_species)
+         integer, intent(inout) :: hardcore_rejection_all(0:5)
+         real(dp), intent(inout) :: exponential_widom_sum(max_widom_species)
+         real(dp), intent(inout) :: energy_weighted_denominator(max_widom_species, 11)
+         real(dp), intent(inout) :: energy_weighted_numerator(max_widom_species, 11)
+         real(dp), intent(inout) :: distance_squared(max_ions), distance_inverse(max_ions)
+      end subroutine compute_widom_test_particle
    end interface
 
    ! Note: Variable names have been updated to be more descriptive
@@ -1000,10 +1017,7 @@ subroutine calculate_widom_insertion
    ! max_widom_species accounts for species at multiple measurement locations (bulk, wall, midplane)
    integer, parameter :: max_widom_species = max_species*3  ! max_species * (max_measurement_locations + 1)
    integer :: i, j, k
-   real(dp) :: random_value
    integer :: measurement_position, total_chemical_potentials, total_widom_tests
-   integer :: num_particles_in_species, particle_list_start, species_measurement_index
-   integer :: integration_point_index, integration_index, rejection_sum
    integer :: hardcore_rejection_count(max_widom_species), is_rejected(max_widom_species)
    integer :: widom_count_per_macrostep(25), hardcore_rejection_all(0:5)
    real(dp) :: chem_pot_electrostatic(25, max_widom_species)
@@ -1024,12 +1038,7 @@ subroutine calculate_widom_insertion
    real(dp) :: chem_pot_ex_avg(max_widom_species), chem_pot_ex_var(max_widom_species)
    real(dp) :: chem_pot_tot_avg(max_widom_species), chem_pot_tot_var(max_widom_species)
    real(dp) :: chem_pot_widom_avg(max_widom_species), chem_pot_widom_var(max_widom_species)
-   real(dp) :: delta_x, delta_y, delta_z
-   real(dp) :: test_particle_x, test_particle_y, test_particle_z
-   real(dp) :: energy_weighted, energy_weighted_exponential, energy_weighted_lambda
-   real(dp) :: total_electrostatic_potential, total_inverse_distance
-   real(dp) :: simpson_weight_1, simpson_weight_2, simpson_weight_4, distance_sum
-   real(dp) :: pairwise_energy
+   real(dp) :: simpson_weight_1, simpson_weight_2, simpson_weight_4
    real(dp) :: correlation_avg, correlation_var
    real(dp) :: temp_array(25)  ! Temporary array for statistical calculations
    real(dp) :: distance_squared(max_ions)  ! Squared distances for Widom insertion
@@ -1092,100 +1101,11 @@ subroutine calculate_widom_insertion
 
    do measurement_position = 0, measurement_location
       do k = 1, num_widom_insertions
-         call random_number(random_value)
-         test_particle_x = box_size*(random_value - 0.5)
-         call random_number(random_value)
-         test_particle_y = box_size*(random_value - 0.5)
-         test_particle_z = 0
-
-         if (measurement_position <= 1) then
-            call random_number(random_value)
-            test_particle_z = box_size*(random_value - 0.5)
-            if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
-         end if
-
-         ! Compute distances with branchless periodic boundary conditions (vectorizable)
-         do j = 1, num_particles
-            delta_x = test_particle_x - particle_x(j)
-            delta_y = test_particle_y - particle_y(j)
-            delta_z = test_particle_z - particle_z(j)
-
-            delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
-            delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
-            delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
-
-            distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
-         end do
-
-         rejection_sum = 0
-
-         do i = 1, num_species
-            species_measurement_index = measurement_position*num_species + i
-            is_rejected(species_measurement_index) = 0
-
-            do j = 1, num_particles
-               if (distance_squared(j) < hard_core_distance_sq(j, i)) &
-                  is_rejected(species_measurement_index) = 1
-            end do
-
-            rejection_sum = rejection_sum + is_rejected(species_measurement_index)
-         end do
-
-         ! Skip this test particle if all species reject it
-         if (rejection_sum == num_species) then
-            hardcore_rejection_all(measurement_position) = hardcore_rejection_all(measurement_position) + 1
-            cycle  ! Continue to next test particle insertion
-         end if
-
-         do j = 1, num_particles
-            distance_inverse(j) = 1.0/sqrt(distance_squared(j))
-         end do
-
-         total_electrostatic_potential = 0
-         total_inverse_distance = 0
-         particle_list_start = 1
-
-         do i = 1, num_species
-            num_particles_in_species = int(species_properties(i, 2))
-            distance_sum = 0
-
-            do j = particle_list_start, particle_list_start + num_particles_in_species - 1
-               distance_sum = distance_sum + distance_inverse(j)
-            end do
-
-            particle_list_start = particle_list_start + num_particles_in_species
-            total_electrostatic_potential = total_electrostatic_potential + distance_sum*species_properties(i, 4)
-            total_inverse_distance = total_inverse_distance + distance_sum
-         end do
-
-         total_electrostatic_potential = total_electrostatic_potential + pairwise_energy
-
-         do i = 1, num_species
-            species_measurement_index = measurement_position*num_species + i
-
-            if (is_rejected(species_measurement_index) == 1) then
-               ! Species rejected due to hard core overlap
-               hardcore_rejection_count(species_measurement_index) = hardcore_rejection_count(species_measurement_index) + 1
-            else
-               ! Species accepted, compute Widom insertion chemical potential
-               exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
-                              exp(beta_inverse_temp*total_electrostatic_potential*species_properties(i, 4)*energy_conversion_factor)
-
-               do integration_point_index = 0, 10
-                  integration_index = integration_point_index + 1
-                  energy_weighted = species_properties(i, 4)* &
-                                    (total_electrostatic_potential - integration_point_index*0.1*species_properties(i, 4)* &
-                                     total_inverse_distance/num_particles)
-                  energy_weighted_lambda = energy_weighted*integration_point_index*0.1
-                  energy_weighted_exponential = exp(beta_inverse_temp*energy_conversion_factor*energy_weighted_lambda)
-                  energy_weighted_denominator(species_measurement_index, integration_index) = &
-                     energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
-                  energy_weighted_numerator(species_measurement_index, integration_index) = &
-                     energy_weighted_numerator(species_measurement_index, integration_index) - &
-                     energy_weighted*beta_inverse_temp*energy_conversion_factor*energy_weighted_exponential
-               end do
-            end if
-         end do
+         ! Call extracted subroutine for better vectorization
+         call compute_widom_test_particle(measurement_position, max_widom_species, is_rejected, &
+                                          hardcore_rejection_count, exponential_widom_sum, &
+                                          energy_weighted_denominator, energy_weighted_numerator, &
+                                          hardcore_rejection_all, distance_squared, distance_inverse)
       end do
    end do
 
@@ -1574,6 +1494,148 @@ subroutine finalize_and_write_rdf
    return
 
 end subroutine finalize_and_write_rdf
+
+! =============================================================================
+! =============================================================================
+!
+! Subroutine: compute_widom_test_particle
+!
+! Computes energy and accumulates statistics for a single Widom test particle insertion
+! Extracted from calculate_widom_insertion1 to improve vectorization
+!
+! =============================================================================
+! =============================================================================
+
+subroutine compute_widom_test_particle(measurement_position, max_widom_species, is_rejected, &
+                                       hardcore_rejection_count, exponential_widom_sum, &
+                                       energy_weighted_denominator, energy_weighted_numerator, &
+                                       hardcore_rejection_all, distance_squared, distance_inverse)
+
+   implicit none
+   include 'bulk_f90.inc'
+
+   ! Arguments
+   integer, intent(in) :: measurement_position, max_widom_species
+   integer, intent(inout) :: is_rejected(max_widom_species)
+   integer, intent(inout) :: hardcore_rejection_count(max_widom_species)
+   integer, intent(inout) :: hardcore_rejection_all(0:5)
+   real(dp), intent(inout) :: exponential_widom_sum(max_widom_species)
+   real(dp), intent(inout) :: energy_weighted_denominator(max_widom_species, 11)
+   real(dp), intent(inout) :: energy_weighted_numerator(max_widom_species, 11)
+   real(dp), intent(inout) :: distance_squared(max_ions), distance_inverse(max_ions)
+
+   ! Local variables
+   integer :: i, j
+   integer :: species_measurement_index, rejection_sum
+   integer :: num_particles_in_species, particle_list_start
+   integer :: integration_point_index, integration_index
+   real(dp) :: test_particle_x, test_particle_y, test_particle_z
+   real(dp) :: delta_x, delta_y, delta_z
+   real(dp) :: total_electrostatic_potential, total_inverse_distance
+   real(dp) :: distance_sum, energy_weighted, energy_weighted_lambda
+   real(dp) :: energy_weighted_exponential, pairwise_energy
+   real(dp) :: random_value
+
+   ! Generate random test particle position
+   call random_number(random_value)
+   test_particle_x = box_size*(random_value - 0.5)
+   call random_number(random_value)
+   test_particle_y = box_size*(random_value - 0.5)
+   test_particle_z = 0
+
+   if (measurement_position <= 1) then
+      call random_number(random_value)
+      test_particle_z = box_size*(random_value - 0.5)
+      if (measurement_position == 1) test_particle_z = sign(box_half, test_particle_z)
+   end if
+
+   ! Compute distances with branchless periodic boundary conditions (vectorizable)
+   do j = 1, num_particles
+      delta_x = test_particle_x - particle_x(j)
+      delta_y = test_particle_y - particle_y(j)
+      delta_z = test_particle_z - particle_z(j)
+
+      delta_x = delta_x - aint(delta_x*box_half_inverse)*box_size
+      delta_y = delta_y - aint(delta_y*box_half_inverse)*box_size
+      delta_z = delta_z - aint(delta_z*box_half_inverse)*box_size
+
+      distance_squared(j) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+   end do
+
+   rejection_sum = 0
+
+   do i = 1, num_species
+      species_measurement_index = measurement_position*num_species + i
+      is_rejected(species_measurement_index) = 0
+
+      do j = 1, num_particles
+         if (distance_squared(j) < hard_core_distance_sq(j, i)) &
+            is_rejected(species_measurement_index) = 1
+      end do
+
+      rejection_sum = rejection_sum + is_rejected(species_measurement_index)
+   end do
+
+   ! Skip this test particle if all species reject it
+   if (rejection_sum == num_species) then
+      hardcore_rejection_all(measurement_position) = hardcore_rejection_all(measurement_position) + 1
+      return  ! Early return instead of cycle
+   end if
+
+   ! Compute inverse distances (this loop should vectorize well now)
+   do j = 1, num_particles
+      distance_inverse(j) = 1.0/sqrt(distance_squared(j))
+   end do
+
+   total_electrostatic_potential = 0
+   total_inverse_distance = 0
+   particle_list_start = 1
+
+   do i = 1, num_species
+      num_particles_in_species = int(species_properties(i, 2))
+      distance_sum = 0
+
+      do j = particle_list_start, particle_list_start + num_particles_in_species - 1
+         distance_sum = distance_sum + distance_inverse(j)
+      end do
+
+      particle_list_start = particle_list_start + num_particles_in_species
+      total_electrostatic_potential = total_electrostatic_potential + distance_sum*species_properties(i, 4)
+      total_inverse_distance = total_inverse_distance + distance_sum
+   end do
+
+   total_electrostatic_potential = total_electrostatic_potential + pairwise_energy
+
+   do i = 1, num_species
+      species_measurement_index = measurement_position*num_species + i
+
+      if (is_rejected(species_measurement_index) == 1) then
+         ! Species rejected due to hard core overlap
+         hardcore_rejection_count(species_measurement_index) = hardcore_rejection_count(species_measurement_index) + 1
+      else
+         ! Species accepted, compute Widom insertion chemical potential
+         exponential_widom_sum(species_measurement_index) = exponential_widom_sum(species_measurement_index) + &
+                        exp(beta_inverse_temp*total_electrostatic_potential*species_properties(i, 4)*energy_conversion_factor)
+
+         do integration_point_index = 0, 10
+            integration_index = integration_point_index + 1
+            energy_weighted = species_properties(i, 4)* &
+                              (total_electrostatic_potential - integration_point_index*0.1*species_properties(i, 4)* &
+                               total_inverse_distance/num_particles)
+            energy_weighted_lambda = energy_weighted*integration_point_index*0.1
+            energy_weighted_exponential = exp(beta_inverse_temp*energy_conversion_factor*energy_weighted_lambda)
+            energy_weighted_denominator(species_measurement_index, integration_index) = &
+               energy_weighted_denominator(species_measurement_index, integration_index) + energy_weighted_exponential
+            energy_weighted_numerator(species_measurement_index, integration_index) = &
+               energy_weighted_numerator(species_measurement_index, integration_index) - &
+               energy_weighted*beta_inverse_temp*energy_conversion_factor*energy_weighted_exponential
+         end do
+      end if
+   end do
+
+   return
+
+end subroutine compute_widom_test_particle
 
 ! =============================================================================
 ! Helper subroutine to initialize the random number generator
