@@ -38,5 +38,24 @@ clean:
 test_bulk: $(TARGET)
 	cd examples/bulk && bash script.sh
 
+# Format Fortran 90 source files using fprettify
+# Settings are read from .fprettify.yaml config file
+format:
+	@echo "Formatting Fortran 90 source files with fprettify..."
+	@echo "Creating backups with .bak extension..."
+	@for file in $(SRCDIR)/*.f90; do \
+		if [ -f "$$file" ]; then \
+			cp "$$file" "$$file.bak"; \
+			echo "Formatting $$file..."; \
+			fprettify "$$file"; \
+		fi \
+	done
+	@echo "Formatting complete! Original files backed up with .bak extension"
+	@echo "Note: .f files (Fortran 77) are not formatted to preserve legacy formatting"
+
+# Remove backup files created by format target
+clean-backups:
+	rm -f $(SRCDIR)/*.bak
+
 # Phony targets
-.PHONY: all clean test_bulk bulk_f77
+.PHONY: all clean test_bulk bulk_f77 format clean-backups
