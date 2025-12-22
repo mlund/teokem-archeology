@@ -19,12 +19,14 @@ make
 
 ## Code Formatting
 
-Fortran 90 source files (.f90) can be automatically formatted using `fprettify`:
+Fortran 90 source files (.f90 and .inc) can be automatically formatted using `fprettify`:
 
 ```sh
 pip install fprettify
 make format
 ```
+
+Settings are configured in `.fprettify.yaml` (4-space indent, lowercase keywords, whitespace around operators). Legacy .f files are not formatted to preserve historical code.
 
 ## Analysis Tools
 

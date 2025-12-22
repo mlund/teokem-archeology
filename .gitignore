@@ -9,7 +9,6 @@ bulk_f77
 *.inp
 *.log
 *.macro
-*.bak
 
 # Prerequisites
 *.d

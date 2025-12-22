@@ -32,7 +32,7 @@ $(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
 
 # Clean up compiled files
 clean:
-	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM $(SRCDIR)/*.bak
+	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM
 
 # Run bulk test script
 test_bulk: $(TARGET)
@@ -40,18 +40,17 @@ test_bulk: $(TARGET)
 
 # Format Fortran 90 source files using fprettify
 # Settings are read from .fprettify.yaml config file
+# Formats .f90 and .inc files (legacy .f files are not formatted)
 format:
 	@echo "Formatting Fortran 90 source files with fprettify..."
-	@echo "Creating backups with .bak extension..."
-	@for file in $(SRCDIR)/*.f90; do \
+	@for file in $(SRCDIR)/*.f90 $(SRCDIR)/*.inc; do \
 		if [ -f "$$file" ]; then \
-			cp "$$file" "$$file.bak"; \
 			echo "Formatting $$file..."; \
 			fprettify "$$file"; \
 		fi \
 	done
-	@echo "Formatting complete! Original files backed up with .bak extension"
-	@echo "Note: .f files (Fortran 77) are not formatted to preserve legacy formatting"
+	@echo "Formatting complete!"
+	@echo "Note: Legacy .f files are not formatted to preserve historical code"
 
 # Phony targets
-.PHONY: all clean test_bulk bulk_f77 format clean-backups
+.PHONY: all clean test_bulk bulk_f77 format
