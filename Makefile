@@ -3,7 +3,7 @@ FC = gfortran
 
 # Compiler flags for Fortran 90 free-form
 #FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
-FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
+FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized -fopenmp
 
 # Compiler flags for legacy Fortran 77
 FFLAGS_F77 = -std=legacy -ftree-vectorize -march=native -O3 -g -funroll-loops -fno-automatic -finit-local-zero -Wall -Wshadow
@@ -22,7 +22,7 @@ all: $(TARGET)
 # Compile the program (Fortran 90 free-form)
 $(TARGET): $(SRCDIR)/bulk.f90
 	$(FC) $(FFLAGS) -c $(SRCDIR)/bulk.f90 -o bulk.o
-	$(FC) bulk.o -o $(TARGET) -lm
+	$(FC) bulk.o -o $(TARGET) -lm -fopenmp
 
 # Compile the original Fortran 77 version
 $(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f

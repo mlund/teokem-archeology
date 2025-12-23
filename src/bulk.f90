@@ -919,7 +919,6 @@ subroutine calculate_collision_pressure
    integer :: i, j, k
    integer :: species_i, species_k
    integer :: num_particles_in_species, random_particle_index
-   real(dp) :: random_value
    integer :: particle_list_start, total_collision_tests
    real(dp) :: relative_error(max_species)
    real(dp) :: collision_samples(25, max_species, max_species)
@@ -1034,67 +1033,88 @@ subroutine calculate_collision_pressure
 
    entry calculate_collision_pressure1
 
-   do i = 1, num_widom_insertions
-      particle_list_start = 1
+   block
+      real(dp) :: random_draws(3, max_species, max_species, num_widom_insertions)
+      real(dp) :: local_matrix(max_species, max_species)
+      integer :: overlap_status_local
 
-      do species_i = 1, num_species
-         num_particles_in_species = int(species_properties(species_i, 2))
+      ! Precompute random draws per insertion for thread-safety and vectorization
+      call random_number(random_draws)
 
-         do species_k = 1, num_species
-            call random_number(random_value)
-            random_particle_index = int(random_value*num_particles_in_species) + particle_list_start
-            contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
-            call random_number(random_value)
-            axial_displacement = (2*random_value - 1)*contact_distance
-            call random_number(random_value)
-            angle = 2*pi*random_value
-            ghost_z = particle_z(random_particle_index) + axial_displacement
-            radial_distance = sqrt(contact_distance*contact_distance - axial_displacement*axial_displacement) + 0.00001
-            ghost_x = particle_x(random_particle_index) + radial_distance*cos(angle)
-            ghost_y = particle_y(random_particle_index) + radial_distance*sin(angle)
-            ghost_x = ghost_x - aint(ghost_x*box_half_inverse)*box_size
-            ghost_y = ghost_y - aint(ghost_y*box_half_inverse)*box_size
-            ghost_z = ghost_z - aint(ghost_z*box_half_inverse)*box_size
+!$omp parallel default(shared) private(local_matrix, particle_list_start, species_i, species_k, &
+!$omp& num_particles_in_species, random_particle_index, contact_distance, axial_displacement, &
+!$omp& angle, ghost_x, ghost_y, ghost_z, radial_distance, delta_x, delta_y, delta_z, &
+!$omp& overlap_status_local, total_electrostatic_potential, k, distance_squared, distance_inverse, i)
+      local_matrix = 0.0
 
-            ! Check for hard core overlaps and compute distances
-            overlap_status = 0
-            do k = 1, num_particles
-               delta_x = dabs(ghost_x - particle_x(k))
-               delta_y = dabs(ghost_y - particle_y(k))
-               delta_z = dabs(ghost_z - particle_z(k))
+!$omp do schedule(static)
+      do i = 1, num_widom_insertions
+         particle_list_start = 1
 
-               if (delta_x > box_half) delta_x = delta_x - box_size
-               if (delta_y > box_half) delta_y = delta_y - box_size
-               if (delta_z > box_half) delta_z = delta_z - box_size
+         do species_i = 1, num_species
+            num_particles_in_species = int(species_properties(species_i, 2))
 
-               distance_squared(k) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+            do species_k = 1, num_species
+               random_particle_index = int(random_draws(1, species_i, species_k, i)*num_particles_in_species) + particle_list_start
+               contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
+               axial_displacement = (2*random_draws(2, species_i, species_k, i) - 1)*contact_distance
+               angle = 2*pi*random_draws(3, species_i, species_k, i)
+               ghost_z = particle_z(random_particle_index) + axial_displacement
+               radial_distance = sqrt(contact_distance*contact_distance - axial_displacement*axial_displacement) + 0.00001
+               ghost_x = particle_x(random_particle_index) + radial_distance*cos(angle)
+               ghost_y = particle_y(random_particle_index) + radial_distance*sin(angle)
+               ghost_x = ghost_x - aint(ghost_x*box_half_inverse)*box_size
+               ghost_y = ghost_y - aint(ghost_y*box_half_inverse)*box_size
+               ghost_z = ghost_z - aint(ghost_z*box_half_inverse)*box_size
 
-               if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
-                  overlap_status = 1
-                  exit  ! Exit early if overlap found
+               ! Check for hard core overlaps and compute distances
+               overlap_status_local = 0
+               do k = 1, num_particles
+                  delta_x = dabs(ghost_x - particle_x(k))
+                  delta_y = dabs(ghost_y - particle_y(k))
+                  delta_z = dabs(ghost_z - particle_z(k))
+
+                  if (delta_x > box_half) delta_x = delta_x - box_size
+                  if (delta_y > box_half) delta_y = delta_y - box_size
+                  if (delta_z > box_half) delta_z = delta_z - box_size
+
+                  distance_squared(k) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+
+                  if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
+                     overlap_status_local = 1
+                     exit  ! Exit early if overlap found
+                  end if
+               end do
+
+               ! Only compute electrostatic potential if no hard core overlap
+               if (overlap_status_local == 0) then
+!$omp simd
+                  do k = 1, num_particles
+                     distance_inverse(k) = 1.0/sqrt(distance_squared(k))
+                  end do
+
+                  total_electrostatic_potential = 0
+
+                  do k = 1, num_particles
+                     total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k)*particle_charge(k)
+                  end do
+
+                  local_matrix(species_i, species_k) = local_matrix(species_i, species_k) + &
+                     exp(beta_inverse_temp*total_electrostatic_potential*species_properties(species_k, 4)*energy_conversion_factor)
                end if
             end do
 
-            ! Only compute electrostatic potential if no hard core overlap
-            if (overlap_status == 0) then
-               do k = 1, num_particles
-                  distance_inverse(k) = 1.0/sqrt(distance_squared(k))
-               end do
-
-               total_electrostatic_potential = 0
-
-               do k = 1, num_particles
-                  total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k)*particle_charge(k)
-               end do
-
-               collision_matrix(species_i, species_k) = exp(beta_inverse_temp*total_electrostatic_potential* &
-                                 species_properties(species_k, 4)*energy_conversion_factor) + collision_matrix(species_i, species_k)
-            end if
+            particle_list_start = particle_list_start + num_particles_in_species
          end do
-
-         particle_list_start = particle_list_start + num_particles_in_species
       end do
-   end do
+!$omp end do
+
+!$omp critical
+      collision_matrix = collision_matrix + local_matrix
+!$omp end critical
+
+!$omp end parallel
+   end block
 
    return
 

@@ -43,7 +43,7 @@ dtemp  eps
 ${T}    ${dielec}
 
 nwins  nwint  nfix
-10      25    0"
+20      25    0"
 }
 
 # subroutine to adjust the dielectric constant
