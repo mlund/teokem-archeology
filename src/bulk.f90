@@ -949,6 +949,88 @@ subroutine calculate_collision_pressure
    return
 
    ! -------------------------------------------------------------------------
+   !  Collision-based pressure estimator using Widom test-particle insertions
+   !  for hard, charged particles under periodic boundary conditions.
+   !
+   !  Physical background:
+   !  --------------------
+   !  This routine estimates species-resolved collision/pressure contributions
+   !  by inserting a "ghost" test particle at contact with a randomly chosen
+   !  real particle. The method is rooted in statistical mechanical expressions
+   !  for the virial pressure and Widom insertion techniques.
+   !
+   !  1) Contact geometry:
+   !     A ghost particle of species k is placed at a fixed center-to-center
+   !     separation:
+   !
+   !         r_contact = sigma_i + sigma_k
+   !
+   !     where sigma is the hard-core radius of each species. The ghost position
+   !     is sampled uniformly over the surface of the contact sphere by choosing
+   !     a random axial displacement z and azimuthal angle phi:
+   !
+   !         z  ∈ [-r_contact, r_contact]
+   !         r⊥ = sqrt(r_contact^2 - z^2)
+   !
+   !     This generates an unbiased sampling of collision orientations.
+   !
+   !  2) Hard-core exclusion:
+   !     The ghost particle is rejected if it overlaps any existing particle:
+   !
+   !         r_ghost,k^2 < (sigma_k + sigma_j)^2
+   !
+   !     enforcing the hard-sphere constraint.
+   !
+   !  3) Electrostatic energy:
+   !     If no overlap occurs, the electrostatic interaction energy of the
+   !     ghost particle is computed using a pairwise Coulomb sum:
+   !
+   !         U_ele = q_k * Σ_j ( q_j / r_j )
+   !
+   !     where r_j is the distance between the ghost particle and particle j.
+   !     Long-range electrostatics are approximated here via direct summation
+   !     (short-range contribution), suitable for confined or screened systems.
+   !
+   !  4) Statistical weight:
+   !     The Boltzmann factor associated with inserting the charged particle is:
+   !
+   !         exp( -β U_ele )
+   !
+   !     This factor contributes to the collision matrix, which is proportional
+   !     to the virial pressure contribution arising from hard-core contacts
+   !     modulated by electrostatic interactions.
+   !
+   !  5) Pressure relation:
+   !     In the low-density/contact formulation, the pressure can be expressed
+   !     via the contact value of the radial distribution function:
+   !
+   !         βP = ρ + (2π/3) ρ^2 Σ_{i,k} x_i x_k g_ik(r_contact) r_contact^3
+   !
+   !     The present algorithm estimates g_ik(r_contact) through test-particle
+   !     insertions weighted by electrostatic Boltzmann factors.
+   !
+   !  References:
+   !  -----------
+   !  Widom, B. "Some Topics in the Theory of Fluids"
+   !  J. Chem. Phys. 39, 2808 (1963)
+   !  https://doi.org/10.1063/1.1734110
+   !
+   !  Hansen, J.-P. & McDonald, I. R.
+   !  "Theory of Simple Liquids", 4th Ed., Academic Press (2013)
+   !  (Hard-sphere virial pressure and contact theorems)
+   !
+   !  Carnahan, N. F. & Starling, K. E.
+   !  "Equation of State for Nonattracting Rigid Spheres"
+   !  J. Chem. Phys. 51, 635 (1969)
+   !  https://doi.org/10.1063/1.1672048
+   !
+   !  Notes:
+   !  ------
+   !  - Periodic boundary conditions are applied via minimum-image convention.
+   !  - The small offset added to r⊥ avoids numerical singularities.
+   !  - The collision_matrix accumulates ensemble averages over Widom insertions.
+   !
+   ! -------------------------------------------------------------------------
 
    entry calculate_collision_pressure1
 
