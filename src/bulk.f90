@@ -12,6 +12,8 @@ program bulk
    include 'bulk_f90.inc'
 
    real(dp) :: random_value
+   real(dp) :: time_start, time_end, time_mc_total, time_collision_total, time_widom_total
+   real(dp) :: time_rdf_total, time_energy_recalc_total, time_trial_move_total
 
    ! Explicit interfaces for subroutines
    interface
@@ -133,6 +135,14 @@ program bulk
    data total_hardcore_rejections, total_energy_rejections, &
       total_accepted_moves, total_mc_steps/4*0/
    data time_array/10*0.0/
+
+   ! Initialize timing variables
+   time_mc_total = 0.0
+   time_collision_total = 0.0
+   time_widom_total = 0.0
+   time_rdf_total = 0.0
+   time_energy_recalc_total = 0.0
+   time_trial_move_total = 0.0
 
    unit_macro = 12
    unit_conf = 13
@@ -322,6 +332,7 @@ program bulk
 
       do step_middle = 1, mc_steps_middle
          do step_inner = 1, mc_steps_inner
+            call cpu_time(time_start)
             current_particle = 1 + mod(total_mc_steps, num_particles)
             current_species = particle_species(current_particle)
             total_mc_steps = total_mc_steps + 1
@@ -343,8 +354,11 @@ program bulk
 
             overlap_status = 99
             call evaluate_trial_move
+            call cpu_time(time_end)
+            time_trial_move_total = time_trial_move_total + (time_end - time_start)
 
             if (overlap_status == 0) then
+               call cpu_time(time_start)
                ! No hard core overlap, evaluate energy
                energy_difference = 0.0
                do loop_j = 1, num_particles
@@ -394,6 +408,8 @@ program bulk
                      moves_per_species_energy_rejected(current_species) = moves_per_species_energy_rejected(current_species) + 1
                   end if
                end if
+               call cpu_time(time_end)
+               time_mc_total = time_mc_total + (time_end - time_start)
             else
                ! Reject move due to hard core overlap
                moves_per_species_hardcore_rejected(current_species) = moves_per_species_hardcore_rejected(current_species) + 1
@@ -402,18 +418,31 @@ program bulk
             energy_accumulator_current(1) = energy_accumulator_current(1) + total_coulomb_energy
 
             if (mod(step_inner, widom_interval) == 0) then
+               call cpu_time(time_start)
                call calculate_collision_pressure1
+               call cpu_time(time_end)
+               time_collision_total = time_collision_total + (time_end - time_start)
+
+               call cpu_time(time_start)
                call calculate_widom_insertion1
+               call cpu_time(time_end)
+               time_widom_total = time_widom_total + (time_end - time_start)
             end if
 
          end do
 
          ! Accumulate RDF data at the end of each middle loop
+         call cpu_time(time_start)
          call accumulate_rdf
+         call cpu_time(time_end)
+         time_rdf_total = time_rdf_total + (time_end - time_start)
       end do
 
       energy_consistency_check = total_coulomb_energy
+      call cpu_time(time_start)
       call recalculate_total_energy
+      call cpu_time(time_end)
+      time_energy_recalc_total = time_energy_recalc_total + (time_end - time_start)
 
     if (total_coulomb_energy /= 0) energy_consistency_check = (energy_consistency_check - total_coulomb_energy)/total_coulomb_energy
 
@@ -425,11 +454,21 @@ program bulk
 
       if (abs(energy_consistency_check) > 0.001) stop
 
+      call cpu_time(time_start)
       call recalculate_total_energy
+      call cpu_time(time_end)
+      time_energy_recalc_total = time_energy_recalc_total + (time_end - time_start)
 
       if (widom_interval <= mc_steps_inner) then
+         call cpu_time(time_start)
          call calculate_collision_pressure2
+         call cpu_time(time_end)
+         time_collision_total = time_collision_total + (time_end - time_start)
+
+         call cpu_time(time_start)
          call calculate_widom_insertion2
+         call cpu_time(time_end)
+         time_widom_total = time_widom_total + (time_end - time_start)
       end if
 
       energy_accumulator_current(1) = energy_accumulator_current(1)/dble(mc_steps_inner*mc_steps_middle)
@@ -488,9 +527,49 @@ program bulk
    write (unit_output, *)
 
    if (widom_interval <= mc_steps_inner) then
+      call cpu_time(time_start)
       call calculate_collision_pressure3
+      call cpu_time(time_end)
+      time_collision_total = time_collision_total + (time_end - time_start)
+
+      call cpu_time(time_start)
       call calculate_widom_insertion3
+      call cpu_time(time_end)
+      time_widom_total = time_widom_total + (time_end - time_start)
    end if
+
+   ! Print timing summary
+   write (unit_output, '(/, "************************************************************", &
+   &"************************", /)')
+   write (unit_output, '(/, "PERFORMANCE PROFILING RESULTS", /)')
+   write (unit_output, '(a, f12.3, a)') 'MC trial moves (evaluate_trial_move):  ', time_trial_move_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'MC acceptance/energy calculations:      ', time_mc_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Energy recalculation:                   ', time_energy_recalc_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Collision pressure analysis:            ', time_collision_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'Widom insertion analysis:               ', time_widom_total, ' seconds'
+   write (unit_output, '(a, f12.3, a)') 'RDF accumulation:                       ', time_rdf_total, ' seconds'
+   write (unit_output, '(a, f12.3, a, /)') 'TOTAL (measured components):            ', &
+      time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total, ' seconds'
+   write (unit_output, '(/, "Percentage breakdown:", /)')
+   write (unit_output, '(a, f8.2, a)') 'MC trial moves:           ', &
+      100.0*time_trial_move_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'MC acceptance/energy:     ', &
+      100.0*time_mc_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Energy recalculation:     ', &
+      100.0*time_energy_recalc_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Collision pressure:       ', &
+      100.0*time_collision_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a)') 'Widom insertion:          ', &
+      100.0*time_widom_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
+   write (unit_output, '(a, f8.2, a, /)') 'RDF accumulation:         ', &
+      100.0*time_rdf_total/(time_trial_move_total + time_mc_total + time_energy_recalc_total + &
+      time_collision_total + time_widom_total + time_rdf_total), ' %'
 
    rewind unit_conf
    write (unit_conf, '(5e16.8)') (particle_x(loop_l), particle_y(loop_l), particle_z(loop_l), loop_l=1, num_particles)
@@ -840,7 +919,6 @@ subroutine calculate_collision_pressure
    integer :: i, j, k
    integer :: species_i, species_k
    integer :: num_particles_in_species, random_particle_index
-   real(dp) :: random_value
    integer :: particle_list_start, total_collision_tests
    real(dp) :: relative_error(max_species)
    real(dp) :: collision_samples(25, max_species, max_species)
@@ -870,70 +948,173 @@ subroutine calculate_collision_pressure
    return
 
    ! -------------------------------------------------------------------------
+   !  Collision-based pressure estimator using Widom test-particle insertions
+   !  for hard, charged particles under periodic boundary conditions.
+   !
+   !  Physical background:
+   !  --------------------
+   !  This routine estimates species-resolved collision/pressure contributions
+   !  by inserting a "ghost" test particle at contact with a randomly chosen
+   !  real particle. The method is rooted in statistical mechanical expressions
+   !  for the virial pressure and Widom insertion techniques.
+   !
+   !  1) Contact geometry:
+   !     A ghost particle of species k is placed at a fixed center-to-center
+   !     separation:
+   !
+   !         r_contact = sigma_i + sigma_k
+   !
+   !     where sigma is the hard-core radius of each species. The ghost position
+   !     is sampled uniformly over the surface of the contact sphere by choosing
+   !     a random axial displacement z and azimuthal angle phi:
+   !
+   !         z  ∈ [-r_contact, r_contact]
+   !         r⊥ = sqrt(r_contact^2 - z^2)
+   !
+   !     This generates an unbiased sampling of collision orientations.
+   !
+   !  2) Hard-core exclusion:
+   !     The ghost particle is rejected if it overlaps any existing particle:
+   !
+   !         r_ghost,k^2 < (sigma_k + sigma_j)^2
+   !
+   !     enforcing the hard-sphere constraint.
+   !
+   !  3) Electrostatic energy:
+   !     If no overlap occurs, the electrostatic interaction energy of the
+   !     ghost particle is computed using a pairwise Coulomb sum:
+   !
+   !         U_ele = q_k * Σ_j ( q_j / r_j )
+   !
+   !     where r_j is the distance between the ghost particle and particle j.
+   !     Long-range electrostatics are approximated here via direct summation
+   !     (short-range contribution), suitable for confined or screened systems.
+   !
+   !  4) Statistical weight:
+   !     The Boltzmann factor associated with inserting the charged particle is:
+   !
+   !         exp( -β U_ele )
+   !
+   !     This factor contributes to the collision matrix, which is proportional
+   !     to the virial pressure contribution arising from hard-core contacts
+   !     modulated by electrostatic interactions.
+   !
+   !  5) Pressure relation:
+   !     In the low-density/contact formulation, the pressure can be expressed
+   !     via the contact value of the radial distribution function:
+   !
+   !         βP = ρ + (2π/3) ρ^2 Σ_{i,k} x_i x_k g_ik(r_contact) r_contact^3
+   !
+   !     The present algorithm estimates g_ik(r_contact) through test-particle
+   !     insertions weighted by electrostatic Boltzmann factors.
+   !
+   !  References:
+   !  -----------
+   !  Widom, B. "Some Topics in the Theory of Fluids"
+   !  J. Chem. Phys. 39, 2808 (1963)
+   !  https://doi.org/10.1063/1.1734110
+   !
+   !  Hansen, J.-P. & McDonald, I. R.
+   !  "Theory of Simple Liquids", 4th Ed., Academic Press (2013)
+   !  (Hard-sphere virial pressure and contact theorems)
+   !
+   !  Carnahan, N. F. & Starling, K. E.
+   !  "Equation of State for Nonattracting Rigid Spheres"
+   !  J. Chem. Phys. 51, 635 (1969)
+   !  https://doi.org/10.1063/1.1672048
+   !
+   !  Notes:
+   !  ------
+   !  - Periodic boundary conditions are applied via minimum-image convention.
+   !  - The small offset added to r⊥ avoids numerical singularities.
+   !  - The collision_matrix accumulates ensemble averages over Widom insertions.
+   !
+   ! -------------------------------------------------------------------------
 
    entry calculate_collision_pressure1
 
-   do i = 1, num_widom_insertions
-      particle_list_start = 1
+   block
+      real(dp) :: random_draws(3, max_species, max_species, num_widom_insertions)
+      real(dp) :: local_matrix(max_species, max_species)
+      integer :: overlap_status_local
 
-      do species_i = 1, num_species
-         num_particles_in_species = int(species_properties(species_i, 2))
+      ! Precompute random draws per insertion for thread-safety and vectorization
+      call random_number(random_draws)
 
-         do species_k = 1, num_species
-            call random_number(random_value)
-            random_particle_index = int(random_value*num_particles_in_species) + particle_list_start
-            contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
-            call random_number(random_value)
-            axial_displacement = (2*random_value - 1)*contact_distance
-            call random_number(random_value)
-            angle = 2*pi*random_value
-            ghost_z = particle_z(random_particle_index) + axial_displacement
-            radial_distance = sqrt(contact_distance*contact_distance - axial_displacement*axial_displacement) + 0.00001
-            ghost_x = particle_x(random_particle_index) + radial_distance*cos(angle)
-            ghost_y = particle_y(random_particle_index) + radial_distance*sin(angle)
-            ghost_x = ghost_x - aint(ghost_x*box_half_inverse)*box_size
-            ghost_y = ghost_y - aint(ghost_y*box_half_inverse)*box_size
-            ghost_z = ghost_z - aint(ghost_z*box_half_inverse)*box_size
+!$omp parallel default(shared) private(local_matrix, particle_list_start, species_i, species_k, &
+!$omp& num_particles_in_species, random_particle_index, contact_distance, axial_displacement, &
+!$omp& angle, ghost_x, ghost_y, ghost_z, radial_distance, delta_x, delta_y, delta_z, &
+!$omp& overlap_status_local, total_electrostatic_potential, k, distance_squared, distance_inverse, i)
+      local_matrix = 0.0
 
-            ! Check for hard core overlaps and compute distances
-            overlap_status = 0
-            do k = 1, num_particles
-               delta_x = dabs(ghost_x - particle_x(k))
-               delta_y = dabs(ghost_y - particle_y(k))
-               delta_z = dabs(ghost_z - particle_z(k))
+!$omp do schedule(static)
+      do i = 1, num_widom_insertions
+         particle_list_start = 1
 
-               if (delta_x > box_half) delta_x = delta_x - box_size
-               if (delta_y > box_half) delta_y = delta_y - box_size
-               if (delta_z > box_half) delta_z = delta_z - box_size
+         do species_i = 1, num_species
+            num_particles_in_species = int(species_properties(species_i, 2))
 
-               distance_squared(k) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+            do species_k = 1, num_species
+               random_particle_index = int(random_draws(1, species_i, species_k, i)*num_particles_in_species) + particle_list_start
+               contact_distance = species_properties(species_i, 3) + species_properties(species_k, 3)
+               axial_displacement = (2*random_draws(2, species_i, species_k, i) - 1)*contact_distance
+               angle = 2*pi*random_draws(3, species_i, species_k, i)
+               ghost_z = particle_z(random_particle_index) + axial_displacement
+               radial_distance = sqrt(contact_distance*contact_distance - axial_displacement*axial_displacement) + 0.00001
+               ghost_x = particle_x(random_particle_index) + radial_distance*cos(angle)
+               ghost_y = particle_y(random_particle_index) + radial_distance*sin(angle)
+               ghost_x = ghost_x - aint(ghost_x*box_half_inverse)*box_size
+               ghost_y = ghost_y - aint(ghost_y*box_half_inverse)*box_size
+               ghost_z = ghost_z - aint(ghost_z*box_half_inverse)*box_size
 
-               if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
-                  overlap_status = 1
-                  exit  ! Exit early if overlap found
+               ! Check for hard core overlaps and compute distances
+               overlap_status_local = 0
+               do k = 1, num_particles
+                  delta_x = dabs(ghost_x - particle_x(k))
+                  delta_y = dabs(ghost_y - particle_y(k))
+                  delta_z = dabs(ghost_z - particle_z(k))
+
+                  if (delta_x > box_half) delta_x = delta_x - box_size
+                  if (delta_y > box_half) delta_y = delta_y - box_size
+                  if (delta_z > box_half) delta_z = delta_z - box_size
+
+                  distance_squared(k) = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z
+
+                  if (distance_squared(k) < hard_core_distance_sq(k, species_k)) then
+                     overlap_status_local = 1
+                     exit  ! Exit early if overlap found
+                  end if
+               end do
+
+               ! Only compute electrostatic potential if no hard core overlap
+               if (overlap_status_local == 0) then
+!$omp simd
+                  do k = 1, num_particles
+                     distance_inverse(k) = 1.0/sqrt(distance_squared(k))
+                  end do
+
+                  total_electrostatic_potential = 0
+
+                  do k = 1, num_particles
+                     total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k)*particle_charge(k)
+                  end do
+
+                  local_matrix(species_i, species_k) = local_matrix(species_i, species_k) + &
+                     exp(beta_inverse_temp*total_electrostatic_potential*species_properties(species_k, 4)*energy_conversion_factor)
                end if
             end do
 
-            ! Only compute electrostatic potential if no hard core overlap
-            if (overlap_status == 0) then
-               do k = 1, num_particles
-                  distance_inverse(k) = 1.0/sqrt(distance_squared(k))
-               end do
-
-               total_electrostatic_potential = 0
-
-               do k = 1, num_particles
-                  total_electrostatic_potential = total_electrostatic_potential + distance_inverse(k)*particle_charge(k)
-               end do
-
-               collision_matrix(species_i, species_k) = exp(beta_inverse_temp*total_electrostatic_potential* &
-                                 species_properties(species_k, 4)*energy_conversion_factor) + collision_matrix(species_i, species_k)
-            end if
+            particle_list_start = particle_list_start + num_particles_in_species
          end do
-
-         particle_list_start = particle_list_start + num_particles_in_species
       end do
-   end do
+!$omp end do
+
+!$omp critical
+      collision_matrix = collision_matrix + local_matrix
+!$omp end critical
+
+!$omp end parallel
+   end block
 
    return
 
