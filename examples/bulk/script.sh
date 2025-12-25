@@ -13,7 +13,7 @@ r5=1.7 #Cl-
 r6=1.6 #SO4--
 
 # Nr. of pass in the MC simulation
-n1f=1000
+n1f=500
 n2f=100
 n3f=10
 
@@ -43,7 +43,7 @@ dtemp  eps
 ${T}    ${dielec}
 
 nwins  nwint  nfix
-20      25    0"
+30      25    0"
 }
 
 # subroutine to adjust the dielectric constant
