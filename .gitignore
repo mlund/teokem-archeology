@@ -3,8 +3,8 @@
 # Fortran
 
 *.dSYM
-bulk
-bulk_f77
+/bulk/bulk
+/bulk_f77
 *.temp
 *.inp
 *.log

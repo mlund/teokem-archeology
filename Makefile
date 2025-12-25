@@ -1,56 +1,21 @@
-# Fortran compiler
-FC = gfortran
-
-# Compiler flags for Fortran 90 free-form
-#FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized
-FFLAGS = -O3 -g -ftree-vectorize -march=native -std=gnu -funroll-loops -fno-automatic -finit-local-zero -fimplicit-none -Wall -Wpedantic -Wshadow -Wextra -Wno-compare-reals -Wno-implicit-interface -Wno-implicit-procedure -Wno-unused-parameter -Waliasing -Wampersand -Wconversion -Wsurprising -Wline-truncation -Wintrinsics-std -Wtabs -Wmaybe-uninitialized -Wuninitialized -fopenmp
-
-# Compiler flags for legacy Fortran 77
-FFLAGS_F77 = -std=legacy -ftree-vectorize -march=native -O3 -g -funroll-loops -fno-automatic -finit-local-zero -Wall -Wshadow
-RAN2FLAGS_F77 = -std=legacy -O3 -g
-
-# Source files
-SRCDIR = src
-
-# Target executables
-TARGET = bulk
-TARGET_F77 = bulk_f77
+# Root Makefile - delegates to subdirectories
 
 # Default target
-all: $(TARGET)
+all:
+	$(MAKE) -C bulk
 
-# Compile the program (Fortran 90 free-form)
-$(TARGET): $(SRCDIR)/bulk.f90
-	$(FC) $(FFLAGS) -c $(SRCDIR)/bulk.f90 -o bulk.o
-	$(FC) bulk.o -o $(TARGET) -lm -fopenmp
-
-# Compile the original Fortran 77 version
-$(TARGET_F77): $(SRCDIR)/ran2.f $(SRCDIR)/bulk.f
-	$(FC) $(RAN2FLAGS_F77) -c $(SRCDIR)/ran2.f -o ran2_f77.o
-	$(FC) $(FFLAGS_F77) -c $(SRCDIR)/bulk.f -o bulk_f77.o
-	$(FC) ran2_f77.o bulk_f77.o -o $(TARGET_F77) -lm
+# Build Fortran 77 version
+bulk_f77:
+	$(MAKE) -C bulk bulk_f77
 
 # Clean up compiled files
 clean:
-	rm -fR $(TARGET) $(TARGET_F77) *.o *.dSYM
-
-# Run bulk test script
-test_bulk: $(TARGET)
-	cd examples/bulk && bash script.sh
+	$(MAKE) -C bulk clean
+	rm -fR *.o *.dSYM
 
 # Format Fortran 90 source files using fprettify
-# Settings are read from .fprettify.yaml config file
-# Formats .f90 and .inc files (legacy .f files are not formatted)
 format:
-	@echo "Formatting Fortran 90 source files with fprettify..."
-	@for file in $(SRCDIR)/*.f90 $(SRCDIR)/*_f90.inc; do \
-		if [ -f "$$file" ]; then \
-			echo "Formatting $$file..."; \
-			fprettify "$$file"; \
-		fi \
-	done
-	@echo "Formatting complete!"
-	@echo "Note: Legacy .f files are not formatted to preserve historical code"
+	$(MAKE) -C bulk format
 
 # Phony targets
-.PHONY: all clean test_bulk bulk_f77 format
+.PHONY: all clean bulk_f77 format
