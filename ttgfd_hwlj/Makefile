@@ -8,14 +8,14 @@ FC = gfortran
 PROGRAM = ttgfd_hwlj
 
 # Source files
-SRC = ttgfd_hwlj_varbl.f
-INC = t2.inc
+SRC = ttgfd_hwlj_varbl.f90
+INC = t2.inc.f90
 
 # Compiler flags
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
 # Using -O2 instead of -O3 to avoid linker fixup errors
 # Removed -march=native which can cause ADRP range issues with large data
-FFLAGS = -O2 -std=legacy
+FFLAGS = -O2
 
 # Strong warning flags
 WARNFLAGS = -Wall \
