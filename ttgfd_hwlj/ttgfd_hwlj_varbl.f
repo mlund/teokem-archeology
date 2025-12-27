@@ -1,9 +1,10 @@
       program platem
       implicit double precision (a-h,o-z)
+      parameter (maxmon=2401)
       include 't2.inc'
       dimension c(0:maxrho,0:maxel,maxmon),
      *cA(0:maxrho,0:maxel),cB(0:maxrho,0:maxel),
-     *cdens(0:1000),ctvec(0:1000),vrho(0:1000)
+     *cdens(0:1000),ctvec(0:1000)
       ifc = 38
       ins = 49
       iep = 50
@@ -29,7 +30,7 @@
       b1 = 1.d0
       b2 = 4.10386d0
       c1 = -1.d0
-      c2 = -3.75503
+      c2 = -3.75503d0
       AA1 = 2.d0*c1-2.d0*a1-4.d0
       AA2 = 2.d0*c2-2.d0*a2-4.d0
       BB1 = 3.d0-b1+a1-3.d0*c1
@@ -100,7 +101,7 @@ c      ksm = int(1.d0/drho+0.01d0)
       kbl = int(bl/drho+0.01d0)
       pie = pi/8.d0
       dzpie = pie*dz
-      rnmon = real(nmon)
+      rnmon = dble(nmon)
       rrnmon = 1.d0/rnmon      
       rrcmon = 1.d0/(rnmon-2.d0)
 
@@ -334,7 +335,7 @@ c      pint = uuu+pint
       enddo
       write(*,*) 'hvec fixad'   
 
-      ddmax = 10000.
+      ddmax = 10000.d0
       niter = 0
  100  continue
       niter = niter+1    
@@ -494,13 +495,14 @@ c     dags foer ny monomer laengs kedjan
       fem(j,i) = 0.d0
       fdmon(j,i) = 0.d0
       else
-      dumsum = 0.d0 
-      do 10 k = 2,nmon-1
- 10   dumsum = c(j,i,k)*c(j,i,nmon+1-k)+dumsum
+      dumsum = 0.d0
+      do k = 2,nmon-1
+      dumsum = c(j,i,k)*c(j,i,nmon+1-k)+dumsum
+      enddo
 c      tfem = 2.d0*c(j,i,1)*ehbclam(j,i)
       tfem = 2.d0*c(j,i,1)*ebelam(j,i)*dsqrt(edu(j,i))/ehbclam(j,i)
       tfdm = dumsum+tfem
-      if (dabs(tfdm).gt.1E-14) then
+      if (dabs(tfdm).gt.1.0d-14) then
       ddiff = abs(tfdm-fdmon(j,i))/tfdm
       if (ddiff.gt.ddmax) ddmax = ddiff
       endif
@@ -792,8 +794,8 @@ c     stay inside the sphere
       y2 = fdmon(irho,iz-2)
       y1 = fdmon(irho,iz-3)
       x3 = dabs(z-zc1)+dz
-      x2 = x3+2.d0*dz
-      x1 = x1+3.d0*dz
+      x2 = x3+dz
+      x1 = x3+2.d0*dz
       write(*,*) 'TJOHO1!'   
       endif
 
@@ -843,8 +845,8 @@ c      rho = rho+drho
       y2 = fdmon(irho,iz+2)
       y1 = fdmon(irho,iz+3)
       x3 = dabs(z-zc1)+dz
-      x2 = x3+2.d0*dz
-      x1 = x1+3.d0*dz
+      x2 = x3+dz
+      x1 = x3+2.d0*dz
       write(*,*) 'TJOHO2!'   
       endif
 
@@ -984,7 +986,6 @@ c     plus eller minus spelar ingen roll foer integralens vaerde
       rho = dsqrt(rho2)
       irho = int(rho*rdrho)+1
       phisum = 1.d0+phisum
- 292  continue
       enddo
       sumrhop = rhop*phisum*dphi+sumrhop
       enddo
