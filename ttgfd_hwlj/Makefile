@@ -12,13 +12,16 @@ SRC = ttgfd_hwlj_varbl.f
 INC = t2.inc
 
 # Compiler flags
-FFLAGS = -O3 -march=native
+# Note: Large COMMON blocks (~6GB) require special handling on ARM64
+# Using -O2 instead of -O3 to avoid linker fixup errors
+# Removed -march=native which can cause ADRP range issues with large data
+FFLAGS = -O2 -std=legacy
 
 # Strong warning flags
 WARNFLAGS = -Wall \
             -Wextra \
             -Wpedantic \
-            -Wimplicit-interface \
+            -Wno-implicit-interface \
             -Wunused \
             -Wuninitialized \
             -Wconversion \
@@ -58,18 +61,18 @@ $(PROGRAM): $(SRC) $(INC)
 
 # Debug build with runtime checks
 .PHONY: debug
-debug: FFLAGS = -O0 -g
+debug: FFLAGS = -O0 -g -std=legacy
 debug: $(SRC) $(INC)
 	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(SRC)
 
 # Optimized build without warnings (for production)
 .PHONY: fast
 fast: $(SRC) $(INC)
-	$(FC) -O3 -march=native -ffast-math -funroll-loops -o $(PROGRAM) $(SRC)
+	$(FC) -O2 -std=legacy -ffast-math -funroll-loops -o $(PROGRAM) $(SRC)
 
 # Build with profiling support
 .PHONY: profile
-profile: FFLAGS = -O2 -pg
+profile: FFLAGS = -O1 -pg -std=legacy
 profile: $(SRC) $(INC)
 	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
 
