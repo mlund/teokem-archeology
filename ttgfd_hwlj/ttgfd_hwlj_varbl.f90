@@ -7,7 +7,7 @@
 ! inhomogeneous polymer solutions in cylindrical geometry.
 ! ============================================================================
 program platem
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
 
   ! Constants
@@ -16,6 +16,33 @@ program platem
   ! Additional arrays for main program - also dynamically allocated
   double precision, allocatable :: c(:, :, :), cA(:, :), cB(:, :)
   double precision :: cdens(0:1000), ctvec(0:1000)
+
+  ! Integer variables
+  integer :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
+  integer :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
+  integer :: ifc, ins, iep, ioimaxm, kread, niter, kcm, klm, kr, npphi, use1, useful
+
+  ! Double precision variables
+  double precision :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
+  double precision :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
+  double precision :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
+  double precision :: bl2, bordekoll, brsum, bsumw, bw
+  double precision :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
+  double precision :: ckk, ckoll, clifffi, clifffo, cmtrams, collsep, ct, ctf
+  double precision :: ctheta, ctn, ctp, cv
+  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
+  double precision :: dmm, dms, dpphi, dumsum
+  double precision :: eexc, efact, emtrams, epslj
+  double precision :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
+  double precision :: pb, pcdt, pdasum, phi, phisum, pint
+  double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
+  double precision :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
+  double precision :: rsq, rt2, rxsi, rxsib, rxsibsq, sqrxsi, strho0
+  double precision :: sume, sumsn, sumsp, sumw
+  double precision :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
+  double precision :: trho, trhosq, trmix, twopidz
+  double precision :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
+  double precision :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
@@ -1113,8 +1140,13 @@ END
 ! hard sphere volume using trapezoidal integration in cylindrical coordinates.
 ! ============================================================================
 subroutine CDFACT
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
+
+  ! Local variables
+  integer :: iz, jz, iphi, irho, krhopmax, krhop
+  double precision :: strho0, rho0, z, zpst, sume, zp, delz2, sumrhop
+  double precision :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, phi, rho2, fact, tcd
   strho0 = 0.5d0*drho
   rho0 = strho0
   iz = 2*ism
@@ -1169,8 +1201,13 @@ end
 ! with angular averaging.
 ! ============================================================================
 subroutine CDCALC
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
+
+  ! Local variables
+  integer :: iz, jz, kz, iphi, irho, krhop, krhopmax
+  double precision :: z, zpst, rho0, sume, zp, delz2, sumrhop, rhopmax, rho02
+  double precision :: rhop, rhomax2, fphi, phisum, phi, rho2, rho, fact
   z = dhs - 0.5d0*dz
   ! Loop over all grid points to calculate contact density
   do iz = istp1 + ism, imitt
@@ -1225,8 +1262,12 @@ end
 ! for the polymer chain propagators.
 ! ============================================================================
 subroutine AVEC
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
+
+  ! Local variables
+  integer :: iz, kz, jz
+  double precision :: cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2
   ! Calculate excess free energy from contact density using Carnahan-Starling EOS
   do iz = istp1 + 2*ism, imitt
     do kz = 1, mxrho - kbl
@@ -1268,8 +1309,14 @@ end
 ! integrals. Excludes regions inside colloids.
 ! ============================================================================
 subroutine EBLMNEW
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
+
+  ! Local variables
+  integer :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
+  double precision :: z, zpst, diffz2, strho0, rho0, rho02, rt2, sume, zp
+  double precision :: delz2, zpcsq, zpc2sq, sumrhop, rhopmax, rhop, rhomax2
+  double precision :: fphi, phisum, phi, rho2, rsq, rho, fact, trams, emtrams, cmtrams
   z = -0.5d0*dz
   ! Set bulk values at boundaries
   do iz = 1, ibl
@@ -1386,8 +1433,12 @@ end
 ! density field, using symmetry to include both colloids.
 ! ============================================================================
 subroutine EBDU
-  implicit double precision(a - h, o - z)
+  implicit none
   include 't2.inc.f90'
+
+  ! Local variables
+  integer :: iz, kz, krho, ipz, itdz, kprho
+  double precision :: z, rho, sumpint, tz, tdz, sumrho
   z = -0.5d0*dz
   ! Set boundary values to unity (no external potential at boundaries)
   do iz = 1, ibl
