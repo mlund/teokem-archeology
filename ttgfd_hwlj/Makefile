@@ -15,7 +15,9 @@ INC = t2.inc.f90
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
 # Using -O2 instead of -O3 to avoid linker fixup errors
 # Removed -march=native which can cause ADRP range issues with large data
-FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu 
+# -fno-automatic: Keep F77 SAVE semantics (local vars persist between calls)
+# -finit-local-zero: Initialize local variables to zero
+FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero 
 
 # Strong warning flags
 WARNFLAGS = -Wall \
@@ -75,7 +77,7 @@ profile: $(SRC) $(INC)
 # Build original Fortran 77 version with legacy standard
 .PHONY: legacy
 legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) -O3 -std=legacy -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
+	$(FC) $(FFLAGS) -std=legacy -fno-automatic -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
 
 # Clean build artifacts
 .PHONY: clean
@@ -86,10 +88,13 @@ clean:
 	rm -f fcdfil epfil
 	rm -fR *.dSYM
 
-# Run the program
 .PHONY: run
 run: $(PROGRAM)
-	./$(PROGRAM)
+	python3 run.py --epslj 0.05 --dz 1.0 --nmon 50 --drho 0.3 --executable ./$(PROGRAM)
+
+.PHONY: run_legacy
+run_legacy: legacy
+	python3 run.py --epslj 0.05 --dz 1.0 --nmon 50 --drho 0.3 --executable ./$(PROGRAM)_f77
 
 # Format Fortran 90 source files using fprettify
 .PHONY: format

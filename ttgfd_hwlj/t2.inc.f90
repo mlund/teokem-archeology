@@ -1,12 +1,16 @@
-! Array dimensions - now set at runtime
-INTEGER :: maxel, maxrho
+! Array dimensions - fixed size for COMMON block compatibility
+INTEGER, PARAMETER :: maxel = 1001
+INTEGER, PARAMETER :: maxrho = 321
 
-! Large arrays - dynamically allocated to avoid linker issues on ARM64
-DOUBLE PRECISION, ALLOCATABLE :: fdmon(:, :), ebelam(:, :)
-DOUBLE PRECISION, ALLOCATABLE :: convp(:, :), hvec(:, :, :)
-DOUBLE PRECISION, ALLOCATABLE :: fem(:, :), ehbclam(:, :), cdmonm(:, :)
-DOUBLE PRECISION, ALLOCATABLE :: ae1(:, :), ae2(:, :)
-DOUBLE PRECISION, ALLOCATABLE :: edu(:, :)
+! Large arrays in COMMON block (subroutines need access via COMMON)
+DOUBLE PRECISION :: fdmon(0:maxrho, 0:maxel), ebelam(0:maxrho, 0:maxel)
+DOUBLE PRECISION :: convp(0:maxrho, 0:maxel), hvec(0:maxel, 0:maxrho, 0:maxrho)
+DOUBLE PRECISION :: fem(0:maxrho, 0:maxel), ehbclam(0:maxrho, 0:maxel)
+DOUBLE PRECISION :: cdmonm(0:maxrho, 0:maxel)
+DOUBLE PRECISION :: ae1(0:maxrho, 0:maxel), ae2(0:maxrho, 0:maxel)
+DOUBLE PRECISION :: edu(0:maxrho, 0:maxel)
+
+COMMON/VECT/fdmon, ebelam, convp, hvec, fem, ehbclam, cdmonm, ae1, ae2, edu
 
 ! Type declarations for COMMON block variables (required for implicit none)
 ! COMMON/VAR/ - double precision variables
