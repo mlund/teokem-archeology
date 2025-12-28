@@ -46,49 +46,11 @@ program platem
   double precision :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
-  ! Physical and mathematical constants (compile-time parameters)
-  ! ========================================================================
-
-  ! Mathematical constants
-  DOUBLE PRECISION, PARAMETER :: PI = 3.141592653589793238462643383279502884197d0
-  DOUBLE PRECISION, PARAMETER :: TWOPI = 2.d0*PI
-  DOUBLE PRECISION, PARAMETER :: FOURPI = 4.d0*PI
-  DOUBLE PRECISION, PARAMETER :: VOLFACT = FOURPI/3.d0
-  DOUBLE PRECISION, PARAMETER :: RVOLFACT = 1.d0/VOLFACT
-
-  ! Physical constants
-  DOUBLE PRECISION, PARAMETER :: BK = 1.38066D-23        ! Boltzmann constant (J/K)
-  DOUBLE PRECISION, PARAMETER :: AVNO = 6.02214D23       ! Avogadro's number (1/mol)
-  DOUBLE PRECISION, PARAMETER :: ELCH = 1.602D-19        ! Elementary charge (C)
-  DOUBLE PRECISION, PARAMETER :: VACUUM_PERMITTIVITY = 8.85418782D-12  ! F/m
-  DOUBLE PRECISION, PARAMETER :: DIELC_WATER = 78.3d0    ! Dielectric constant (water)
-
-  ! Carnahan-Starling equation of state parameters for hard spheres
-  DOUBLE PRECISION, PARAMETER :: A1_CS = 1.d0
-  DOUBLE PRECISION, PARAMETER :: A2_CS = 2.45696d0
-  DOUBLE PRECISION, PARAMETER :: B1_CS = 1.d0
-  DOUBLE PRECISION, PARAMETER :: B2_CS = 4.10386d0
-
-  ! Convergence tolerance
-  DOUBLE PRECISION, PARAMETER :: CONV_TOL = 0.00001d0
-
-  ! ========================================================================
   ! File unit numbers
   ifc = 38  ! Output: concentration profiles
   ins = 49  ! Input: simulation parameters
   iep = 50  ! Input: Lennard-Jones epsilon parameter
 
-  ! Compute constants that are stored in COMMON blocks (must be variables)
-  PIS = PI/6.d0
-  PIT = PI/3.d0
-  PIF = PI/4.d0
-  C1 = -1.d0
-  C2 = -3.75503d0
-  AA1 = 2.d0*C1 - 2.d0*A1_CS - 4.d0
-  AA2 = 2.d0*C2 - 2.d0*A2_CS - 4.d0
-  BB1 = 3.d0 - B1_CS + A1_CS - 3.d0*C1
-  BB2 = 3.d0 - B2_CS + A2_CS - 3.d0*C2
-  Y = (9.82605d0 - 9.d0*PI*0.25d0)/(9.d0*PI*0.25d0 - 4.d0*PI/3.d0)
   ! Open input and output files
   open (ifc, file='fcdfil', form='formatted')
   open (ins, file='input.tsph', form='formatted')

@@ -18,8 +18,8 @@ COMMON/VECT/fdmon, ebelam, convp, hvec, fem, ehbclam, cdmonm, ae1, ae2, edu, cos
 
 ! Type declarations for COMMON block variables (required for implicit none)
 ! COMMON/VAR/ - double precision variables
-DOUBLE PRECISION :: dz, closew, PIS, PIF, PIT, vk, rrT, vkrrT, hvk, scalem, scales
-DOUBLE PRECISION :: dzpie, AA1, AA2, BB1, BB2, C1, C2, Y, emscale, eblemb, ehblcmb, eblsmb, bcdt
+DOUBLE PRECISION :: dz, closew, vk, rrT, vkrrT, hvk, scalem, scales
+DOUBLE PRECISION :: dzpie, emscale, eblemb, ehblcmb, eblsmb, bcdt
 DOUBLE PRECISION :: rrjkdiff, threqz, rtwelve, pie, rthree, rdz, btrams
 DOUBLE PRECISION :: sclosew, q1, q2, q3, p1, p2, p3, r2, r1, r0, s2, s1, s0, b2, b1, b0, r2sq, r1sq
 DOUBLE PRECISION :: r0sq, Yfact, veq, rnmon, rrnmon, rrcmon, rq3, cdmbulk, cdsbulk
@@ -37,8 +37,8 @@ INTEGER :: istart, istp1, islut, ism, inw, nfack, imitt, nmon
 INTEGER :: ist, ifin, istp1s, isluts, isms, inws, kst, kfin, mxrho, ksm, nct, nphi
 INTEGER :: ibl, kbl
 
-COMMON/VAR/dz, closew, PIS, PIF, PIT, vk, rrT, vkrrT, hvk, scalem, scales, &
-  dzpie, AA1, AA2, BB1, BB2, C1, C2, Y, emscale, eblemb, ehblcmb, eblsmb, bcdt, &
+COMMON/VAR/dz, closew, vk, rrT, vkrrT, hvk, scalem, scales, &
+  dzpie, emscale, eblemb, ehblcmb, eblsmb, bcdt, &
   rrjkdiff, threqz, rtwelve, pie, rthree, rdz, btrams, &
   sclosew, q1, q2, q3, p1, p2, p3, r2, r1, r0, s2, s1, s0, b2, b1, b0, r2sq, r1sq, &
   r0sq, Yfact, veq, rnmon, rrnmon, rrcmon, rq3, cdmbulk, cdsbulk, &
@@ -54,3 +54,41 @@ COMMON/HELTAL/istart, istp1, islut, ism, inw, nfack, imitt, nmon, &
   ist, ifin, istp1s, isluts, isms, inws, kst, kfin, mxrho, ksm, nct, nphi, &
   ibl, kbl
 
+! ========================================================================
+! Physical and mathematical constants (compile-time parameters)
+! ========================================================================
+
+! Mathematical constants
+DOUBLE PRECISION, PARAMETER :: PI = 3.141592653589793238462643383279502884197d0
+DOUBLE PRECISION, PARAMETER :: TWOPI = 2.d0*PI
+DOUBLE PRECISION, PARAMETER :: FOURPI = 4.d0*PI
+DOUBLE PRECISION, PARAMETER :: VOLFACT = FOURPI/3.d0
+DOUBLE PRECISION, PARAMETER :: RVOLFACT = 1.d0/VOLFACT
+
+! Physical constants
+DOUBLE PRECISION, PARAMETER :: BK = 1.38066D-23        ! Boltzmann constant (J/K)
+DOUBLE PRECISION, PARAMETER :: AVNO = 6.02214D23       ! Avogadro's number (1/mol)
+DOUBLE PRECISION, PARAMETER :: ELCH = 1.602D-19        ! Elementary charge (C)
+DOUBLE PRECISION, PARAMETER :: VACUUM_PERMITTIVITY = 8.85418782D-12  ! F/m
+DOUBLE PRECISION, PARAMETER :: DIELC_WATER = 78.3d0    ! Dielectric constant (water)
+
+! Carnahan-Starling equation of state parameters for hard spheres
+DOUBLE PRECISION, PARAMETER :: A1_CS = 1.d0
+DOUBLE PRECISION, PARAMETER :: A2_CS = 2.45696d0
+DOUBLE PRECISION, PARAMETER :: B1_CS = 1.d0
+DOUBLE PRECISION, PARAMETER :: B2_CS = 4.10386d0
+
+! Convergence tolerance
+DOUBLE PRECISION, PARAMETER :: CONV_TOL = 0.00001d0
+
+! Derived constants (computed from fundamental constants)
+DOUBLE PRECISION, PARAMETER :: PIS = PI/6.d0
+DOUBLE PRECISION, PARAMETER :: PIT = PI/3.d0
+DOUBLE PRECISION, PARAMETER :: PIF = PI/4.d0
+DOUBLE PRECISION, PARAMETER :: C1 = -1.d0
+DOUBLE PRECISION, PARAMETER :: C2 = -3.75503d0
+DOUBLE PRECISION, PARAMETER :: AA1 = 2.d0*C1 - 2.d0*A1_CS - 4.d0
+DOUBLE PRECISION, PARAMETER :: AA2 = 2.d0*C2 - 2.d0*A2_CS - 4.d0
+DOUBLE PRECISION, PARAMETER :: BB1 = 3.d0 - B1_CS + A1_CS - 3.d0*C1
+DOUBLE PRECISION, PARAMETER :: BB2 = 3.d0 - B2_CS + A2_CS - 3.d0*C2
+DOUBLE PRECISION, PARAMETER :: Y = (9.82605d0 - 9.d0*PI*0.25d0)/(9.d0*PI*0.25d0 - 4.d0*PI/3.d0)
