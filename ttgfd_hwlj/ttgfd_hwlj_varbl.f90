@@ -198,27 +198,28 @@ program platem
   mxrho = int((Rcyl - 1.d0)*rdrho) + 1
 
   ! Allocate large arrays dynamically (avoids ARM64 linker issues)
-  allocate(fdmon(0:maxrho, 0:maxel))
-  allocate(ebelam(0:maxrho, 0:maxel))
-  allocate(convp(0:maxrho, 0:maxel))
-  allocate(hvec(0:maxel, 0:maxrho, 0:maxrho))
-  allocate(fem(0:maxrho, 0:maxel))
-  allocate(ehbclam(0:maxrho, 0:maxel))
-  allocate(cdmonm(0:maxrho, 0:maxel))
-  allocate(ae1(0:maxrho, 0:maxel))
-  allocate(ae2(0:maxrho, 0:maxel))
-  allocate(edu(0:maxrho, 0:maxel))
+  allocate (fdmon(0:maxrho, 0:maxel))
+  allocate (ebelam(0:maxrho, 0:maxel))
+  allocate (convp(0:maxrho, 0:maxel))
+  allocate (hvec(0:maxel, 0:maxrho, 0:maxrho))
+  allocate (fem(0:maxrho, 0:maxel))
+  allocate (ehbclam(0:maxrho, 0:maxel))
+  allocate (cdmonm(0:maxrho, 0:maxel))
+  allocate (ae1(0:maxrho, 0:maxel))
+  allocate (ae2(0:maxrho, 0:maxel))
+  allocate (edu(0:maxrho, 0:maxel))
 
   ! Allocate main program arrays
-  allocate(c(0:maxrho, 0:maxel, maxmon))
-  allocate(cA(0:maxrho, 0:maxel))
-  allocate(cB(0:maxrho, 0:maxel))
+  allocate (c(0:maxrho, 0:maxel, maxmon))
+  allocate (cA(0:maxrho, 0:maxel))
+  allocate (cB(0:maxrho, 0:maxel))
 
   ! Calculate normalization constant for contact density
   CALL CDFACT
   write (*, *) 'cdnorm = ', cdnorm
 
-  ! Initialize excess free energy arrays near boundaries
+  ! Initialize excess free energy arrays near z-boundaries (left side)
+  ! These regions are near the system edge and require special treatment
   do iz = istp1, istp1 + 2*ibl - 1
   do kz = 1, mxrho + kbl
     cdt = bdm*dhs3
@@ -237,6 +238,7 @@ program platem
                      bdm*rrnmon*daex2)*pis*dhs3
   end do
   end do
+  ! Initialize excess free energy arrays near radial boundaries (outer edge)
   do iz = istp1 + 2*ibl, imitt + ibl
   do kz = mxrho - kbl + 1, mxrho + kbl
     cdt = bdm*dhs3
@@ -256,8 +258,9 @@ program platem
   end do
   end do
 
-  ! Initialize density fields
+  ! Initialize density fields: either from scratch or read from file
   if (kread .eq. 0) then
+    ! Starting from bulk values with excluded volume for colloids
     z = -0.5d0*dz
     do iz = 1, ibl
       z = z + dz
@@ -335,7 +338,8 @@ program platem
   write (*, *) 'fdmon(1,1) = ', fdmon(1, 1)
   write (*, *) 'fdmon(1,11) = ', fdmon(1, 11)
 
-  ! Precompute Lennard-Jones interaction potential on grid
+  ! Precompute Lennard-Jones interaction potential on grid (hvec array)
+  ! This tabulates U_LJ for all distance combinations to speed up later calculations
   write (*, *) 'dpphi = ', dpphi
   dpphi = dpphi*pi
   npphi = int(pi/dpphi + 0.01d0)
@@ -343,6 +347,7 @@ program platem
 
   kcm = nfack
   tdz = -dz
+  ! Triple loop over z, rho, rho' to compute pairwise LJ interaction integrals
   do itdz = 0, kcm - 1
     tdz = tdz + dz
     tdzsq = tdz*tdz
@@ -359,6 +364,7 @@ program platem
         useful = use1 + trhosq
         pint = 0.d0
         phi = -0.5d0*dpphi
+        ! Angular integration for cylindrical geometry
         do iphi = 1, npphi
           phi = phi + dpphi
           s2 = useful - trmix*dcos(phi)
@@ -424,10 +430,13 @@ program platem
     end do
     end do
 
+    ! Propagate polymer chains segment by segment from end to end
+    ! This calculates c(r,i) = propagator for segment i at position r
     imon = nmon
     do kmon = 1, nmon - 1
       imon = imon - 1
 
+      ! Loop over all spatial grid points
       z = bl - 0.5d0*dz
       do iz = istp1 + ibl, imitt
         z = z + dz
@@ -455,6 +464,8 @@ program platem
             cycle
           end if
 
+          ! Integrate over bond orientations: sum contributions from all points
+          ! within bond length bl of current position (rho0, z)
           sume = 0.d0
           zp = zpst
           do jz = jstart, iz + ibl
@@ -520,6 +531,8 @@ program platem
 
     if (ddmax .lt. ddtol) exit  ! Converged
 
+    ! Update densities using mixing scheme and check convergence
+    ! Calculate new densities from propagators and mix with old values
     ddmax = 0.d0
     z = -0.5d0*dz
     do i = istp1, imitt
@@ -533,21 +546,18 @@ program platem
           fem(j, i) = 0.d0
           fdmon(j, i) = 0.d0
         else
+          ! Calculate total monomer density from chain propagators
+          ! Sum over all internal segments (convolution of forward and backward propagators)
           dumsum = 0.d0
           do k = 2, nmon - 1
             dumsum = c(j, i, k)*c(j, i, nmon + 1 - k) + dumsum
           end do
-!      tfem = 2.d0*c(j,i,1)*ehbclam(j,i)
           tfem = 2.d0*c(j, i, 1)*ebelam(j, i)*dsqrt(edu(j, i))/ehbclam(j, i)
           tfdm = dumsum + tfem
           if (dabs(tfdm) .gt. 1.0d-14) then
             ddiff = abs(tfdm - fdmon(j, i))/tfdm
             if (ddiff .gt. ddmax) ddmax = ddiff
           end if
-!      if (tfdm.gt.(10.*fdm)) then
-!      tfdm = 10.d0*fdm
-!      tfem = 10.d0*fem(j,i)
-!      endif
           fem(j, i) = fem(j, i)*dmm + tdmm*tfem
           fdmon(j, i) = fdmon(j, i)*dmm + tdmm*tfdm
         end if
@@ -569,7 +579,8 @@ program platem
     stop
   end if
 
-  ! Output results (formerly label 200)
+  ! ===== Output converged results =====
+  ! Write density profiles and calculate thermodynamic properties
   rewind 89
   rewind 78
   rewind 85
@@ -647,7 +658,8 @@ program platem
   write (*, *) 'aW = ', aW
   write (*, *) 'bW = ', bW
 
-!     net force from rho iterations:
+  ! ===== Calculate forces on colloid from contact density =====
+  ! Integrate contact density over colloid surface to get net force
 
   izmin = nint((zc1 + 0.5d0*dz - Rcoll)*rdz + 0.5d0)
   zmin = (dfloat(izmin) - 0.5d0)*dz
@@ -706,7 +718,6 @@ program platem
       cdens(ict) = fdc
     end if
   end do
-! 4554 write(*,*) 'rhoFo = ',rhoFo*dz
   write (*, *) 'rcliffFo = ', Rcoll*rcliffFo*dz
   write (*, *) 'z = ', z
 
@@ -756,10 +767,8 @@ program platem
       cdens(ict) = fdc
     end if
   end do
-! 5554 write(*,*) 'rhoFi = ',rhoFi*dz
   write (*, *) 'rcliffFi = ', Rcoll*rcliffFi*dz
   rhoF = (rhoFi + rhoFo)*dz
-!      write(*,*) 'rhoF = ',rhoF
   write (*, *)
   write (*, *) 'rcliffF = ', Rcoll*(rcliffFi + rcliffFo)*dz
   write (*, *)
@@ -993,30 +1002,36 @@ program platem
   end do
 
   ! Deallocate arrays before exit
-  deallocate(fdmon, ebelam, convp, hvec)
-  deallocate(fem, ehbclam, cdmonm, ae1, ae2, edu)
-  deallocate(c, cA, cB)
+  deallocate (fdmon, ebelam, convp, hvec)
+  deallocate (fem, ehbclam, cdmonm, ae1, ae2, edu)
+  deallocate (c, cA, cB)
 
   STOP
 END
 
+! ============================================================================
+! SUBROUTINE: CDFACT
+! ============================================================================
+! Calculates the normalization constant (cdnorm) for the contact density
+! functional. This is computed via a three-dimensional integral over the
+! hard sphere volume using trapezoidal integration in cylindrical coordinates.
+! ============================================================================
 subroutine CDFACT
   implicit double precision(a - h, o - z)
   include 't2.inc.f90'
   strho0 = 0.5d0*drho
   rho0 = strho0
   iz = 2*ism
-!      z = 2.d0-dz
-!      zpst = z-1.d0-dz
   z = 2.d0*dhs - dz
   zpst = z - dhs - dz
   sume = 0.d0
   zp = zpst
+  ! Integrate over sphere of diameter dhs centered at test point
+  ! Triple integration: z', rho', phi in cylindrical coordinates
   do jz = iz - ism, iz + ism
     zp = zp + dz
     delz2 = (zp - z)**2
     sumrhop = 0.d0
-!      rhopmax = dsqrt(dabs(1.d0-delz2))
     rhopmax = dsqrt(dabs(dhs2 - delz2))
     krhopmax = nint(rhopmax*rdrho)
     rho = rho0
@@ -1049,25 +1064,32 @@ subroutine CDFACT
   return
 end
 
+! ============================================================================
+! SUBROUTINE: CDCALC
+! ============================================================================
+! Calculates the contact density (cdmonm) at each grid point. The contact
+! density is a weighted average of the monomer density around a sphere of
+! diameter dhs, computed using 3D integration in cylindrical coordinates
+! with angular averaging.
+! ============================================================================
 subroutine CDCALC
   implicit double precision(a - h, o - z)
   include 't2.inc.f90'
-!      z = 1.d0-0.5d0*dz
   z = dhs - 0.5d0*dz
+  ! Loop over all grid points to calculate contact density
   do iz = istp1 + ism, imitt
     z = z + dz
-!      zpst = z-1.d0-dz
     zpst = z - dhs - dz
     rho0 = -0.5d0*drho
     do kz = 1, mxrho - ksm
       rho0 = rho0 + drho
       sume = 0.d0
       zp = zpst
+      ! Integrate density over hard sphere volume
       do jz = iz - ism, iz + ism
         zp = zp + dz
         delz2 = (zp - z)**2
         sumrhop = 0.d0
-!      rhopmax = dsqrt(dabs(1.d0-delz2))
         rhopmax = dsqrt(dabs(dhs2 - delz2))
         krhopmax = nint(rhopmax*rdrho)
         rho02 = rho0**2
@@ -1093,18 +1115,24 @@ subroutine CDCALC
         sume = 2.d0*sumrhop*drho*fact + sume
       end do
       cdmonm(kz, iz) = 3.d0*sume*dzrfp*cdnorm*rdhs3
-!     rho0 svepet faerdigt!
     end do
-!     dags foer nytt z0 vaerde!
   end do
   return
 end
 
+! ============================================================================
+! SUBROUTINE: AVEC
+! ============================================================================
+! Calculates the excess free energy arrays (ae1, ae2) and the convolution
+! term (convp) from the contact density using the Carnahan-Starling equation
+! of state. These quantities are used in the density functional expressions
+! for the polymer chain propagators.
+! ============================================================================
 subroutine AVEC
   implicit double precision(a - h, o - z)
   include 't2.inc.f90'
+  ! Calculate excess free energy from contact density using Carnahan-Starling EOS
   do iz = istp1 + 2*ism, imitt
-!      do kz = 1,mxrho-ksm
     do kz = 1, mxrho - kbl
       cdt = cdmonm(kz, iz)*dhs3
       pcdt = pis*cdt
@@ -1120,14 +1148,11 @@ subroutine AVEC
                     BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
       convp(kz, iz) = (Y*(fdmon(kz, iz) - fem(kz, iz))*(daex2 - daex1) + &
                        0.5d0*fem(kz, iz)*daex2)*pis*dhs3
-!     *0.5d0*fem(kz,iz)*daex2)*pis
     end do
   end do
 
-!      do kz = 1,mxrho-ksm
   do kz = 1, mxrho - kbl
     jz = imitt + 1
-!      do iz = imitt+1,imitt+ism
     do iz = imitt + 1, imitt + ibl
       jz = jz - 1
       ae1(kz, iz) = ae1(kz, jz)
@@ -1138,10 +1163,19 @@ subroutine AVEC
   return
 end
 
+! ============================================================================
+! SUBROUTINE: EBLMNEW
+! ============================================================================
+! Calculates the Boltzmann weight factors for polymer end segments (ebelam)
+! and middle/hinge segments (ehbclam) at each grid point. These factors
+! include contributions from the excess free energy and the convolution
+! integrals. Excludes regions inside colloids.
+! ============================================================================
 subroutine EBLMNEW
   implicit double precision(a - h, o - z)
   include 't2.inc.f90'
   z = -0.5d0*dz
+  ! Set bulk values at boundaries
   do iz = 1, ibl
     z = z + dz
     do kz = 1, mxrho + kbl
@@ -1150,16 +1184,17 @@ subroutine EBLMNEW
     end do
   end do
 
+  ! Calculate Boltzmann factors from convolution integrals
   do iz = ibl + 1, imitt
     z = z + dz
     jstart = iz - ism
-!      zpst = z-1.d0-dz
     zpst = z - dhs - dz
     diffz2 = (zc1 - z)**2
     irho0min = 1
     strho0 = -0.5d0*drho
 
     rho0 = strho0
+    ! Loop over radial positions
     do kz = irho0min, mxrho
       rho0 = rho0 + drho
       rho02 = rho0**2
@@ -1186,7 +1221,6 @@ subroutine EBLMNEW
         zpc2sq = (zp - zc2)**2
 
         sumrhop = 0.d0
-!      rhopmax = dsqrt(dabs(1.d0-delz2))
         rhopmax = dsqrt(dabs(dhs2 - delz2))
         krhopmax = nint(rhopmax*rdrho)
         rho02 = rho0**2
@@ -1221,17 +1255,24 @@ subroutine EBLMNEW
       cmtrams = trams + Y*(ae2(kz, iz) - ae1(kz, iz))
       ebelam(kz, iz) = dexp(-emtrams + emscale)
       ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + scalem)
-!     rho0 svepet faerdigt!
     end do
-!     dags foer nytt z0 vaerde!
   end do
   return
 end
 
+! ============================================================================
+! SUBROUTINE: EBDU
+! ============================================================================
+! Calculates the external potential contribution (edu) from Lennard-Jones
+! interactions with the polymer solution. Computes exp(-U_LJ) where U_LJ is
+! the interaction energy between a test particle at (rho,z) and the entire
+! density field, using symmetry to include both colloids.
+! ============================================================================
 subroutine EBDU
   implicit double precision(a - h, o - z)
   include 't2.inc.f90'
   z = -0.5d0*dz
+  ! Set boundary values to unity (no external potential at boundaries)
   do iz = 1, ibl
     z = z + dz
     do kz = 1, mxrho + kbl
@@ -1240,17 +1281,16 @@ subroutine EBDU
     end do
   end do
 
+  ! Calculate Lennard-Jones potential energy at each grid point
   do iz = ibl + 1, imitt
-!     z loop
     z = z + dz
     rho = -0.5d0*drho
     do krho = 1, mxrho
-!     rho loop
       rho = rho + drho
       sumpint = 0.d0
       tz = bl - 0.5d0*dz
+      ! Integrate LJ interaction with left half of density distribution
       do ipz = ibl + 1, imitt
-!     zp loop, LHS
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
@@ -1259,11 +1299,10 @@ subroutine EBDU
           sumrho = (fdmon(kprho, ipz) - bdm)*hvec(itdz, krho, kprho) + sumrho
         end do
         sumpint = 2.d0*sumrho*drho + sumpint
-!     zp loop, LHS, finished
       end do
 
+      ! Integrate LJ interaction with right half (use symmetry)
       do ipz = imitt + 1, nfack - ibl
-!     zp loop, RHS
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
@@ -1273,13 +1312,10 @@ subroutine EBDU
             (fdmon(kprho, nfack + 1 - ipz) - bdm)*hvec(itdz, krho, kprho) + sumrho
         end do
         sumpint = 2.d0*sumrho*drho + sumpint
-!     zp loop finished
       end do
       sumpint = sumpint*dz
       edu(krho, iz) = dexp(-sumpint)
-!     rho loop finished
     end do
-!     z loop finished
   end do
   return
 end
