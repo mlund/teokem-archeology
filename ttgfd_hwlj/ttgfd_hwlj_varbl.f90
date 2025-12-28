@@ -30,8 +30,9 @@ program platem
   double precision :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
   double precision :: ckk, ckoll, clifffi, clifffo, cmtrams, collsep, ct, ctf
   double precision :: ctheta, ctn, ctp, cv
-  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
-  double precision :: dmm, dms, dpphi, dumsum
+  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2, distance
+  double precision :: dmm, dms, dmm_adaptive, dms_adaptive, dpphi, dumsum
+  double precision :: interface_width, smooth_factor
   double precision :: eexc, efact, emtrams, epslj
   double precision :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
   double precision :: pb, pcdt, pdasum, phi, phisum, pint
@@ -595,6 +596,27 @@ program platem
 
     if (ddmax .lt. CONV_TOL) exit  ! Converged
 
+    ! Adaptive mixing: adjust mixing parameter based on convergence state
+    ! More aggressive mixing when close to solution, conservative when far
+    if (ddmax .gt. 1.0d0) then
+      dmm_adaptive = 0.90d0  ! Standard mixing when far from solution
+      dms_adaptive = 0.50d0
+    else if (ddmax .gt. 0.1d0) then
+      dmm_adaptive = 0.85d0  ! Slightly more aggressive in mid-range
+      dms_adaptive = 0.45d0
+    else if (ddmax .gt. 0.01d0) then
+      dmm_adaptive = 0.75d0  ! More aggressive approaching solution
+      dms_adaptive = 0.35d0
+    else if (ddmax .gt. 0.001d0) then
+      dmm_adaptive = 0.60d0  ! Very aggressive near solution
+      dms_adaptive = 0.25d0
+    else
+      dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
+      dms_adaptive = 0.15d0
+    end if
+    tdmm = 1.d0 - dmm_adaptive
+    tdms = 1.d0 - dms_adaptive
+
     ! Update densities using mixing scheme and check convergence
     ! Calculate new densities from propagators and mix with old values
     ddmax = 0.d0
@@ -622,8 +644,8 @@ program platem
             ddiff = abs(tfdm - fdmon(j, i))/tfdm
             if (ddiff .gt. ddmax) ddmax = ddiff
           end if
-          fem(j, i) = fem(j, i)*dmm + tdmm*tfem
-          fdmon(j, i) = fdmon(j, i)*dmm + tdmm*tfdm
+          fem(j, i) = fem(j, i)*dmm_adaptive + tdmm*tfem
+          fdmon(j, i) = fdmon(j, i)*dmm_adaptive + tdmm*tfdm
         end if
       end do
     end do
