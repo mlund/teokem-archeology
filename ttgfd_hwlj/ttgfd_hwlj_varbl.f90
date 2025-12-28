@@ -572,16 +572,16 @@ program platem
 
       ! Handle radial boundaries and update propagators
       do iz = ibl + 1, imitt
-      ! Outer radial boundary: use bulk propagators
-      do kz = mxrho - kbl, mxrho + kbl
-        bebbe = behbclam*cA(kz, iz)
-        c(kz, iz, imon) = bebbe
-        cA(kz, iz) = behbclam*bebbe
-      end do
-      ! Interior region: use backward propagator for next iteration
-      do kz = 1, mxrho - ibl - 1
-        cA(kz, iz) = cB(kz, iz)
-      end do
+        ! Outer radial boundary: use bulk propagators
+        do kz = mxrho - kbl, mxrho + kbl
+          bebbe = behbclam*cA(kz, iz)
+          c(kz, iz, imon) = bebbe
+          cA(kz, iz) = behbclam*bebbe
+        end do
+        ! Interior region: use backward propagator for next iteration
+        do kz = 1, mxrho - ibl - 1
+          cA(kz, iz) = cB(kz, iz)
+        end do
       end do
 
       ! Apply symmetry to propagators at midplane
