@@ -1279,17 +1279,19 @@ subroutine EBLMNEW
     strho0 = -0.5d0*drho
 
     rho0 = strho0
-    ! Loop over radial positions
+    ! Loop over radial positions to calculate convolution integrals
     do kz = irho0min, mxrho
       rho0 = rho0 + drho
       rho02 = rho0**2
 
+      ! Skip points inside first colloid
       rt2 = rho02 + (z - zc1)**2
       if (rt2 .lt. Rcoll2) then
         ehbclam(kz, iz) = 0.d0
         ebelam(kz, iz) = 0.d0
         cycle
       end if
+      ! Skip points inside second colloid
       rt2 = rho02 + (z - zc2)**2
       if (rt2 .lt. Rcoll2) then
         ehbclam(kz, iz) = 0.d0
@@ -1297,8 +1299,11 @@ subroutine EBLMNEW
         cycle
       end if
 
+      ! Compute 3D convolution integral over hard sphere volume
+      ! This gives the free energy contribution from local density variations
       sume = 0.d0
       zp = zpst
+      ! Loop over z' within hard sphere diameter from current point
       do jz = jstart, iz + ism
         zp = zp + dz
         delz2 = (zp - z)**2
@@ -1306,38 +1311,54 @@ subroutine EBLMNEW
         zpc2sq = (zp - zc2)**2
 
         sumrhop = 0.d0
+        ! Maximum rho' at this z' to stay within sphere of diameter dhs
         rhopmax = dsqrt(dabs(dhs2 - delz2))
         krhopmax = nint(rhopmax*rdrho)
         rho02 = rho0**2
         rhop = -0.5d0*drho
+        ! Loop over rho' (radial coordinate at integration point)
         do krhop = 1, krhopmax
           rhop = rhop + drho
           rhomax2 = rho02 + rhop*rhop
           fphi = 2.d0*rho0*rhop
           phisum = 0.d0
           phi = -0.5d0*dphi
+          ! Loop over phi (angle between rho0 and rhop vectors)
+          ! This completes the cylindrical coordinate integration
           do iphi = 1, nphi
             phi = phi + dphi
-!     Plus or minus sign doesn't matter for the value of the integral
+            ! Plus or minus sign doesn't matter for the value of the integral
+            ! Calculate rho at integration point using law of cosines
             rho2 = rhomax2 - fphi*dcos(phi)
+            ! Skip if integration point is inside first colloid
             rsq = rho2 + zpcsq
             if (rsq .lt. Rcoll2) cycle
+            ! Skip if integration point is inside second colloid
             rsq = rho2 + zpc2sq
             if (rsq .lt. Rcoll2) cycle
             rho = dsqrt(rho2)
             irho = int(rho*rdrho) + 1
+            ! Sum convolution term (weighted density) over angular direction
             phisum = convp(irho, jz) + phisum
           end do
+          ! Integrate over rho': weight by rhop*dphi*drho (cylindrical volume element)
           sumrhop = rhop*phisum*dphi + sumrhop
         end do
+        ! Trapezoidal rule: half weight at boundaries
         fact = 1.d0
         if (iabs(jz - iz) .eq. ism) fact = 0.5d0
+        ! Integrate over z': weight by 2*drho*fact*dz
         sume = 2.d0*sumrhop*drho*fact + sume
       end do
+      ! Normalize convolution integral to get trams (local free energy contribution)
       trams = 3.d0*sume*dzrfp*cdnorm*rdhs3
 
+      ! Calculate Boltzmann factors from free energy contributions
+      ! emtrams: end-segment contribution (half of middle segment)
       emtrams = trams + 0.5d0*ae2(kz, iz)
+      ! cmtrams: middle-segment contribution with Y factor for chain connectivity
       cmtrams = trams + Y*(ae2(kz, iz) - ae1(kz, iz))
+      ! exp(-beta*F): Boltzmann weights with bulk chemical potential offset
       ebelam(kz, iz) = dexp(-emtrams + emscale)
       ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + scalem)
     end do
