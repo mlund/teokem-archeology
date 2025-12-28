@@ -577,6 +577,8 @@ program platem
       end do
     end do
 
+    ! Apply symmetry to updated densities at midplane
+    ! Mirror fdmon and fem across z = imitt to maintain symmetry
     jz = imitt + 1
     do iz = imitt + 1, imitt + ibl
       jz = jz - 1
@@ -599,11 +601,17 @@ program platem
   rewind 85
   sumW = 0.d0
   z = -0.5d0*dz
+
+  ! Write density profiles along z-axis at rho=0 (centerline)
   do iz = istp1, imitt
     z = z + dz
+    ! File 85: monomer and end-segment densities at centerline
     write (85, *) z, fdmon(1, iz), fem(1, iz)
+    ! File 89: propagators for segments 1,3,5,9 and ehbclam at centerline
     write (89, '(6f14.7)') z, c(1, iz, 1), c(1, iz, 3), c(1, iz, 5), &
       ehbclam(1, iz), c(1, iz, 9)
+
+    ! Radially integrate density within radius 1.0 to get average
     fsum = 0.d0
     klm = nint(1.d0/drho)
     rho = -0.5d0*drho
@@ -611,28 +619,37 @@ program platem
       rho = rho + drho
       fsum = fsum + fdmon(i, iz)*2.d0*pi*rho
     end do
+    ! File 78: z-position and radially averaged density
     write (78, *) z, fsum*drho/(pi*1.d0**2)
   end do
 
+  ! Write radial profiles at z = zc1 (first colloid center position)
   rewind 83
   rewind 87
   iz = int(zc1*rdz) + 1
   rho = -0.5d0*drho
   do kr = 1, mxrho
     rho = rho + drho
+    ! File 87: radial profile of propagators for segments 1,3,5,9 and ehbclam
     write (87, '(6f14.7)') rho, c(kr, iz, 1), c(kr, iz, 3), c(kr, iz, 5), &
       ehbclam(kr, iz), c(kr, iz, 9)
+    ! File 83: radial profile of monomer and end-segment densities
     write (83, *) rho, fdmon(kr, iz), fem(kr, iz)
   end do
 
-  bfde = 2.d0*bdpol
-  bfdc = bdm - bfde
+  ! ===== Calculate grand potential (thermodynamic potential) =====
+  ! The grand potential Omega = F - mu*N measures the thermodynamic cost
+  ! of the inhomogeneous density distribution relative to bulk
+  bfde = 2.d0*bdpol  ! Bulk end-segment density
+  bfdc = bdm - bfde  ! Bulk internal-segment density
   asumW = 0.d0
   sumsp = 0.d0
   sumsn = 0.d0
   bsumW = 0.d0
   chvol = 0.d0
   z = -0.5d0*dz
+
+  ! Integrate grand potential density over system volume
   do iz = istp1, imitt
     z = z + dz
     arsum = 0.d0
@@ -644,27 +661,39 @@ program platem
       rho = rho + drho
       rsq = rho*rho + diffz2
       fdm = fdmon(kz, iz)
+
+      ! Only integrate outside colloid volume
       if (rsq .ge. Rcoll2) then
+        ! Chemical potential contributions
         belamb = dlog(ebelam(kz, iz)) - emscale
         bclamb = 2.d0*(dlog(ehbclam(kz, iz)) - scalem)
         fde = fem(kz, iz)
         fdc = fdm - fde
+        ! Excess free energy from hard-sphere interactions
         Fex = fdc*Y*(ae2(kz, iz) - ae1(kz, iz)) + 0.5d0*fde*ae2(kz, iz)
+
+        ! Grand potential density omega(r) = f(r) - mu*rho(r)
+        ! where f(r) is Helmholtz free energy density
         arsum = &
           rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
                bdpol - fdm*rrnmon + Fex - bFex) + arsum
         brsum = &
           rho*(fdc*bclamb + fde*belamb - fdm*rrnmon + Fex - bFex) + brsum
       end if
+
+      ! Add Lennard-Jones contribution to grand potential
       eexc = -dlog(edu(kz, iz))
       arsum = arsum - 0.5d0*rho*eexc*(fdm + bdm)
       brsum = brsum + rho*(0.5d0*(fdm - bdm)*eexc - fdm*eexc)
     end do
+    ! Integrate radially: multiply by 2*pi*rho*drho
     asumW = 2.d0*pi*arsum*drho + asumW
     bsumW = 2.d0*pi*brsum*drho + bsumW
   end do
+  ! Integrate along z-axis: multiply by dz
   asumW = asumW*dz
   bsumW = bsumW*dz
+  ! Factor of 2 accounts for both halves of symmetric system
   aW = 2.d0*asumW
   bW = 2.d0*bsumW
   write (*, *)
