@@ -840,6 +840,8 @@ program platem
   write (*, *)
   write (*, *) 'z = ', z
 
+  ! Integrate force over colloid surface using cos(theta) as coordinate
+  ! Extrapolate density to poles (theta = ±1) using linear interpolation
   ctF = 0.d0
   fdcm1 = &
     cdens(1) + (cdens(2) - cdens(1))*(-1.d0 - ctvec(1))/(ctvec(2) - ctvec(1))
@@ -856,6 +858,7 @@ program platem
   cdens(ict + 1) = fdcp1
   ctvec(ict + 1) = 1.d0
 
+  ! Trapezoidal integration over cos(theta) from -1 to +1
   ch2 = 0.d0
   do kct = 0, ict
     ct = ctvec(kct)
@@ -874,11 +877,12 @@ program platem
   write (*, *) 'ch2 = ', ch2
   write (*, *)
 
-!     net force from z iterations:
+  ! Alternative force calculation: integrate over rho slices at constant z
 
+  ! Determine maximum radial index inside sphere
   irhomax = nint(Rcoll*rdrho + 1.d0)
   rhomax = (dfloat(irhomax) - 0.5d0)*drho
-!     stay inside the sphere
+  ! Stay inside the sphere to avoid boundary issues
   irhomax = irhomax - 1
   rhomax = rhomax - drho
   write (*, *) 'rhomax,irhomax = ', rhomax, irhomax
@@ -887,13 +891,16 @@ program platem
   cho = 0.d0
   cliffFo = 0.d0
   rho = -0.5d0*dz
+
+  ! Loop over radial slices from center outward (outer hemisphere in z)
   do irho = 1, irhomax
     rho = rho + drho
     rhosq = rho*rho
+    ! Only process rho values that intersect the colloid
     if (rhosq .le. Rcoll2) then
       z = zc1 + 0.5d0*dz
       iz = izc1
-      ! Find boundary point
+      ! Find first grid point outside colloid at this rho (moving down in z)
       do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
         z = z - dz
         iz = iz - 1
@@ -902,6 +909,7 @@ program platem
       Rc = dsqrt(rhosq + zsq)
       deltazc = dsqrt(Rcoll2 - rhosq)
 
+      ! Quadratic interpolation in z-direction to get surface density
       if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
         y3 = fdmon(irho, iz)
         y2 = fdmon(irho, iz - 1)
@@ -930,22 +938,21 @@ program platem
     end if
   end do
 
+  ! Loop over radial slices in reverse (inner hemisphere in z)
   rho = rho + drho
   irho = irhomax + 1
-!      ict = 0
   zFi = 0.d0
   chi = 0.d0
   cliffFi = 0.d0
-!      rho = -0.5d0*dz
   do krho = 1, irhomax
-!      rho = rho+drho
     irho = irho - 1
     rho = rho - drho
     rhosq = rho*rho
+    ! Only process rho values that intersect the colloid
     if (rhosq .le. Rcoll2) then
       z = zc1 - 0.5d0*dz
       iz = izc1 - 1
-      ! Find boundary point
+      ! Find first grid point outside colloid at this rho (moving up in z)
       do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
         z = z + dz
         iz = iz + 1
@@ -985,6 +992,8 @@ program platem
     end if
   end do
 
+  ! Second integration over cos(theta) from alternative method
+  ! Extrapolate to poles as before
   ctF = 0.d0
   th = 1.5d0
   fdcm1 = &
@@ -1001,26 +1010,34 @@ program platem
   write (*, *) 'cdens(ict),cdens(ict-1) = ', cdens(ict), cdens(ict - 1)
   ctvec(ict + 1) = 1.d0
   cdens(ict + 1) = fdcp1
+
+  ! Initialize various force and integral accumulators
   ckoll = 0.d0
   cckoll = 0.d0
   ccckoll = 0.d0
   ch2 = 0.d0
   ccc = 0.d0
   bordekoll = 0.d0
+
+  ! Loop over all theta intervals to compute multiple integrals
   do kct = 0, ict
     ct = ctvec(kct)
     ctn = ctvec(kct + 1)
     fdc = cdens(kct)
     fdcn = cdens(kct + 1)
     fk = (fdcn - fdc)/(ctn - ct)
+
+    ! Trapezoidal integration of force in cos(theta) coordinate
     ctF = 0.5d0*(fdc - fk*ct)*(ctn**2 - ct**2) + fk*(ctn**3 - ct**3)/3.d0 + ctF
     ch2 = 0.25d0*(fdc + fdcn)*(ctn**2 - ct**2) + ch2
 
+    ! Additional integral using sin(theta)^3 = (1 - cos^2(theta))^(3/2)
     tn = -(1.d0 - ctn*ctn)**1.5d0
     t = -(1.d0 - ct*ct)**1.5d0
     add = 0.5d0*(fdc + fdcn)*(tn - t)/3.d0
     bordekoll = add + bordekoll
 
+    ! Various auxiliary integrals for force calculation checks
     if (kct .gt. 0) then
       cckoll = ct*fdc + cckoll
       if (ct .lt. 0.d0) then
@@ -1032,6 +1049,8 @@ program platem
       ckk = dabs(ct)*dsqrt(1.d0 - ct*ct) + ckk
       ctp = ct
     end if
+
+    ! Convert cos(theta) to rho coordinate: rho = R*sin(theta) = R*sqrt(1-cos^2)
     rho = Rcoll*dsqrt(1.d0 - ct*ct)
     rhon = Rcoll*dsqrt(1.d0 - ctn*ctn)
     if (kct .eq. 0) rho = Rcoll
