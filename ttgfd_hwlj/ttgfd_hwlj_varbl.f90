@@ -376,7 +376,7 @@ program platem
           end if
         end do
 !$omp end simd
-        hvec(itdz, krho, kprho) = trho*pint*dpphi
+        hvec(kprho, krho, itdz) = trho*pint*dpphi
       end do
     end do
   end do
@@ -1421,7 +1421,6 @@ subroutine EBDU
     z = z + dz
     do kz = 1, mxrho + kbl
       edu(kz, iz) = 1.d0
-      edu(kz, iz) = 1.d0
     end do
   end do
 
@@ -1440,7 +1439,7 @@ subroutine EBDU
         itdz = nint(dabs(tdz*rdz))
         sumrho = 0.d0
         do kprho = 1, mxrho
-          sumrho = (fdmon(kprho, ipz) - bdm)*hvec(itdz, krho, kprho) + sumrho
+          sumrho = (fdmon(kprho, ipz) - bdm)*hvec(kprho, krho, itdz) + sumrho
         end do
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
@@ -1453,7 +1452,7 @@ subroutine EBDU
         sumrho = 0.d0
         do kprho = 1, mxrho
           sumrho = &
-            (fdmon(kprho, nfack + 1 - ipz) - bdm)*hvec(itdz, krho, kprho) + sumrho
+            (fdmon(kprho, nfack + 1 - ipz) - bdm)*hvec(kprho, krho, itdz) + sumrho
         end do
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
