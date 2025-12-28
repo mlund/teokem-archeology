@@ -262,20 +262,24 @@ program platem
   if (kread .eq. 0) then
     ! Starting from bulk values with excluded volume for colloids
     z = -0.5d0*dz
+    ! Skip boundary region at z < 0
     do iz = 1, ibl
       z = z + dz
     end do
+    ! Initialize all grid points to bulk values, then zero out colloid interiors
     do iz = ibl + 1, imitt
       z = z + dz
       z2 = (z - zc1)**2
       z22 = (z - zc2)**2
       rho = -0.5d0*drho
+      ! Loop over radial positions
       do kz = 1, mxrho
         rho = rho + drho
         fdmon(kz, iz) = bdm
         fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
         ebelam(kz, iz) = bebelam
         ehbclam(kz, iz) = behbclam
+        ! Check if point is inside first colloid
         rt2 = rho*rho + z2
         if (rt2 .lt. Rcoll2) then
           fdmon(kz, iz) = 0.d0
@@ -283,6 +287,7 @@ program platem
           ebelam(kz, iz) = 0.d0
           ehbclam(kz, iz) = 0.d0
         end if
+        ! Check if point is inside second colloid
         rt2 = rho*rho + z22
         if (rt2 .lt. Rcoll2) then
           fdmon(kz, iz) = 0.d0
@@ -293,7 +298,7 @@ program platem
       end do
     end do
   else
-    ! Read initial guess from file
+    ! Read initial guess from file (restart from previous calculation)
     rewind ifc
     do iz = istp1, imitt
     do kz = 1, mxrho
@@ -303,7 +308,8 @@ program platem
     end do
   end if
 
-  ! Set boundary conditions
+  ! Set boundary conditions at z-boundaries (left edge)
+  ! All densities set to bulk values
   do iz = istp1, ibl
   do kz = 1, mxrho + kbl
     fdmon(kz, iz) = bdm
@@ -313,6 +319,8 @@ program platem
     cdmonm(kz, iz) = bdm
   end do
   end do
+  ! Set boundary conditions at radial edge (outer cylinder boundary)
+  ! All densities set to bulk values
   do iz = 1, imitt
   do kz = mxrho + 1, mxrho + kbl
     fdmon(kz, iz) = bdm
@@ -323,7 +331,7 @@ program platem
   end do
   end do
 
-  ! Apply symmetry boundary conditions
+  ! Apply symmetry boundary conditions at z = imitt midplane
   jz = imitt + 1
   do iz = imitt + 1, imitt + ibl
     jz = jz - 1
@@ -514,6 +522,8 @@ program platem
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
         end do
       end do
+
+      ! Handle boundary regions: propagators at z-boundaries
       do iz = istp1, ibl
       do kz = 1, mxrho + kbl
         bebbe = behbclam*cA(kz, iz)
@@ -521,17 +531,22 @@ program platem
         cA(kz, iz) = behbclam*bebbe
       end do
       end do
+
+      ! Handle radial boundaries and update propagators
       do iz = ibl + 1, imitt
+      ! Outer radial boundary: use bulk propagators
       do kz = mxrho - kbl, mxrho + kbl
         bebbe = behbclam*cA(kz, iz)
         c(kz, iz, imon) = bebbe
         cA(kz, iz) = behbclam*bebbe
       end do
+      ! Interior region: use backward propagator for next iteration
       do kz = 1, mxrho - ibl - 1
         cA(kz, iz) = cB(kz, iz)
       end do
       end do
 
+      ! Apply symmetry to propagators at midplane
       jz = imitt + 1
       do iz = imitt + 1, imitt + ibl
         jz = jz - 1
@@ -703,6 +718,7 @@ program platem
   ! ===== Calculate forces on colloid from contact density =====
   ! Integrate contact density over colloid surface to get net force
 
+  ! Determine integration limits for first colloid (centered at zc1)
   izmin = nint((zc1 + 0.5d0*dz - Rcoll)*rdz + 0.5d0)
   zmin = (dfloat(izmin) - 0.5d0)*dz
   izmax = nint((zc1 - 0.5d0*dz + Rcoll)*rdz + 0.5d0)
@@ -714,16 +730,18 @@ program platem
   write (*, *) dfloat(izc1)*dz - 0.5d0*dz
   ict = 0
 
+  ! Calculate force on outer hemisphere (z < zc1) of first colloid
   rhoFo = 0.d0
   rcliffFo = 0.d0
   z = zmin - dz
   do iz = izmin, izc1 - 1
     z = z + dz
     zsq = (z - zc1)**2
+    ! Only process z-slices that intersect the colloid
     if (zsq .le. Rcoll2) then
       rho = -0.5d0*drho
       irho = 0
-      ! Find boundary point
+      ! Find first grid point outside colloid at this z
       do while ((rho*rho + zsq) .le. Rcoll2)
         rho = rho + drho
         irho = irho + 1
@@ -731,6 +749,8 @@ program platem
       Rc = dsqrt(rho*rho + zsq)
       rhoc = dsqrt(Rcoll2 - zsq)
 
+      ! Quadratic interpolation to get density at exact colloid surface
+      ! Use 3 points near boundary (irho, irho+1, irho+2)
       if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
         y3 = fdmon(irho, iz)
         y2 = fdmon(irho + 1, iz)
@@ -748,10 +768,12 @@ program platem
         write (*, *) 'TJOHO!'
       end if
 
+      ! Lagrange interpolation to get density at colloid surface
       x = rhoc
       fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
+      ! cos(theta) = (z - zc1)/Rcoll for surface normal direction
       ctheta = (z - zc1)/Rcoll
       rhoFo = 2.d0*pi*rhoc*ctheta*fdc + rhoFo
       rcliffFo = 2.d0*pi*ctheta*fdc + rcliffFo
@@ -763,16 +785,18 @@ program platem
   write (*, *) 'rcliffFo = ', Rcoll*rcliffFo*dz
   write (*, *) 'z = ', z
 
+  ! Calculate force on inner hemisphere (z > zc1) of first colloid
   rhoFi = 0.d0
   rcliffFi = 0.d0
   z = zc1 - 0.5d0*dz
   do iz = izc1, izmax
     z = z + dz
     zsq = (z - zc1)**2
+    ! Only process z-slices that intersect the colloid
     if (zsq .le. Rcoll2) then
       rho = -0.5d0*drho
       irho = 0
-      ! Find boundary point
+      ! Find first grid point outside colloid at this z
       do while ((rho*rho + zsq) .le. Rcoll2)
         rho = rho + drho
         irho = irho + 1
