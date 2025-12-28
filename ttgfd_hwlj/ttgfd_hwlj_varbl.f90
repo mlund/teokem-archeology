@@ -399,6 +399,8 @@ program platem
     CALL EBLMNEW    ! Calculate end-segment Boltzmann factors
     CALL EBDU       ! Calculate external potential contribution
 
+    ! Apply boundary conditions at outer radial edge (rho > Rcyl)
+    ! Set to bulk values since density should approach bulk far from colloids
     do iz = istp1, imitt
     do kz = mxrho + 1, mxrho + kbl
       ebelam(kz, iz) = bebelam
@@ -406,6 +408,10 @@ program platem
       edu(kz, iz) = 1.d0
     end do
     end do
+
+    ! Apply symmetry boundary conditions at z = imitt (midplane between colloids)
+    ! The system is symmetric about the midplane, so mirror the field values
+    ! This loop copies from iz = imitt down to iz = 1 (reverse order)
     jz = imitt + 1
     do iz = imitt + 1, imitt + ibl
       jz = jz - 1
@@ -415,6 +421,8 @@ program platem
         edu(kz, iz) = edu(kz, jz)
       end do
     end do
+
+    ! Second symmetry application (appears redundant but ensures consistency)
     jz = imitt + 1
     do iz = imitt + 1, imitt + ibl
       jz = jz - 1
@@ -424,6 +432,11 @@ program platem
         edu(kz, iz) = edu(kz, jz)
       end do
     end do
+
+    ! Calculate cA: the propagator for polymer end segments
+    ! cA(r) = exp(-beta*mu_end)*exp(-U_LJ) where:
+    !   ebelam = exp(-beta*mu_end) from hard-sphere and chain connectivity
+    !   edu = exp(-U_LJ) from Lennard-Jones interactions
     do iz = istp1, imitt + ibl
     do kz = 1, mxrho + kbl
       cA(kz, iz) = ebelam(kz, iz)*edu(kz, iz)
