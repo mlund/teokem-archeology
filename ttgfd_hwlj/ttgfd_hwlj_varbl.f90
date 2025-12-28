@@ -1429,7 +1429,7 @@ subroutine EBDU
 
   ! Local variables
   integer :: iz, kz, krho, ipz, itdz
-  double precision :: z, rho, sumpint, tz, tdz, sumrho
+  double precision :: z, sumpint, tz, tdz, sumrho
 
   ! Interface for helper function
   interface
@@ -1440,21 +1440,20 @@ subroutine EBDU
     end function compute_rho_integral
   end interface
 
-  z = -0.5d0*dz
   ! Set boundary values to unity (no external potential at boundaries)
+!$omp parallel do private(kz)
   do iz = 1, ibl
-    z = z + dz
     do kz = 1, mxrho + kbl
       edu(kz, iz) = 1.d0
     end do
   end do
+!$omp end parallel do
 
   ! Calculate Lennard-Jones potential energy at each grid point
+!$omp parallel do private(z, krho, sumpint, tz, tdz, ipz, itdz, sumrho) schedule(static)
   do iz = ibl + 1, imitt
-    z = z + dz
-    rho = -0.5d0*drho
+    z = -0.5d0*dz + dble(iz)*dz
     do krho = 1, mxrho
-      rho = rho + drho
       sumpint = 0.d0
       tz = bl - 0.5d0*dz
       ! Integrate LJ interaction with left half of density distribution
@@ -1478,6 +1477,7 @@ subroutine EBDU
       edu(krho, iz) = dexp(-sumpint)
     end do
   end do
+!$omp end parallel do
   return
 end
 
