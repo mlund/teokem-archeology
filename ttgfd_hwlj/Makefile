@@ -74,7 +74,7 @@ profile: $(SRC) $(INC)
 # Build original Fortran 77 version with legacy standard
 .PHONY: legacy
 legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) -O2 -std=legacy -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f
+	$(FC) -O3 -std=legacy -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
 
 # Clean build artifacts
 .PHONY: clean

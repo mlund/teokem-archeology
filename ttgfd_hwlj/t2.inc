@@ -1,4 +1,4 @@
-      PARAMETER (maxel=1001,maxrho=321)
+      PARAMETER (maxel=1001,maxmon=151,maxism=4,maxrho=321)
       COMMON/VECT/fdmon(0:maxrho,0:maxel),ebelam(0:maxrho,0:maxel),
      *convp(0:maxrho,0:maxel),hvec(0:maxel,0:maxrho,0:maxrho),
      *Vexm(0:maxrho,0:maxel),Virm(0:maxrho,0:maxel),
