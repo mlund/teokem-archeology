@@ -84,7 +84,7 @@ clean:
 	rm -f *.o *.mod
 	rm -f gmon.out
 	rm -f fcdfil epfil
-	rm -fR *.dsym
+	rm -fR *.dSYM
 
 # Run the program
 .PHONY: run

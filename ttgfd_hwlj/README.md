@@ -144,12 +144,8 @@ Defined in lines 11-17:
 ## Compilation
 
 ```bash
-gfortran -O3 -o ttgfd_hwlj ttgfd_hwlj_varbl.f
-```
-
-or for better optimization:
-```bash
-gfortran -O3 -march=native -ffast-math -o ttgfd_hwlj ttgfd_hwlj_varbl.f
+make clean
+make
 ```
 
 ## Running the Program
