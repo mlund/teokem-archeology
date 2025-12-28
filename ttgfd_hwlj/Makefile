@@ -18,7 +18,7 @@ INC = t2.inc.f90
 # -fno-automatic: Keep F77 SAVE semantics (local vars persist between calls)
 # -finit-local-zero: Initialize local variables to zero
 # -fopenmp: Enable OpenMP SIMD directives for vectorization (~1% speedup)
-FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp 
+FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp -ffast-math -flto -funroll-loops
 
 # Strong warning flags
 WARNFLAGS = -Wall \
@@ -69,11 +69,27 @@ debug: FFLAGS = -O0 -g
 debug: $(SRC) $(INC)
 	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(SRC)
 
-# Build with profiling support
+# Build with profiling support (gprof)
 .PHONY: profile
 profile: FFLAGS = -O1 -pg
 profile: $(SRC) $(INC)
 	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
+
+# Build with gperftools profiling support (macOS compatible)
+.PHONY: profile-gperftools
+profile-gperftools: FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp -ffast-math -flto -funroll-loops
+profile-gperftools: $(SRC) $(INC)
+	$(FC) $(FFLAGS) $(WARNFLAGS) -o $(PROGRAM)_gperf $(SRC)
+
+# Run with gperftools CPU profiler
+.PHONY: run-profile
+run-profile: profile-gperftools
+	@echo "Running with gperftools profiler..."
+	@echo "Note: Install gperftools first with: brew install gperftools"
+	CPUPROFILE=cpu.prof DYLD_INSERT_LIBRARIES=/opt/homebrew/lib/libprofiler.dylib ./$(PROGRAM)_gperf < input.tsph
+	@echo "Profile data saved to cpu.prof"
+	@echo "Analyze with: pprof --text ./$(PROGRAM)_gperf cpu.prof"
+	@echo "Or generate PDF: pprof --pdf ./$(PROGRAM)_gperf cpu.prof > profile.pdf"
 
 # Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
@@ -83,9 +99,9 @@ legacy: ttgfd_hwlj_varbl.f t2.inc
 # Clean build artifacts
 .PHONY: clean
 clean:
-	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77
+	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77 $(PROGRAM)_gperf
 	rm -f *.o *.mod
-	rm -f gmon.out
+	rm -f gmon.out cpu.prof profile.pdf
 	rm -f fcdfil epfil
 	rm -fR *.dSYM
 
