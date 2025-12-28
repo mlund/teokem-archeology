@@ -38,7 +38,7 @@ program platem
   double precision :: pb, pcdt, pdasum, phi, phisum, pint
   double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
   double precision :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  double precision :: rsq, rt2, rxsi, rxsib, rxsibsq, sqrxsi, strho0
+  double precision :: rsq, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0
   double precision :: sume, sumsn, sumsp, sumw
   double precision :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
   double precision :: trho, trhosq, trmix, twopidz
@@ -79,7 +79,6 @@ program platem
   read (ins, *) dhs         ! Hard sphere diameter (monomer)
   read (ins, *) dpphi       ! Angular grid spacing for potential calculation
   ! Compute derived geometric parameters
-  rbl = 1.d0/bl
   bl2 = bl*bl
   dhs2 = dhs*dhs
   dhs3 = dhs2*dhs
@@ -120,11 +119,8 @@ program platem
   ksm = int(dhs/drho + 0.01d0)    ! Hard sphere diameter in grid units (rho)
   ibl = int(bl/dz + 0.01d0)       ! Bond length in grid units (z)
   kbl = int(bl/drho + 0.01d0)     ! Bond length in grid units (rho)
-  pie = PI/8.d0
-  dzpie = pie*dz
   rnmon = dble(nmon)
   rrnmon = 1.d0/rnmon
-  rrcmon = 1.d0/(rnmon - 2.d0)
 
   ! Bulk thermodynamic properties
   Yfact = (rnmon - 2.d0)*Y
@@ -515,7 +511,7 @@ program platem
             sume = 2.d0*phisum*dphi*fact + sume
           end do
           efact = dsqrt(edu(kz, iz))
-          ffact = sume*dzrfp*ehbclam(kz, iz)*rbl*efact
+          ffact = sume*dzrfp*ehbclam(kz, iz)/bl*efact
           c(kz, iz, imon) = ffact
           if (iz .gt. imitt - ibl - 1) cB(kz, islut + 1 - iz) = ffact*ehbclam(kz, iz)*efact
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact

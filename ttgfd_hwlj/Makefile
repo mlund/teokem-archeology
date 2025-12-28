@@ -24,7 +24,7 @@ FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local
 WARNFLAGS = -Wall \
             -Wextra \
             -Wpedantic \
-            -Wno-implicit-interface \
+            -Wimplicit-interface \
             -Wunused \
             -Wno-maybe-uninitialized \
             -Wuninitialized \
