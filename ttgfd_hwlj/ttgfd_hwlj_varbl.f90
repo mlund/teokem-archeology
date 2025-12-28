@@ -15,6 +15,34 @@ program platem
   double precision, allocatable :: c(:, :, :), cA(:, :), cB(:, :)
   dimension cdens(0:1000), ctvec(0:1000)
 
+  ! ========================================================================
+  ! Physical and mathematical constants (compile-time parameters)
+  ! ========================================================================
+
+  ! Mathematical constants
+  DOUBLE PRECISION, PARAMETER :: PI = 3.141592653589793238462643383279502884197d0
+  DOUBLE PRECISION, PARAMETER :: TWOPI = 2.d0*PI
+  DOUBLE PRECISION, PARAMETER :: FOURPI = 4.d0*PI
+  DOUBLE PRECISION, PARAMETER :: VOLFACT = FOURPI/3.d0
+  DOUBLE PRECISION, PARAMETER :: RVOLFACT = 1.d0/VOLFACT
+
+  ! Physical constants
+  DOUBLE PRECISION, PARAMETER :: BK = 1.38066D-23        ! Boltzmann constant (J/K)
+  DOUBLE PRECISION, PARAMETER :: AVNO = 6.02214D23       ! Avogadro's number (1/mol)
+  DOUBLE PRECISION, PARAMETER :: ELCH = 1.602D-19        ! Elementary charge (C)
+  DOUBLE PRECISION, PARAMETER :: VACUUM_PERMITTIVITY = 8.85418782D-12  ! F/m
+  DOUBLE PRECISION, PARAMETER :: DIELC_WATER = 78.3d0    ! Dielectric constant (water)
+
+  ! Carnahan-Starling equation of state parameters for hard spheres
+  DOUBLE PRECISION, PARAMETER :: A1_CS = 1.d0
+  DOUBLE PRECISION, PARAMETER :: A2_CS = 2.45696d0
+  DOUBLE PRECISION, PARAMETER :: B1_CS = 1.d0
+  DOUBLE PRECISION, PARAMETER :: B2_CS = 4.10386d0
+
+  ! Convergence tolerance
+  DOUBLE PRECISION, PARAMETER :: CONV_TOL = 0.00001d0
+
+  ! ========================================================================
   ! File unit numbers
   ifc = 38  ! Output: concentration profiles
   ins = 49  ! Input: simulation parameters
@@ -24,36 +52,17 @@ program platem
   maxel = 1001
   maxrho = 321
 
-  ! Physical and mathematical constants
-  pi = acos(-1.d0)
-  bk = 1.38066D-23      ! Boltzmann constant (J/K)
-  avno = 6.02214D23     ! Avogadro's number (1/mol)
-  elch = 1.602D-19      ! Elementary charge (C)
-  faraday = 8.85418782D-12  ! Permittivity of free space (F/m)
-  dielc = 78.3d0        ! Dielectric constant (water)
-  twopi = 2.d0*pi
-  fourpi = 4.d0*pi
-  volfact = fourpi/3.d0
-  rvolfact = 1.d0/volfact
-  pis = pi/6.d0
-  pit = pi/3.d0
-  pif = pi/4.d0
-
-  ! Carnahan-Starling equation of state parameters for hard spheres
-  a1 = 1.d0
-  a2 = 2.45696d0
-  b1 = 1.d0
-  b2 = 4.10386d0
-  c1 = -1.d0
-  c2 = -3.75503d0
-  AA1 = 2.d0*c1 - 2.d0*a1 - 4.d0
-  AA2 = 2.d0*c2 - 2.d0*a2 - 4.d0
-  BB1 = 3.d0 - b1 + a1 - 3.d0*c1
-  BB2 = 3.d0 - b2 + a2 - 3.d0*c2
-  Y = (9.82605d0 - 9.d0*pi*0.25d0)/(9.d0*pi*0.25d0 - 4.d0*pi/3.d0)
-
-  ! Convergence tolerance for density iterations
-  ddtol = 0.00001d0
+  ! Compute constants that are stored in COMMON blocks (must be variables)
+  PIS = PI/6.d0
+  PIT = PI/3.d0
+  PIF = PI/4.d0
+  C1 = -1.d0
+  C2 = -3.75503d0
+  AA1 = 2.d0*C1 - 2.d0*A1_CS - 4.d0
+  AA2 = 2.d0*C2 - 2.d0*A2_CS - 4.d0
+  BB1 = 3.d0 - B1_CS + A1_CS - 3.d0*C1
+  BB2 = 3.d0 - B2_CS + A2_CS - 3.d0*C2
+  Y = (9.82605d0 - 9.d0*PI*0.25d0)/(9.d0*PI*0.25d0 - 4.d0*PI/3.d0)
   ! Open input and output files
   open (ifc, file='fcdfil', form='formatted')
   open (ins, file='input.tsph', form='formatted')
@@ -70,7 +79,7 @@ program platem
   read (ins, *) dz          ! Grid spacing in z direction
   read (ins, *) drho        ! Grid spacing in radial direction
   read (ins, *) dphi        ! Angular grid spacing (input in units of pi)
-  dphi = pi*dphi
+  dphi = PI*dphi
   read (ins, *) Rcoll       ! Colloid radius
   read (ins, *) zc1         ! Position of first colloid center
   read (ins, *) collsep     ! Separation between colloid centers
@@ -100,11 +109,11 @@ program platem
   rdz = 1.d0/dz
   rdrho = 1.d0/drho
   rdphi = 1.d0/dphi
-  twopidz = twopi*dz
-  dzrfp = dz/(4.d0*pi)
+  twopidz = TWOPI*dz
+  dzrfp = dz/(4.d0*PI)
 
   ! Discretization parameters
-  nphi = int(pi/dphi + 0.01d0)
+  nphi = int(PI/dphi + 0.01d0)
   irdz = int(rdz + 0.001d0)
   nfack = int(2.d0*(zc1 + 0.5d0*collsep)/dz + 0.01d0)
   istart = 0
@@ -116,7 +125,7 @@ program platem
   ksm = int(dhs/drho + 0.01d0)    ! Hard sphere diameter in grid units (rho)
   ibl = int(bl/dz + 0.01d0)       ! Bond length in grid units (z)
   kbl = int(bl/drho + 0.01d0)     ! Bond length in grid units (rho)
-  pie = pi/8.d0
+  pie = PI/8.d0
   dzpie = pie*dz
   rnmon = dble(nmon)
   rrnmon = 1.d0/rnmon
@@ -128,22 +137,22 @@ program platem
 
   ! Hard sphere packing fraction and related quantities
   bdt = bdm*dhs3
-  aeta = pis*bdt
+  aeta = PIS*bdt
   xsib = 1.d0 - aeta
   rxsib = 1.d0/xsib
   rxsibsq = rxsib*rxsib
 
   ! Excess free energy terms (Carnahan-Starling)
-  aex1 = -(c1 + 1.d0)*dlog(xsib) - &
-         0.5d0*(AA1*pis*bdt + BB1*(pis*bdt)**2)*rxsibsq
-  aex2 = -(c2 + 1.d0)*dlog(xsib) - &
-         0.5d0*(AA2*pis*bdt + BB2*(pis*bdt)**2)*rxsibsq
+  aex1 = -(C1 + 1.d0)*dlog(xsib) - &
+         0.5d0*(AA1*PIS*bdt + BB1*(PIS*bdt)**2)*rxsibsq
+  aex2 = -(C2 + 1.d0)*dlog(xsib) - &
+         0.5d0*(AA2*PIS*bdt + BB2*(PIS*bdt)**2)*rxsibsq
   bFex = (bdm - 2.d0*bdpol)*Y*(aex2 - aex1) + bdpol*aex2
 
   ! Derivatives of excess free energy
-  daex1 = rxsib*(c1 + 1 - 0.5d0*(AA1 + 2.d0*BB1*aeta)*rxsib - &
+  daex1 = rxsib*(C1 + 1 - 0.5d0*(AA1 + 2.d0*BB1*aeta)*rxsib - &
                  aeta*(AA1 + BB1*aeta)*rxsibsq)
-  daex2 = rxsib*(c2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
+  daex2 = rxsib*(C2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
                  aeta*(AA2 + BB2*aeta)*rxsibsq)
   pdasum = Yfact*(daex2 - daex1) + daex2
   baex1 = aex1
@@ -153,13 +162,13 @@ program platem
 
   ! Bulk pressure and chemical potentials
   Pb = bdpol + bdpol*aeta*pdasum
-  chempp = dlog(bdpol) + Yfact*(aex2 - aex1) + aex2 + pis*bdm*pdasum*dhs3
+  chempp = dlog(bdpol) + Yfact*(aex2 - aex1) + aex2 + PIS*bdm*pdasum*dhs3
   scalem = chempp/(2.d0*rnmon)
   emscale = 2.d0*scalem
 
   ! Convolution terms for inhomogeneous density functional
   bconvp = (Y*(bdm - 2.d0*bdm*rrnmon)*(daex2 - daex1) + &
-            bdm*rrnmon*daex2)*pis*dhs3
+            bdm*rrnmon*daex2)*PIS*dhs3
   trams = bconvp
   emtrams = trams + 0.5d0*aex2
   cmtrams = trams + Y*(aex2 - aex1)
@@ -223,38 +232,38 @@ program platem
   do iz = istp1, istp1 + 2*ibl - 1
   do kz = 1, mxrho + kbl
     cdt = bdm*dhs3
-    pcdt = pis*cdt
+    pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
     rxsi = 1.d0/xsi
     sqrxsi = rxsi*rxsi
     flog = dlog(xsi)
-    ae1(kz, iz) = -(c1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    ae2(kz, iz) = -(c2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-    daex1 = rxsi*(c1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+    ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    daex2 = rxsi*(c2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     convp(kz, iz) = (Y*(bdm - 2.d0*bdm*rrnmon)*(daex2 - daex1) + &
-                     bdm*rrnmon*daex2)*pis*dhs3
+                     bdm*rrnmon*daex2)*PIS*dhs3
   end do
   end do
   ! Initialize excess free energy arrays near radial boundaries (outer edge)
   do iz = istp1 + 2*ibl, imitt + ibl
   do kz = mxrho - kbl + 1, mxrho + kbl
     cdt = bdm*dhs3
-    pcdt = pis*cdt
+    pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
     rxsi = 1.d0/xsi
     sqrxsi = rxsi*rxsi
     flog = dlog(xsi)
-    ae1(kz, iz) = -(c1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    ae2(kz, iz) = -(c2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-    daex1 = rxsi*(c1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+    ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    daex2 = rxsi*(c2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     convp(kz, iz) = (Y*(bdm - 2.d0*bdm*rrnmon)*(daex2 - daex1) + &
-                     bdm*rrnmon*daex2)*pis*dhs3
+                     bdm*rrnmon*daex2)*PIS*dhs3
   end do
   end do
 
@@ -349,8 +358,8 @@ program platem
   ! Precompute Lennard-Jones interaction potential on grid (hvec array)
   ! This tabulates U_LJ for all distance combinations to speed up later calculations
   write (*, *) 'dpphi = ', dpphi
-  dpphi = dpphi*pi
-  npphi = int(pi/dpphi + 0.01d0)
+  dpphi = dpphi*PI
+  npphi = int(PI/dpphi + 0.01d0)
   write (*, *) 'dpphi,npphi = ', dpphi, npphi
 
   kcm = nfack
@@ -557,7 +566,7 @@ program platem
 
     end do
 
-    if (ddmax .lt. ddtol) exit  ! Converged
+    if (ddmax .lt. CONV_TOL) exit  ! Converged
 
     ! Update densities using mixing scheme and check convergence
     ! Calculate new densities from propagators and mix with old values
@@ -632,10 +641,10 @@ program platem
     rho = -0.5d0*drho
     do i = 1, klm
       rho = rho + drho
-      fsum = fsum + fdmon(i, iz)*2.d0*pi*rho
+      fsum = fsum + fdmon(i, iz)*2.d0*PI*rho
     end do
     ! File 78: z-position and radially averaged density
-    write (78, *) z, fsum*drho/(pi*1.d0**2)
+    write (78, *) z, fsum*drho/(PI*1.d0**2)
   end do
 
   ! Write radial profiles at z = zc1 (first colloid center position)
@@ -702,8 +711,8 @@ program platem
       brsum = brsum + rho*(0.5d0*(fdm - bdm)*eexc - fdm*eexc)
     end do
     ! Integrate radially: multiply by 2*pi*rho*drho
-    asumW = 2.d0*pi*arsum*drho + asumW
-    bsumW = 2.d0*pi*brsum*drho + bsumW
+    asumW = 2.d0*PI*arsum*drho + asumW
+    bsumW = 2.d0*PI*brsum*drho + bsumW
   end do
   ! Integrate along z-axis: multiply by dz
   asumW = asumW*dz
@@ -775,8 +784,8 @@ program platem
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
       ! cos(theta) = (z - zc1)/Rcoll for surface normal direction
       ctheta = (z - zc1)/Rcoll
-      rhoFo = 2.d0*pi*rhoc*ctheta*fdc + rhoFo
-      rcliffFo = 2.d0*pi*ctheta*fdc + rcliffFo
+      rhoFo = 2.d0*PI*rhoc*ctheta*fdc + rhoFo
+      rcliffFo = 2.d0*PI*ctheta*fdc + rcliffFo
       ict = ict + 1
       ctvec(ict) = ctheta
       cdens(ict) = fdc
@@ -826,8 +835,8 @@ program platem
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
       ctheta = (z - zc1)/Rcoll
-      rhoFi = 2.d0*pi*rhoc*ctheta*fdc + rhoFi
-      rcliffFi = 2.d0*pi*ctheta*fdc + rcliffFi
+      rhoFi = 2.d0*PI*rhoc*ctheta*fdc + rhoFi
+      rcliffFi = 2.d0*PI*ctheta*fdc + rcliffFi
       ict = ict + 1
       ctvec(ict) = ctheta
       cdens(ict) = fdc
@@ -869,8 +878,8 @@ program platem
     ctF = 0.5d0*(fdc - fk*ct)*(ctn**2 - ct**2) + fk*(ctn**3 - ct**3)/3.d0 + ctF
     ch2 = 0.25d0*(fdc + fdcn)*(ctn**2 - ct**2) + ch2
   end do
-  ctF = 2.d0*pi*Rcoll2*ctF
-  ch2 = 2.d0*pi*Rcoll2*ch2
+  ctF = 2.d0*PI*Rcoll2*ctF
+  ch2 = 2.d0*PI*Rcoll2*ch2
   write (*, *)
   write (*, *) 'ctF = ', ctF
   write (*, *)
@@ -983,9 +992,9 @@ program platem
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
       ctheta = deltazc/Rcoll
-      zFi = 2.d0*pi*rho*ctheta*fdc + zFi
-      chi = 2.d0*pi*rho*ctheta + chi
-      cliffFi = 2.d0*pi*ctheta*fdc + cliffFi
+      zFi = 2.d0*PI*rho*ctheta*fdc + zFi
+      chi = 2.d0*PI*rho*ctheta + chi
+      cliffFi = 2.d0*PI*ctheta*fdc + cliffFi
       ict = ict + 1
       ctvec(ict) = ctheta
       cdens(ict) = fdc
@@ -1063,12 +1072,12 @@ program platem
     ccc = (fdc - fk*rho)*(rhon - rho) + 0.5d0*fk*(rhon*rhon - rho*rho) + ccc
   end do
 
-  ctF = 2.d0*pi*Rcoll2*ctF
-  ch2 = 2.d0*pi*Rcoll2*ch2
-  cckoll = 2.d0*pi*cckoll*drho
-  ckoll = 2.d0*pi*ckoll*Rcoll*drho
-  ckk = 2.d0*pi*ckk*Rcoll*drho
-  ccc = 2.d0*pi*ccc
+  ctF = 2.d0*PI*Rcoll2*ctF
+  ch2 = 2.d0*PI*Rcoll2*ch2
+  cckoll = 2.d0*PI*cckoll*drho
+  ckoll = 2.d0*PI*ckoll*Rcoll*drho
+  ckk = 2.d0*PI*ckk*Rcoll*drho
+  ccc = 2.d0*PI*ccc
   write (*, *)
   write (*, *) 'ctF = ', ctF
   write (*, *)
@@ -1220,7 +1229,7 @@ subroutine AVEC
   do iz = istp1 + 2*ism, imitt
     do kz = 1, mxrho - kbl
       cdt = cdmonm(kz, iz)*dhs3
-      pcdt = pis*cdt
+      pcdt = PIS*cdt
       xsi = (1.d0 - pcdt)
       rxsi = 1.d0/xsi
       sqrxsi = rxsi*rxsi

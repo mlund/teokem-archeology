@@ -8,8 +8,8 @@ DOUBLE PRECISION, ALLOCATABLE :: fem(:, :), ehbclam(:, :), cdmonm(:, :)
 DOUBLE PRECISION, ALLOCATABLE :: ae1(:, :), ae2(:, :)
 DOUBLE PRECISION, ALLOCATABLE :: edu(:, :)
 
-COMMON/VAR/dz, closew, pis, pif, pit, vk, rrT, vkrrT, hvk, scalem, scales, &
-  dzpie, AA1, AA2, BB1, BB2, c1, c2, Y, emscale, eblemb, ehblcmb, eblsmb, bcdt, &
+COMMON/VAR/dz, closew, PIS, PIF, PIT, vk, rrT, vkrrT, hvk, scalem, scales, &
+  dzpie, AA1, AA2, BB1, BB2, C1, C2, Y, emscale, eblemb, ehblcmb, eblsmb, bcdt, &
   rrjkdiff, threqz, rtwelve, pie, rthree, rdz, btrams, &
   sclosew, q1, q2, q3, p1, p2, p3, r2, r1, r0, s2, s1, s0, b2, b1, b0, r2sq, r1sq, &
   r0sq, Yfact, veq, rnmon, rrnmon, rrcmon, rq3, cdmbulk, cdsbulk, &
