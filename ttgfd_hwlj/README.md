@@ -133,19 +133,12 @@ The code computes forces using multiple methods:
 2. **Contact value theorem** (lines 720-751): Using density at contact
 3. **Grand potential derivative** (`aW`, lines 558-603): Thermodynamic route
 
-## Physical Constants
-
-Defined in lines 11-17:
-- Boltzmann constant: `bk = 1.38066×10⁻²³ J/K`
-- Avogadro's number: `avno = 6.02214×10²³`
-- Elementary charge: `elch = 1.602×10⁻¹⁹ C`
-- Vacuum permittivity: `faraday = 8.85418782×10⁻¹² F/m`
-
 ## Compilation
 
 ```bash
 make clean
-make
+make        # refactored F90 version
+make legacy # original F77 version
 ```
 
 ## Running the Program
@@ -178,9 +171,6 @@ python run.py --help
 
 ### Lennard-Jones Potential in Polymers
 9. **Kremer, K., & Grest, G. S.** (1990). Dynamics of entangled linear polymer melts: A molecular‐dynamics simulation. *Journal of Chemical Physics*, 92(8), 5057-5086.
-
-### Colloidal Forces and DLVO Theory
-10. **Verwey, E. J. W., & Overbeek, J. T. G.** (1948). *Theory of the Stability of Lyophobic Colloids*. Elsevier.
 
 ## Code Structure
 
