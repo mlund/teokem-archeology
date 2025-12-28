@@ -350,9 +350,9 @@ program platem
   kcm = nfack
   ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
   ! Loop order optimized for cache: innermost loop varies first array index of hvec
-  rho = -0.5d0*drho
+!$omp parallel do private(rho, rhosq, trho, trhosq, trmix, tdz, itdz, tdzsq, use1, useful, pint, iphi, s2, kprho) schedule(static)
   do krho = 1, mxrho
-    rho = rho + drho
+    rho = -0.5d0*drho + dble(krho)*drho
     rhosq = rho*rho
     trho = -0.5d0*drho
     do kprho = 1, mxrho
@@ -380,6 +380,7 @@ program platem
       end do
     end do
   end do
+!$omp end parallel do
   write (*, *) 'hvec fixad'
 
   ! Initialize iteration
@@ -1184,10 +1185,11 @@ subroutine CDCALC
   integer :: iz, jz, kz, iphi, irho, krhop, krhopmax
   double precision :: z, zpst, rho0, sume, zp, delz2, sumrhop, rhopmax, rho02
   double precision :: rhop, rhomax2, fphi, phisum, phi, rho2, rho, fact
-  z = dhs - 0.5d0*dz
+
   ! Loop over all grid points to calculate contact density
+!$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
   do iz = istp1 + ism, imitt
-    z = z + dz
+    z = dhs - 0.5d0*dz + dble(iz)*dz
     zpst = z - dhs - dz
     rho0 = -0.5d0*drho
     do kz = 1, mxrho - ksm
@@ -1226,6 +1228,7 @@ subroutine CDCALC
       cdmonm(kz, iz) = 3.d0*sume*dzrfp*cdnorm*rdhs3
     end do
   end do
+!$omp end parallel do
   return
 end
 
@@ -1244,7 +1247,9 @@ subroutine AVEC
   ! Local variables
   integer :: iz, kz, jz
   double precision :: cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2
+
   ! Calculate excess free energy from contact density using Carnahan-Starling EOS
+!$omp parallel do private(kz, cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2) schedule(static)
   do iz = istp1 + 2*ism, imitt
     do kz = 1, mxrho - kbl
       cdt = cdmonm(kz, iz)*dhs3
@@ -1263,7 +1268,9 @@ subroutine AVEC
                        0.5d0*fem(kz, iz)*daex2)*pis*dhs3
     end do
   end do
+!$omp end parallel do
 
+!$omp parallel do private(jz, iz) schedule(static)
   do kz = 1, mxrho - kbl
     jz = imitt + 1
     do iz = imitt + 1, imitt + ibl
@@ -1273,6 +1280,7 @@ subroutine AVEC
       convp(kz, iz) = convp(kz, jz)
     end do
   end do
+!$omp end parallel do
   return
 end
 
@@ -1293,19 +1301,21 @@ subroutine EBLMNEW
   double precision :: z, zpst, diffz2, strho0, rho0, rho02, rt2, sume, zp
   double precision :: delz2, zpcsq, zpc2sq, sumrhop, rhopmax, rhop, rhomax2
   double precision :: fphi, phisum, phi, rho2, rsq, rho, fact, trams, emtrams, cmtrams
-  z = -0.5d0*dz
+
   ! Set bulk values at boundaries
+!$omp parallel do private(kz)
   do iz = 1, ibl
-    z = z + dz
     do kz = 1, mxrho + kbl
       ebelam(kz, iz) = bebelam
       ehbclam(kz, iz) = behbclam
     end do
   end do
+!$omp end parallel do
 
   ! Calculate Boltzmann factors from convolution integrals
+!$omp parallel do private(z, jstart, zpst, diffz2, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, sumrhop, rhopmax, krhopmax, rhop, rhomax2, fphi, phisum, iphi, rho2, rsq, rho, irho, fact, trams, emtrams, cmtrams) schedule(static)
   do iz = ibl + 1, imitt
-    z = z + dz
+    z = -0.5d0*dz + dble(iz)*dz
     jstart = iz - ism
     zpst = z - dhs - dz
     diffz2 = (zc1 - z)**2
@@ -1397,6 +1407,7 @@ subroutine EBLMNEW
       ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + scalem)
     end do
   end do
+!$omp end parallel do
   return
 end
 
