@@ -8,12 +8,14 @@
 ! ============================================================================
 program platem
   implicit double precision(a - h, o - z)
-  parameter(maxmon=2401)
   include 't2.inc.f90'
+
+  ! Constants
+  INTEGER, PARAMETER :: MAXMON = 2401
 
   ! Additional arrays for main program - also dynamically allocated
   double precision, allocatable :: c(:, :, :), cA(:, :), cB(:, :)
-  dimension cdens(0:1000), ctvec(0:1000)
+  double precision :: cdens(0:1000), ctvec(0:1000)
 
   ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
@@ -219,7 +221,7 @@ program platem
   allocate (edu(0:maxrho, 0:maxel))
 
   ! Allocate main program arrays
-  allocate (c(0:maxrho, 0:maxel, maxmon))
+  allocate (c(0:maxrho, 0:maxel, MAXMON))
   allocate (cA(0:maxrho, 0:maxel))
   allocate (cB(0:maxrho, 0:maxel))
 
