@@ -3,4 +3,6 @@ ttgfd_hwlj_f77
 fcdfil
 epfil
 fort.*
+*.txt
+*.sh
 
