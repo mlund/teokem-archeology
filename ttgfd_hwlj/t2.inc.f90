@@ -1,12 +1,13 @@
-PARAMETER(maxel=1001, maxrho=321)
-COMMON/VECT/fdmon(0:maxrho, 0:maxel), ebelam(0:maxrho, 0:maxel), &
-  convp(0:maxrho, 0:maxel), hvec(0:maxel, 0:maxrho, 0:maxrho), &
-  Vexm(0:maxrho, 0:maxel), Virm(0:maxrho, 0:maxel), &
-  fem(0:maxrho, 0:maxel), &
-  ehbclam(0:maxrho, 0:maxel), cdmonm(0:maxrho, 0:maxel), &
-  ae1(0:maxrho, 0:maxel), ae2(0:maxrho, 0:maxel), &
-  Vexs(0:maxrho, 0:maxel), Virs(0:maxrho, 0:maxel), &
-  econvp(0:maxrho, 0:maxel), edu(0:maxrho, 0:maxel)
+! Array dimensions - now set at runtime
+INTEGER :: maxel, maxrho
+
+! Large arrays - dynamically allocated to avoid linker issues on ARM64
+DOUBLE PRECISION, ALLOCATABLE :: fdmon(:, :), ebelam(:, :)
+DOUBLE PRECISION, ALLOCATABLE :: convp(:, :), hvec(:, :, :)
+DOUBLE PRECISION, ALLOCATABLE :: fem(:, :), ehbclam(:, :), cdmonm(:, :)
+DOUBLE PRECISION, ALLOCATABLE :: ae1(:, :), ae2(:, :)
+DOUBLE PRECISION, ALLOCATABLE :: edu(:, :)
+
 COMMON/VAR/dz, closew, pis, pif, pit, vk, rrT, vkrrT, hvk, scalem, scales, &
   dzpie, AA1, AA2, BB1, BB2, c1, c2, Y, emscale, eblemb, ehblcmb, eblsmb, bcdt, &
   rrjkdiff, threqz, rtwelve, pie, rthree, rdz, btrams, &

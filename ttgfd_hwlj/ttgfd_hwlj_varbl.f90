@@ -10,14 +10,19 @@ program platem
   implicit double precision(a - h, o - z)
   parameter(maxmon=2401)
   include 't2.inc.f90'
-  dimension c(0:maxrho, 0:maxel, maxmon), &
-    cA(0:maxrho, 0:maxel), cB(0:maxrho, 0:maxel), &
-    cdens(0:1000), ctvec(0:1000)
+
+  ! Additional arrays for main program - also dynamically allocated
+  double precision, allocatable :: c(:, :, :), cA(:, :), cB(:, :)
+  dimension cdens(0:1000), ctvec(0:1000)
 
   ! File unit numbers
   ifc = 38  ! Output: concentration profiles
   ins = 49  ! Input: simulation parameters
   iep = 50  ! Input: Lennard-Jones epsilon parameter
+
+  ! Set array dimensions (must be done before allocation)
+  maxel = 1001
+  maxrho = 321
 
   ! Physical and mathematical constants
   pi = acos(-1.d0)
@@ -191,6 +196,23 @@ program platem
   write (*, *) 'bebelam,behbclam = ', bebelam, behbclam
   Rcoll2 = Rcoll*Rcoll
   mxrho = int((Rcyl - 1.d0)*rdrho) + 1
+
+  ! Allocate large arrays dynamically (avoids ARM64 linker issues)
+  allocate(fdmon(0:maxrho, 0:maxel))
+  allocate(ebelam(0:maxrho, 0:maxel))
+  allocate(convp(0:maxrho, 0:maxel))
+  allocate(hvec(0:maxel, 0:maxrho, 0:maxrho))
+  allocate(fem(0:maxrho, 0:maxel))
+  allocate(ehbclam(0:maxrho, 0:maxel))
+  allocate(cdmonm(0:maxrho, 0:maxel))
+  allocate(ae1(0:maxrho, 0:maxel))
+  allocate(ae2(0:maxrho, 0:maxel))
+  allocate(edu(0:maxrho, 0:maxel))
+
+  ! Allocate main program arrays
+  allocate(c(0:maxrho, 0:maxel, maxmon))
+  allocate(cA(0:maxrho, 0:maxel))
+  allocate(cB(0:maxrho, 0:maxel))
 
   ! Calculate normalization constant for contact density
   CALL CDFACT
@@ -969,6 +991,11 @@ program platem
         z, rho, fdmon(kz, iz), fem(kz, iz)
     end do
   end do
+
+  ! Deallocate arrays before exit
+  deallocate(fdmon, ebelam, convp, hvec)
+  deallocate(fem, ehbclam, cdmonm, ae1, ae2, edu)
+  deallocate(c, cA, cB)
 
   STOP
 END
