@@ -376,21 +376,22 @@ program platem
   write (*, *) 'dpphi,npphi = ', dpphi, npphi
 
   kcm = nfack
-  tdz = -dz
-  ! Triple loop over z, rho, rho' to compute pairwise LJ interaction integrals
-  do itdz = 0, kcm - 1
-    tdz = tdz + dz
-    tdzsq = tdz*tdz
-    rho = -0.5d0*drho
-    do krho = 1, mxrho
-      rho = rho + drho
-      rhosq = rho*rho
-      use1 = tdzsq + rhosq
-      trho = -0.5d0*drho
-      do kprho = 1, mxrho
-        trho = trho + drho
-        trhosq = trho*trho
-        trmix = 2.d0*trho*rho
+  ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
+  ! Loop order optimized for cache: innermost loop varies first array index of hvec
+  rho = -0.5d0*drho
+  do krho = 1, mxrho
+    rho = rho + drho
+    rhosq = rho*rho
+    trho = -0.5d0*drho
+    do kprho = 1, mxrho
+      trho = trho + drho
+      trhosq = trho*trho
+      trmix = 2.d0*trho*rho
+      tdz = -dz
+      do itdz = 0, kcm - 1
+        tdz = tdz + dz
+        tdzsq = tdz*tdz
+        use1 = tdzsq + rhosq
         useful = use1 + trhosq
         pint = 0.d0
         phi = -0.5d0*dpphi
