@@ -17,7 +17,8 @@ INC = t2.inc.f90
 # Removed -march=native which can cause ADRP range issues with large data
 # -fno-automatic: Keep F77 SAVE semantics (local vars persist between calls)
 # -finit-local-zero: Initialize local variables to zero
-FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero 
+# -fopenmp: Enable OpenMP SIMD directives for vectorization (~1% speedup)
+FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp 
 
 # Strong warning flags
 WARNFLAGS = -Wall \
@@ -74,10 +75,10 @@ profile: FFLAGS = -O1 -pg
 profile: $(SRC) $(INC)
 	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
 
-# Build original Fortran 77 version with legacy standard
+# Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
 legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) $(FFLAGS) -std=legacy -fno-automatic -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
+	$(FC) -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
 
 # Clean build artifacts
 .PHONY: clean

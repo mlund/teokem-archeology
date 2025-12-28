@@ -395,6 +395,7 @@ program platem
         pint = 0.d0
         phi = -0.5d0*dpphi
         ! Angular integration for cylindrical geometry
+!$omp simd reduction(+:pint)
         do iphi = 1, npphi
           phi = phi + dpphi
           s2 = useful - trmix*dcos(phi)
@@ -403,6 +404,7 @@ program platem
             pint = rlj/s2**6 - alj/s2**3 + pint
           end if
         end do
+!$omp end simd
         hvec(itdz, krho, kprho) = trho*pint*dpphi
       end do
     end do
@@ -521,6 +523,7 @@ program platem
             zfact = dabs(bl2 - delz2)
             rhoz2 = rho0**2 + zfact
             fphi = 2.d0*rho0*dsqrt(zfact)
+!$omp simd reduction(+:phisum)
             do iphi = 1, nphi
               phi = phi + dphi
 !     Plus or minus sign doesn't matter for the value of the integral
@@ -533,6 +536,7 @@ program platem
               irho = int(rho*rdrho) + 1
               phisum = cA(irho, jz) + phisum
             end do
+!$omp end simd
             fact = 1.d0
             if (iabs(jz - iz) .eq. ibl) fact = 0.5d0
             sume = 2.d0*phisum*dphi*fact + sume
@@ -1153,6 +1157,7 @@ subroutine CDFACT
       fphi = 2.d0*rho0*rhop
       phisum = 0.d0
       phi = -0.5d0*dphi
+!$omp simd reduction(+:phisum)
       do iphi = 1, nphi
         phi = phi + dphi
 !     Plus or minus sign doesn't matter for the value of the integral
@@ -1161,6 +1166,7 @@ subroutine CDFACT
         irho = int(rho*rdrho) + 1
         phisum = 1.d0 + phisum
       end do
+!$omp end simd
       sumrhop = rhop*phisum*dphi + sumrhop
     end do
     write (*, *) rho, rhopmax, dabs(zp - z)
@@ -1215,6 +1221,7 @@ subroutine CDCALC
           fphi = 2.d0*rho0*rhop
           phisum = 0.d0
           phi = -0.5d0*dphi
+!$omp simd reduction(+:phisum)
           do iphi = 1, nphi
             phi = phi + dphi
 !     Plus or minus sign doesn't matter for the value of the integral
@@ -1223,6 +1230,7 @@ subroutine CDCALC
             irho = int(rho*rdrho) + 1
             phisum = fdmon(irho, jz) + phisum
           end do
+!$omp end simd
           sumrhop = rhop*phisum*dphi + sumrhop
         end do
         fact = 1.d0
@@ -1365,6 +1373,7 @@ subroutine EBLMNEW
           phi = -0.5d0*dphi
           ! Loop over phi (angle between rho0 and rhop vectors)
           ! This completes the cylindrical coordinate integration
+!$omp simd reduction(+:phisum)
           do iphi = 1, nphi
             phi = phi + dphi
             ! Plus or minus sign doesn't matter for the value of the integral
@@ -1381,6 +1390,7 @@ subroutine EBLMNEW
             ! Sum convolution term (weighted density) over angular direction
             phisum = convp(irho, jz) + phisum
           end do
+!$omp end simd
           ! Integrate over rho': weight by rhop*dphi*drho (cylindrical volume element)
           sumrhop = rhop*phisum*dphi + sumrhop
         end do
