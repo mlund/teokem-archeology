@@ -1408,13 +1408,38 @@ end
 ! the interaction energy between a test particle at (rho,z) and the entire
 ! density field, using symmetry to include both colloids.
 ! ============================================================================
+! Helper subroutine for EBDU: compute rho integration with vectorization
+function compute_rho_integral(fdmon_col, bdm, hvec_slice, mxrho) result(sumrho)
+  implicit none
+  integer, intent(in) :: mxrho
+  double precision, intent(in) :: fdmon_col(0:*), hvec_slice(0:*), bdm
+  double precision :: sumrho
+  integer :: kprho
+
+  sumrho = 0.d0
+  do kprho = 1, mxrho
+    sumrho = sumrho + (fdmon_col(kprho) - bdm)*hvec_slice(kprho)
+  end do
+end function compute_rho_integral
+
+! ============================================================================
 subroutine EBDU
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, kz, krho, ipz, itdz, kprho
+  integer :: iz, kz, krho, ipz, itdz
   double precision :: z, rho, sumpint, tz, tdz, sumrho
+
+  ! Interface for helper function
+  interface
+    function compute_rho_integral(fdmon_col, bdm, hvec_slice, mxrho) result(sumrho)
+      integer, intent(in) :: mxrho
+      double precision, intent(in) :: fdmon_col(0:*), hvec_slice(0:*), bdm
+      double precision :: sumrho
+    end function compute_rho_integral
+  end interface
+
   z = -0.5d0*dz
   ! Set boundary values to unity (no external potential at boundaries)
   do iz = 1, ibl
@@ -1437,10 +1462,7 @@ subroutine EBDU
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
-        sumrho = 0.d0
-        do kprho = 1, mxrho
-          sumrho = (fdmon(kprho, ipz) - bdm)*hvec(kprho, krho, itdz) + sumrho
-        end do
+        sumrho = compute_rho_integral(fdmon(0, ipz), bdm, hvec(0, krho, itdz), mxrho)
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
 
@@ -1449,11 +1471,7 @@ subroutine EBDU
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
-        sumrho = 0.d0
-        do kprho = 1, mxrho
-          sumrho = &
-            (fdmon(kprho, nfack + 1 - ipz) - bdm)*hvec(kprho, krho, itdz) + sumrho
-        end do
+        sumrho = compute_rho_integral(fdmon(0, nfack + 1 - ipz), bdm, hvec(0, krho, itdz), mxrho)
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
       sumpint = sumpint*dz
