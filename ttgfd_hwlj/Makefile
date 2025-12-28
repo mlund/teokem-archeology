@@ -23,6 +23,7 @@ WARNFLAGS = -Wall \
             -Wpedantic \
             -Wno-implicit-interface \
             -Wunused \
+            -Wno-maybe-uninitialized \
             -Wuninitialized \
             -Wconversion \
             -Wconversion-extra \
@@ -83,20 +84,12 @@ clean:
 	rm -f *.o *.mod
 	rm -f gmon.out
 	rm -f fcdfil epfil
+	rm -fR *.dsym
 
 # Run the program
 .PHONY: run
 run: $(PROGRAM)
 	./$(PROGRAM)
-
-# Check if input files exist
-.PHONY: check
-check:
-	@echo "Checking for required input files..."
-	@test -f input.tsph || echo "WARNING: input.tsph not found"
-	@test -f epfil || echo "WARNING: epfil not found"
-	@test -f input.tsph && echo "✓ input.tsph found"
-	@test -f epfil && echo "✓ epfil found"
 
 # Format Fortran 90 source files using fprettify
 .PHONY: format
