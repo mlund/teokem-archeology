@@ -151,10 +151,8 @@ make
 ## Running the Program
 
 ```bash
-./ttgfd_hwlj
+python run.py --help
 ```
-
-Requires `input.tsph` and `epfil` in the working directory.
 
 ## Scientific References
 
