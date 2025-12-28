@@ -454,9 +454,9 @@ program platem
       imon = imon - 1
 
       ! Loop over all spatial grid points
-      z = bl - 0.5d0*dz
+!$omp parallel do private(z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact) schedule(static)
       do iz = istp1 + ibl, imitt
-        z = z + dz
+        z = bl - 0.5d0*dz + dble(iz)*dz
         jstart = iz - ibl
         zpst = z - bl - dz
         irho0min = 1
@@ -518,8 +518,10 @@ program platem
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
         end do
       end do
+!$omp end parallel do
 
       ! Handle boundary regions: propagators at z-boundaries
+!$omp parallel do private(kz, bebbe)
       do iz = istp1, ibl
       do kz = 1, mxrho + kbl
         bebbe = behbclam*cA(kz, iz)
@@ -527,8 +529,10 @@ program platem
         cA(kz, iz) = behbclam*bebbe
       end do
       end do
+!$omp end parallel do
 
       ! Handle radial boundaries and update propagators
+!$omp parallel do private(kz, bebbe)
       do iz = ibl + 1, imitt
         ! Outer radial boundary: use bulk propagators
         do kz = mxrho - kbl, mxrho + kbl
@@ -541,15 +545,17 @@ program platem
           cA(kz, iz) = cB(kz, iz)
         end do
       end do
+!$omp end parallel do
 
       ! Apply symmetry to propagators at midplane
-      jz = imitt + 1
+!$omp parallel do private(jz, kz)
       do iz = imitt + 1, imitt + ibl
-        jz = jz - 1
+        jz = imitt + 1 - (iz - imitt)
         do kz = 1, mxrho + kbl
           cA(kz, iz) = cA(kz, jz)
         end do
       end do
+!$omp end parallel do
 
     end do
 
