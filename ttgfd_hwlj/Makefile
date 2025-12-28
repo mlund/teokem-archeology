@@ -15,7 +15,7 @@ INC = t2.inc.f90
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
 # Using -O2 instead of -O3 to avoid linker fixup errors
 # Removed -march=native which can cause ADRP range issues with large data
-FFLAGS = -O2
+FFLAGS = -O3
 
 # Strong warning flags
 WARNFLAGS = -Wall \
@@ -61,18 +61,18 @@ $(PROGRAM): $(SRC) $(INC)
 
 # Debug build with runtime checks
 .PHONY: debug
-debug: FFLAGS = -O0 -g -std=legacy
+debug: FFLAGS = -O0 -g
 debug: $(SRC) $(INC)
 	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(SRC)
 
 # Optimized build without warnings (for production)
 .PHONY: fast
 fast: $(SRC) $(INC)
-	$(FC) -O2 -std=legacy -ffast-math -funroll-loops -o $(PROGRAM) $(SRC)
+	$(FC) -O3 -ffast-math -funroll-loops -o $(PROGRAM) $(SRC)
 
 # Build with profiling support
 .PHONY: profile
-profile: FFLAGS = -O1 -pg -std=legacy
+profile: FFLAGS = -O1 -pg
 profile: $(SRC) $(INC)
 	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
 
@@ -106,6 +106,11 @@ check:
 	@test -f input.tsph && echo "✓ input.tsph found"
 	@test -f epfil && echo "✓ epfil found"
 
+# Format Fortran 90 source files using fprettify
+.PHONY: format
+format:
+	fprettify -i 2 --enable-decl --c-relations $(SRC) $(INC)
+
 # Help target
 .PHONY: help
 help:
@@ -122,6 +127,7 @@ help:
 	@echo "  make clean    - Remove compiled binaries and objects"
 	@echo "  make cleanout - Remove output files"
 	@echo "  make distclean- Remove all generated files"
+	@echo "  make format   - Format Fortran 90 source files"
 	@echo "  make help     - Show this help message"
 	@echo ""
 	@echo "Compiler: $(FC)"
