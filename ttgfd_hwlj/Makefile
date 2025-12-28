@@ -71,10 +71,15 @@ profile: FFLAGS = -O1 -pg
 profile: $(SRC) $(INC)
 	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
 
+# Build original Fortran 77 version with legacy standard
+.PHONY: legacy
+legacy: ttgfd_hwlj_varbl.f t2.inc
+	$(FC) -O2 -std=legacy -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f
+
 # Clean build artifacts
 .PHONY: clean
 clean:
-	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof
+	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77
 	rm -f *.o *.mod
 	rm -f gmon.out
 	rm -f fcdfil epfil
