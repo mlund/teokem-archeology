@@ -275,7 +275,7 @@ program platem
   end do
   end do
   jz = imitt + 1
-  do 502 iz = imitt + 1, imitt + ibl
+  do iz = imitt + 1, imitt + ibl
     jz = jz - 1
     do kz = 1, mxrho + kbl
       fdmon(kz, iz) = fdmon(kz, jz)
@@ -284,7 +284,7 @@ program platem
       ehbclam(kz, iz) = ehbclam(kz, jz)
       cdmonm(kz, iz) = bdm
     end do
-502 continue
+  end do
     write (*, *) 'fdmon(1,1) = ', fdmon(1, 1)
     write (*, *) 'fdmon(1,11) = ', fdmon(1, 11)
 
@@ -337,16 +337,18 @@ program platem
 
     ddmax = 10000.d0
     niter = 0
-100 continue
-    niter = niter + 1
-    write (*, *) 'ddmax,niter = ', ddmax, niter
-    write (*, *)
-    if (niter .gt. ioimaxm) then
-      write (*, *) 'NITER.GT.IOIMAXM !', niter
-      goto 9999
-    end if
 
-    CALL CDCALC
+    ! Main iteration loop
+    do while (.true.)
+      niter = niter + 1
+      write (*, *) 'ddmax,niter = ', ddmax, niter
+      write (*, *)
+      if (niter .gt. ioimaxm) then
+        write (*, *) 'NITER.GT.IOIMAXM !', niter
+        exit
+      end if
+
+      CALL CDCALC
     CALL AVEC
     CALL EBLMNEW
     CALL EBDU
@@ -387,7 +389,7 @@ program platem
       imon = imon - 1
 
       z = bl - 0.5d0*dz
-      do 245 iz = istp1 + ibl, imitt
+      do iz = istp1 + ibl, imitt
         z = z + dz
         jstart = iz - ibl
         zpst = z - bl - dz
@@ -403,14 +405,14 @@ program platem
             c(kz, iz, imon) = 0.d0
             if (iz .gt. imitt - ibl - 1) cB(kz, islut + 1 - iz) = 0.d0
             cB(kz, iz) = 0.d0
-            goto 523
+            cycle
           end if
           rt2 = rho02 + (z - zc2)**2
           if (rt2 .lt. Rcoll2) then
             c(kz, iz, imon) = 0.d0
             cB(kz, islut + 1 - iz) = 0.d0
             cB(kz, iz) = 0.d0
-            goto 523
+            cycle
           end if
 
           sume = 0.d0
@@ -430,13 +432,12 @@ program platem
 !     plus eller minus spelar ingen roll foer integralens vaerde
               rho2 = rhoz2 - fphi*dcos(phi)
               rsq = rho2 + zpcsq
-              if (rsq .lt. Rcoll2) goto 292
+              if (rsq .lt. Rcoll2) cycle
               rsq = rho2 + zpc2sq
-              if (rsq .lt. Rcoll2) goto 292
+              if (rsq .lt. Rcoll2) cycle
               rho = dsqrt(rho2)
               irho = int(rho*rdrho) + 1
               phisum = cA(irho, jz) + phisum
-292           continue
             end do
             fact = 1.d0
             if (iabs(jz - iz) .eq. ibl) fact = 0.5d0
@@ -447,11 +448,10 @@ program platem
           c(kz, iz, imon) = ffact
           if (iz .gt. imitt - ibl - 1) cB(kz, islut + 1 - iz) = ffact*ehbclam(kz, iz)*efact
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
-523       continue
 !     rho0 svepet faerdigt!
         end do
 !     dags foer nytt z0 vaerde!
-245     continue
+      end do
 !     dags foer ny monomer laengs kedjan
         do iz = istp1, ibl
         do kz = 1, mxrho + kbl
@@ -481,14 +481,15 @@ program platem
 
       end do
 
-      if (ddmax .lt. ddtol) goto 200
+      if (ddmax .lt. ddtol) exit  ! Converged
+
       ddmax = 0.d0
       z = -0.5d0*dz
-      do 9 i = istp1, imitt
+      do i = istp1, imitt
         z = z + dz
         diffz2 = (z - zc1)**2
         rho = -0.5d0*drho
-        do 11 j = 1, mxrho
+        do j = 1, mxrho
           rho = rho + drho
           rsq = rho*rho + diffz2
           if (rsq .lt. Rcoll2) then
@@ -513,20 +514,26 @@ program platem
             fem(j, i) = fem(j, i)*dmm + tdmm*tfem
             fdmon(j, i) = fdmon(j, i)*dmm + tdmm*tfdm
           end if
-11        continue
-9         continue
-          jz = imitt + 1
-          do iz = imitt + 1, imitt + ibl
-            jz = jz - 1
-            do kz = 1, mxrho + kbl
-              fdmon(kz, iz) = fdmon(kz, jz)
-              fem(kz, iz) = fem(kz, jz)
-            end do
-          end do
+        end do
+      end do
 
-          goto 100
-200       continue
-          rewind 89
+      jz = imitt + 1
+      do iz = imitt + 1, imitt + ibl
+        jz = jz - 1
+        do kz = 1, mxrho + kbl
+          fdmon(kz, iz) = fdmon(kz, jz)
+          fem(kz, iz) = fem(kz, jz)
+        end do
+      end do
+    end do  ! End of main iteration loop
+
+    ! Check if maximum iterations exceeded
+    if (niter .gt. ioimaxm) then
+      stop
+    end if
+
+    ! Output results (formerly label 200)
+    rewind 89
           rewind 78
           rewind 85
           sumW = 0.d0
@@ -576,18 +583,18 @@ program platem
               rho = rho + drho
               rsq = rho*rho + diffz2
               fdm = fdmon(kz, iz)
-              if (rsq .lt. Rcoll2) goto 471
-              belamb = dlog(ebelam(kz, iz)) - emscale
-              bclamb = 2.d0*(dlog(ehbclam(kz, iz)) - scalem)
-              fde = fem(kz, iz)
-              fdc = fdm - fde
-              Fex = fdc*Y*(ae2(kz, iz) - ae1(kz, iz)) + 0.5d0*fde*ae2(kz, iz)
-              arsum = &
-                rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
-                     bdpol - fdm*rrnmon + Fex - bFex) + arsum
-              brsum = &
-                rho*(fdc*bclamb + fde*belamb - fdm*rrnmon + Fex - bFex) + brsum
-471           continue
+              if (rsq .ge. Rcoll2) then
+                belamb = dlog(ebelam(kz, iz)) - emscale
+                bclamb = 2.d0*(dlog(ehbclam(kz, iz)) - scalem)
+                fde = fem(kz, iz)
+                fdc = fdm - fde
+                Fex = fdc*Y*(ae2(kz, iz) - ae1(kz, iz)) + 0.5d0*fde*ae2(kz, iz)
+                arsum = &
+                  rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
+                       bdpol - fdm*rrnmon + Fex - bFex) + arsum
+                brsum = &
+                  rho*(fdc*bclamb + fde*belamb - fdm*rrnmon + Fex - bFex) + brsum
+              end if
               eexc = -dlog(edu(kz, iz))
               arsum = arsum - 0.5d0*rho*eexc*(fdm + bdm)
               brsum = brsum + rho*(0.5d0*(fdm - bdm)*eexc - fdm*eexc)
@@ -622,15 +629,16 @@ program platem
           do iz = izmin, izc1 - 1
             z = z + dz
             zsq = (z - zc1)**2
-            if (zsq .gt. Rcoll2) goto 4554
-            rho = -0.5d0*drho
-            irho = 0
-1125        rho = rho + drho
-            irho = irho + 1
-            if ((rho*rho + zsq) .gt. Rcoll2) goto 1427
-            goto 1125
-1427        Rc = dsqrt(rho*rho + zsq)
-            rhoc = dsqrt(Rcoll2 - zsq)
+            if (zsq .le. Rcoll2) then
+              rho = -0.5d0*drho
+              irho = 0
+              ! Find boundary point
+              do while ((rho*rho + zsq) .le. Rcoll2)
+                rho = rho + drho
+                irho = irho + 1
+              end do
+              Rc = dsqrt(rho*rho + zsq)
+              rhoc = dsqrt(Rcoll2 - zsq)
 
             if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
               y3 = fdmon(irho, iz)
@@ -653,14 +661,14 @@ program platem
             fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
                   y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
                   y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-            ctheta = (z - zc1)/Rcoll
-            rhoFo = 2.d0*pi*rhoc*ctheta*fdc + rhoFo
-            rcliffFo = 2.d0*pi*ctheta*fdc + rcliffFo
-            ict = ict + 1
-            ctvec(ict) = ctheta
-            cdens(ict) = fdc
+              ctheta = (z - zc1)/Rcoll
+              rhoFo = 2.d0*pi*rhoc*ctheta*fdc + rhoFo
+              rcliffFo = 2.d0*pi*ctheta*fdc + rcliffFo
+              ict = ict + 1
+              ctvec(ict) = ctheta
+              cdens(ict) = fdc
+            end if
           end do
-4554      continue
 ! 4554 write(*,*) 'rhoFo = ',rhoFo*dz
           write (*, *) 'rcliffFo = ', Rcoll*rcliffFo*dz
           write (*, *) 'z = ', z
@@ -671,15 +679,16 @@ program platem
           do iz = izc1, izmax
             z = z + dz
             zsq = (z - zc1)**2
-            if (zsq .gt. Rcoll2) goto 5554
-            rho = -0.5d0*drho
-            irho = 0
-1111        rho = rho + drho
-            irho = irho + 1
-            if ((rho*rho + zsq) .gt. Rcoll2) goto 1527
-            goto 1111
-1527        Rc = dsqrt(rho*rho + zsq)
-            rhoc = dsqrt(Rcoll2 - zsq)
+            if (zsq .le. Rcoll2) then
+              rho = -0.5d0*drho
+              irho = 0
+              ! Find boundary point
+              do while ((rho*rho + zsq) .le. Rcoll2)
+                rho = rho + drho
+                irho = irho + 1
+              end do
+              Rc = dsqrt(rho*rho + zsq)
+              rhoc = dsqrt(Rcoll2 - zsq)
 
             if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
               y3 = fdmon(irho, iz)
@@ -702,14 +711,14 @@ program platem
             fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
                   y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
                   y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-            ctheta = (z - zc1)/Rcoll
-            rhoFi = 2.d0*pi*rhoc*ctheta*fdc + rhoFi
-            rcliffFi = 2.d0*pi*ctheta*fdc + rcliffFi
-            ict = ict + 1
-            ctvec(ict) = ctheta
-            cdens(ict) = fdc
+              ctheta = (z - zc1)/Rcoll
+              rhoFi = 2.d0*pi*rhoc*ctheta*fdc + rhoFi
+              rcliffFi = 2.d0*pi*ctheta*fdc + rcliffFi
+              ict = ict + 1
+              ctvec(ict) = ctheta
+              cdens(ict) = fdc
+            end if
           end do
-5554      continue
 ! 5554 write(*,*) 'rhoFi = ',rhoFi*dz
           write (*, *) 'rcliffFi = ', Rcoll*rcliffFi*dz
           rhoF = (rhoFi + rhoFo)*dz
@@ -769,17 +778,17 @@ program platem
           do irho = 1, irhomax
             rho = rho + drho
             rhosq = rho*rho
-            if (rhosq .gt. Rcoll2) goto 9554
-
-            z = zc1 + 0.5d0*dz
-            iz = izc1
-9125        z = z - dz
-            zsq = (z - zc1)**2
-            iz = iz - 1
-            if ((rhosq + zsq) .gt. Rcoll2) goto 9427
-            goto 9125
-9427        Rc = dsqrt(rhosq + zsq)
-            deltazc = dsqrt(Rcoll2 - rhosq)
+            if (rhosq .le. Rcoll2) then
+              z = zc1 + 0.5d0*dz
+              iz = izc1
+              ! Find boundary point
+              do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
+                z = z - dz
+                iz = iz - 1
+              end do
+              zsq = (z - zc1)**2
+              Rc = dsqrt(rhosq + zsq)
+              deltazc = dsqrt(Rcoll2 - rhosq)
 
             if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
               y3 = fdmon(irho, iz)
@@ -802,12 +811,12 @@ program platem
             fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
                   y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
                   y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-            ctheta = -deltazc/Rcoll
-            ict = ict + 1
-            ctvec(ict) = ctheta
-            cdens(ict) = fdc
+              ctheta = -deltazc/Rcoll
+              ict = ict + 1
+              ctvec(ict) = ctheta
+              cdens(ict) = fdc
+            end if
           end do
-9554      continue
 
           rho = rho + drho
           irho = irhomax + 1
@@ -821,16 +830,17 @@ program platem
             irho = irho - 1
             rho = rho - drho
             rhosq = rho*rho
-            if (rhosq .gt. Rcoll2) goto 8554
-            z = zc1 - 0.5d0*dz
-            iz = izc1 - 1
-8125        z = z + dz
-            zsq = (z - zc1)**2
-            iz = iz + 1
-            if ((rhosq + zsq) .gt. Rcoll2) goto 8427
-            goto 8125
-8427        Rc = dsqrt(rhosq + zsq)
-            deltazc = dsqrt(Rcoll2 - rhosq)
+            if (rhosq .le. Rcoll2) then
+              z = zc1 - 0.5d0*dz
+              iz = izc1 - 1
+              ! Find boundary point
+              do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
+                z = z + dz
+                iz = iz + 1
+              end do
+              zsq = (z - zc1)**2
+              Rc = dsqrt(rhosq + zsq)
+              deltazc = dsqrt(Rcoll2 - rhosq)
 
             if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
               y3 = fdmon(irho, iz)
@@ -854,14 +864,14 @@ program platem
                   y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
                   y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
             ctheta = deltazc/Rcoll
-            zFi = 2.d0*pi*rho*ctheta*fdc + zFi
-            chi = 2.d0*pi*rho*ctheta + chi
-            cliffFi = 2.d0*pi*ctheta*fdc + cliffFi
-            ict = ict + 1
-            ctvec(ict) = ctheta
-            cdens(ict) = fdc
+              zFi = 2.d0*pi*rho*ctheta*fdc + zFi
+              chi = 2.d0*pi*rho*ctheta + chi
+              cliffFi = 2.d0*pi*ctheta*fdc + cliffFi
+              ict = ict + 1
+              ctvec(ict) = ctheta
+              cdens(ict) = fdc
+            end if
           end do
-8554      continue
 
           ctF = 0.d0
           th = 1.5d0
@@ -945,7 +955,6 @@ program platem
             end do
           end do
 
-9999      continue
           STOP
         END
 
@@ -1003,7 +1012,7 @@ program platem
           include 't2.inc.f90'
 !      z = 1.d0-0.5d0*dz
           z = dhs - 0.5d0*dz
-          do 245 iz = istp1 + ism, imitt
+          do iz = istp1 + ism, imitt
             z = z + dz
 !      zpst = z-1.d0-dz
             zpst = z - dhs - dz
@@ -1045,9 +1054,9 @@ program platem
 !     rho0 svepet faerdigt!
             end do
 !     dags foer nytt z0 vaerde!
-245         continue
-            return
-          end
+          end do
+          return
+        end
 
           subroutine AVEC
             implicit double precision(a - h, o - z)
@@ -1099,7 +1108,7 @@ program platem
               end do
             end do
 
-            do 245 iz = ibl + 1, imitt
+            do iz = ibl + 1, imitt
               z = z + dz
               jstart = iz - ism
 !      zpst = z-1.d0-dz
@@ -1117,13 +1126,13 @@ program platem
                 if (rt2 .lt. Rcoll2) then
                   ehbclam(kz, iz) = 0.d0
                   ebelam(kz, iz) = 0.d0
-                  goto 923
+                  cycle
                 end if
                 rt2 = rho02 + (z - zc2)**2
                 if (rt2 .lt. Rcoll2) then
                   ehbclam(kz, iz) = 0.d0
                   ebelam(kz, iz) = 0.d0
-                  goto 923
+                  cycle
                 end if
 
                 sume = 0.d0
@@ -1151,13 +1160,12 @@ program platem
 !     plus eller minus spelar ingen roll foer integralens vaerde
                       rho2 = rhomax2 - fphi*dcos(phi)
                       rsq = rho2 + zpcsq
-                      if (rsq .lt. Rcoll2) goto 292
+                      if (rsq .lt. Rcoll2) cycle
                       rsq = rho2 + zpc2sq
-                      if (rsq .lt. Rcoll2) goto 292
+                      if (rsq .lt. Rcoll2) cycle
                       rho = dsqrt(rho2)
                       irho = int(rho*rdrho) + 1
                       phisum = convp(irho, jz) + phisum
-292                   continue
                     end do
                     sumrhop = rhop*phisum*dphi + sumrhop
                   end do
@@ -1171,11 +1179,10 @@ program platem
                 cmtrams = trams + Y*(ae2(kz, iz) - ae1(kz, iz))
                 ebelam(kz, iz) = dexp(-emtrams + emscale)
                 ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + scalem)
-923             continue
 !     rho0 svepet faerdigt!
               end do
 !     dags foer nytt z0 vaerde!
-245           continue
+            end do
               return
             end
 
@@ -1191,7 +1198,7 @@ program platem
                 end do
               end do
 
-              do 245 iz = ibl + 1, imitt
+              do iz = ibl + 1, imitt
 !     z loop
                 z = z + dz
                 rho = -0.5d0*drho
@@ -1231,7 +1238,7 @@ program platem
 !     rho loop finished
                 end do
 !     z loop finished
-245             continue
+              end do
                 return
               end
 
