@@ -154,14 +154,6 @@ All major computational loops parallelized with thread-safe privatization:
 - **EBDU**: External potential from LJ interactions
 - **Chain propagation**: Polymer segment propagation (70% of runtime, biggest impact)
 
-### Performance Results (4 threads on modern CPU)
-```
-Serial:    7.24s baseline
-2 threads: 4.14s (1.75x speedup, 88% efficiency)
-4 threads: 2.69s (2.69x speedup, 67% efficiency) ← recommended
-8 threads: 2.91s (2.49x speedup, 31% efficiency)
-```
-
 **Recommendation**: Use `OMP_NUM_THREADS=4` for optimal performance/efficiency balance.
 
 ## Compilation
