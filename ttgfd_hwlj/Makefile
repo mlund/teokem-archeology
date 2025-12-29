@@ -107,11 +107,11 @@ clean:
 
 .PHONY: run
 run: $(PROGRAM)
-	python3 run.py --epslj 0.05 --dz 1.0 --nmon 50 --drho 0.3 --executable ./$(PROGRAM)
+	python3 run.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./$(PROGRAM)
 
 .PHONY: run_legacy
 run_legacy: legacy
-	python3 run.py --epslj 0.05 --dz 1.0 --nmon 50 --drho 0.3 --executable ./$(PROGRAM)_f77
+	python3 run.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./$(PROGRAM)_f77
 
 # Format Fortran 90 source files using fprettify
 .PHONY: format
