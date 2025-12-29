@@ -137,6 +137,13 @@ The code computes forces using multiple methods:
 
 The code has been extensively optimized for modern multi-core processors, achieving **~10x speedup** (with 4 threads) through the following improvements:
 
+### Algorithmic Improvements
+- **Trigonometric lookup tables**: Replaced repeated `dcos(phi)` calls with precomputed arrays
+  - Profiling revealed 67% of runtime spent in cosine calculations across phi integration loops
+  - Precompute `cos_phi` and `cos_pphi` arrays (maxphi=5000) at startup
+  - Replace all dcos() calls with O(1) array lookups at 5 call sites
+  - **Result**: 2.71x speedup (13.7s → 5.1s, 63% runtime reduction)
+
 ### Cache Optimization
 - **hvec array transposition**: Reordered array dimensions from `(itdz, krho, kprho)` to `(kprho, krho, itdz)` for stride-1 memory access, eliminating cache misses from 2.5MB strides (+8% speedup)
 
