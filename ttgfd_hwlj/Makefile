@@ -118,3 +118,9 @@ run_legacy: legacy
 format:
 	fprettify -i 2 --enable-decl --c-relations $(SRC) $(INC)
 
+# Run regression tests
+.PHONY: test
+test: $(PROGRAM)
+	@echo "Running regression tests..."
+	@python3 test_regression.py
+
