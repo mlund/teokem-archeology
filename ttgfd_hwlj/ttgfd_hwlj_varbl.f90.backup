@@ -349,21 +349,21 @@ program platem
 
   kcm = nfack
   ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
-  ! Loop order matches F77 for numerical consistency
-!$omp parallel do private(tdz, tdzsq, rho, rhosq, use1, trho, trhosq, trmix, useful, pint, iphi, s2, krho, kprho) schedule(static)
-  do itdz = 0, kcm - 1
-    tdz = -dz + dble(itdz + 1)*dz
-    tdzsq = tdz*tdz
-    rho = -0.5d0*drho
-    do krho = 1, mxrho
-      rho = rho + drho
-      rhosq = rho*rho
-      use1 = tdzsq + rhosq
-      trho = -0.5d0*drho
-      do kprho = 1, mxrho
-        trho = trho + drho
-        trhosq = trho*trho
-        trmix = 2.d0*trho*rho
+  ! Loop order optimized for cache: innermost loop varies first array index of hvec
+!$omp parallel do private(rho, rhosq, trho, trhosq, trmix, tdz, itdz, tdzsq, use1, useful, pint, iphi, s2, kprho) schedule(static)
+  do krho = 1, mxrho
+    rho = -0.5d0*drho + dble(krho)*drho
+    rhosq = rho*rho
+    trho = -0.5d0*drho
+    do kprho = 1, mxrho
+      trho = trho + drho
+      trhosq = trho*trho
+      trmix = 2.d0*trho*rho
+      tdz = -dz
+      do itdz = 0, kcm - 1
+        tdz = tdz + dz
+        tdzsq = tdz*tdz
+        use1 = tdzsq + rhosq
         useful = use1 + trhosq
         pint = 0.d0
         ! Angular integration for cylindrical geometry
@@ -376,7 +376,7 @@ program platem
           end if
         end do
 !$omp end simd
-        hvec(itdz, krho, kprho) = trho*pint*dpphi
+        hvec(kprho, krho, itdz) = trho*pint*dpphi
       end do
     end do
   end do
@@ -456,7 +456,7 @@ program platem
       ! Loop over all spatial grid points
 !$omp parallel do private(z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact) schedule(static)
       do iz = istp1 + ibl, imitt
-        z = bl - 0.5d0*dz + dble(iz - (istp1 + ibl) + 1)*dz
+        z = bl - 0.5d0*dz + dble(iz)*dz
         jstart = iz - ibl
         zpst = z - bl - dz
         irho0min = 1
@@ -1195,7 +1195,7 @@ subroutine CDCALC
   ! Loop over all grid points to calculate contact density
 !$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
   do iz = istp1 + ism, imitt
-    z = dhs - 0.5d0*dz + dble(iz - (istp1 + ism) + 1)*dz
+    z = dhs - 0.5d0*dz + dble(iz)*dz
     zpst = z - dhs - dz
     rho0 = -0.5d0*drho
     do kz = 1, mxrho - ksm
@@ -1445,8 +1445,17 @@ subroutine EBDU
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, kz, krho, kprho, ipz, itdz
+  integer :: iz, kz, krho, ipz, itdz
   double precision :: z, sumpint, tz, tdz, sumrho
+
+  ! Interface for helper function
+  interface
+    function compute_rho_integral(fdmon_col, bdm, hvec_slice, mxrho) result(sumrho)
+      integer, intent(in) :: mxrho
+      double precision, intent(in) :: fdmon_col(0:*), hvec_slice(0:*), bdm
+      double precision :: sumrho
+    end function compute_rho_integral
+  end interface
 
   ! Set boundary values to unity (no external potential at boundaries)
 !$omp parallel do private(kz)
@@ -1458,7 +1467,7 @@ subroutine EBDU
 !$omp end parallel do
 
   ! Calculate Lennard-Jones potential energy at each grid point
-!$omp parallel do private(z, krho, sumpint, tz, tdz, ipz, itdz, sumrho, kprho) schedule(static)
+!$omp parallel do private(z, krho, sumpint, tz, tdz, ipz, itdz, sumrho) schedule(static)
   do iz = ibl + 1, imitt
     z = -0.5d0*dz + dble(iz)*dz
     do krho = 1, mxrho
@@ -1469,10 +1478,7 @@ subroutine EBDU
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
-        sumrho = 0.d0
-        do kprho = 1, mxrho
-          sumrho = sumrho + (fdmon(kprho, ipz) - bdm)*hvec(itdz, krho, kprho)
-        end do
+        sumrho = compute_rho_integral(fdmon(0, ipz), bdm, hvec(0, krho, itdz), mxrho)
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
 
@@ -1481,10 +1487,7 @@ subroutine EBDU
         tz = tz + dz
         tdz = z - tz
         itdz = nint(dabs(tdz*rdz))
-        sumrho = 0.d0
-        do kprho = 1, mxrho
-          sumrho = sumrho + (fdmon(kprho, nfack + 1 - ipz) - bdm)*hvec(itdz, krho, kprho)
-        end do
+        sumrho = compute_rho_integral(fdmon(0, nfack + 1 - ipz), bdm, hvec(0, krho, itdz), mxrho)
         sumpint = 2.d0*sumrho*drho + sumpint
       end do
       sumpint = sumpint*dz

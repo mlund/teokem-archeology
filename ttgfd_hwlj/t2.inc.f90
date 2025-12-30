@@ -5,7 +5,7 @@ INTEGER, PARAMETER :: maxphi = 5000  ! Maximum phi grid points for lookup tables
 
 ! Large arrays in COMMON block (subroutines need access via COMMON)
 DOUBLE PRECISION :: fdmon(0:maxrho, 0:maxel), ebelam(0:maxrho, 0:maxel)
-DOUBLE PRECISION :: convp(0:maxrho, 0:maxel), hvec(0:maxrho, 0:maxrho, 0:maxel)
+DOUBLE PRECISION :: convp(0:maxrho, 0:maxel), hvec(0:maxel, 0:maxrho, 0:maxrho)
 DOUBLE PRECISION :: fem(0:maxrho, 0:maxel), ehbclam(0:maxrho, 0:maxel)
 DOUBLE PRECISION :: cdmonm(0:maxrho, 0:maxel)
 DOUBLE PRECISION :: ae1(0:maxrho, 0:maxel), ae2(0:maxrho, 0:maxel)
