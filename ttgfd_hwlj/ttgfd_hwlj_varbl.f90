@@ -765,9 +765,10 @@ program platem
       rho = -0.5d0*drho
       irho = 0
       ! Find first grid point outside colloid at this z
-      do while ((rho*rho + zsq) .le. Rcoll2)
+      do
         rho = rho + drho
         irho = irho + 1
+        if ((rho*rho + zsq) .gt. Rcoll2) exit
       end do
       Rc = dsqrt(rho*rho + zsq)
       rhoc = dsqrt(Rcoll2 - zsq)
@@ -820,9 +821,10 @@ program platem
       rho = -0.5d0*drho
       irho = 0
       ! Find first grid point outside colloid at this z
-      do while ((rho*rho + zsq) .le. Rcoll2)
+      do
         rho = rho + drho
         irho = irho + 1
+        if ((rho*rho + zsq) .gt. Rcoll2) exit
       end do
       Rc = dsqrt(rho*rho + zsq)
       rhoc = dsqrt(Rcoll2 - zsq)
@@ -924,11 +926,12 @@ program platem
       z = zc1 + 0.5d0*dz
       iz = izc1
       ! Find first grid point outside colloid at this rho (moving down in z)
-      do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
+      do
         z = z - dz
         iz = iz - 1
+        zsq = (z - zc1)**2
+        if ((rhosq + zsq) .gt. Rcoll2) exit
       end do
-      zsq = (z - zc1)**2
       Rc = dsqrt(rhosq + zsq)
       deltazc = dsqrt(Rcoll2 - rhosq)
 
@@ -976,11 +979,12 @@ program platem
       z = zc1 - 0.5d0*dz
       iz = izc1 - 1
       ! Find first grid point outside colloid at this rho (moving up in z)
-      do while ((rhosq + (z - zc1)**2) .le. Rcoll2)
+      do
         z = z + dz
         iz = iz + 1
+        zsq = (z - zc1)**2
+        if ((rhosq + zsq) .gt. Rcoll2) exit
       end do
-      zsq = (z - zc1)**2
       Rc = dsqrt(rhosq + zsq)
       deltazc = dsqrt(Rcoll2 - rhosq)
 
