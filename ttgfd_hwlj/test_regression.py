@@ -6,7 +6,8 @@ Tests:
 1. Fresh start (kread=0) produces expected forces
 2. Restart (kread=1) converges from own fcdfil
 3. Self-consistency between fresh and restart
-4. Density profile consistency between fresh and restart
+4. Density profile self-consistency (kread=0 vs kread=1)
+5. Comparison with legacy F77 (kread=1 from same fcdfil)
 """
 
 import numpy as np
@@ -245,8 +246,8 @@ def main():
                     print(f"  FAIL: {rel_diff:.4f}% difference (expected < 0.01%)")
                     all_passed = False
 
-            # Test 4: Density profile consistency
-            print("\nTEST 4: Density profile consistency")
+            # Test 4: Density profile consistency (self-consistency)
+            print("\nTEST 4: Density profile self-consistency (kread=0 vs kread=1)")
             print("-" * 70)
 
             profile_files = [
@@ -280,7 +281,82 @@ def main():
                     all_passed = False
 
             if profiles_passed:
-                print("\n  RESULT: All density profiles consistent ✓")
+                print("\n  RESULT: All density profiles self-consistent ✓")
+
+            # Test 5: Comparison with legacy F77 (kread=1 from same fcdfil)
+            print("\nTEST 5: Comparison with legacy F77 reference")
+            print("-" * 70)
+
+            # Run optimized version with kread=1 using legacy fcdfil
+            if not os.path.exists('test_legacy/fcdfil'):
+                print("  SKIP: test_legacy/fcdfil not found")
+            else:
+                # Save current fcdfil and use legacy fcdfil
+                if os.path.exists('fcdfil'):
+                    shutil.move('fcdfil', 'fcdfil.backup')
+                shutil.copy('test_legacy/fcdfil', 'fcdfil')
+
+                result_legacy_restart = run_test(kread=1)
+
+                # Restore original fcdfil
+                if os.path.exists('fcdfil.backup'):
+                    shutil.move('fcdfil.backup', 'fcdfil')
+
+                if result_legacy_restart is None:
+                    print("  FAIL: Test did not complete")
+                    all_passed = False
+                else:
+                    # Compare with legacy forces from stdout
+                    legacy_rcliffF = -9.3806282705499733E-006
+                    legacy_aW = -33.842885766949102
+                    legacy_bW = -5108.2353645695821
+
+                    force_diff = abs(result_legacy_restart['rcliffF'] - legacy_rcliffF)
+                    aW_diff = abs(result_legacy_restart['aW'] - legacy_aW)
+                    bW_diff = abs(result_legacy_restart['bW'] - legacy_bW)
+
+                    print(f"  Legacy force:    {legacy_rcliffF:.15e}")
+                    print(f"  Optimized force: {result_legacy_restart['rcliffF']:.15e}")
+                    print(f"  Difference:      {force_diff:.15e}")
+
+                    # Allow small numerical differences
+                    tol_force = 1e-9
+                    tol_energy = 1e-5
+
+                    if force_diff < tol_force and aW_diff < tol_energy and bW_diff < tol_energy:
+                        print("  PASS: Forces and energies match legacy F77 ✓")
+
+                        # Compare density profiles with legacy
+                        print("\n  Density profile comparison with legacy:")
+                        legacy_profiles_passed = True
+                        for fname, description in profile_files:
+                            file_optimized = f'{fname}.kread1'
+                            file_legacy = f'test_legacy/{fname}'
+
+                            if not os.path.exists(file_legacy):
+                                continue
+
+                            passed, max_rel_diff, error = compare_density_profile(file_optimized, file_legacy, fname)
+
+                            if error:
+                                print(f"    {fname}: ERROR - {error}")
+                                legacy_profiles_passed = False
+                                all_passed = False
+                            elif passed:
+                                print(f"    {fname}: PASS (max rel diff = {max_rel_diff:.4f}%) ✓")
+                            else:
+                                print(f"    {fname}: FAIL (max rel diff = {max_rel_diff:.4f}% > 1.0%)")
+                                legacy_profiles_passed = False
+                                all_passed = False
+
+                        if legacy_profiles_passed:
+                            print("\n  RESULT: All outputs match legacy F77 ✓")
+                    else:
+                        print(f"  FAIL: Differences detected:")
+                        print(f"    Force diff: {force_diff:.6e} (tol: {tol_force:.6e})")
+                        print(f"    aW diff:    {aW_diff:.6e} (tol: {tol_energy:.6e})")
+                        print(f"    bW diff:    {bW_diff:.6e} (tol: {tol_energy:.6e})")
+                        all_passed = False
 
     # Final result
     print("\n" + "=" * 70)
