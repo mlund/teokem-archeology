@@ -103,10 +103,11 @@ Contains the Lennard-Jones interaction strength:
 ## Output Files
 
 - **fcdfil**: Final density profiles (z, ρ, monomer density, end-monomer density)
-- **Unit 85**: Axial density profile at ρ=0
-- **Unit 87**: Radial density profile at z=zc1
-- **Unit 78**: Integrated density per axial slice
-- **Unit 89**: Chain propagator profiles
+- **fort.83**: Radial profile of monomer and end-segment densities at z=zc1
+- **fort.85**: Axial density profile at ρ=0 (centerline)
+- **fort.87**: Radial profile of chain propagators at z=zc1
+- **fort.78**: Integrated density per axial slice
+- **fort.89**: Chain propagator profiles along centerline
 
 ### Standard Output
 
