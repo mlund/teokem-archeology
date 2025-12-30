@@ -43,7 +43,7 @@ program platem
   double precision :: pb, pcdt, pdasum, phi, phisum, pint
   double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
   double precision :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  double precision :: rsq, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0
+  double precision :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0, valid
   double precision :: sume, sumsn, sumsp, sumw
   double precision :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
   double precision :: trho, trhosq, trmix, twopidz, use1, useful
@@ -462,7 +462,7 @@ program platem
 
       ! Merge all chain propagation loops into single parallel region
       ! to eliminate thread synchronization barriers
-!$omp parallel private(iz, z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact, bebbe)
+!$omp parallel private(iz, z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq1, rsq2, valid, rho, irho, fact, efact, ffact, bebbe)
 
       ! Loop over all spatial grid points
 !$omp do schedule(static)
@@ -509,13 +509,16 @@ program platem
             do iphi = 1, nphi
 !     Plus or minus sign doesn't matter for the value of the integral
               rho2 = rhoz2 - fphi*cos_phi(iphi)
-              rsq = rho2 + zpcsq
-              if (rsq .lt. Rcoll2) cycle  ! Inside first colloid
-              rsq = rho2 + zpc2sq
-              if (rsq .lt. Rcoll2) cycle  ! Inside second colloid
+              rsq1 = rho2 + zpcsq
+              rsq2 = rho2 + zpc2sq
+
+              ! Mask-based approach: 1.0 if outside both colloids, 0.0 if inside either
+              ! This eliminates conditional exits (cycle) for full SIMD vectorization
+              valid = merge(1.0d0, 0.0d0, rsq1 >= Rcoll2 .and. rsq2 >= Rcoll2)
+
               rho = dsqrt(rho2)
               irho = int(rho*rdrho) + 1
-              phisum = cA(irho, jz) + phisum
+              phisum = phisum + valid * cA(irho, jz)
             end do
 !$omp end simd
             fact = 1.d0
