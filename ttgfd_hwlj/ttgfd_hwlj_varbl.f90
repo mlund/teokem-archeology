@@ -460,8 +460,12 @@ program platem
     do kmon = 1, nmon - 1
       imon = imon - 1
 
+      ! Merge all chain propagation loops into single parallel region
+      ! to eliminate thread synchronization barriers
+!$omp parallel private(iz, z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact, bebbe)
+
       ! Loop over all spatial grid points
-!$omp parallel do private(z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact) schedule(static)
+!$omp do schedule(static)
       do iz = istp1 + ibl, imitt
         z = bl - 0.5d0*dz + dble(iz - (istp1 + ibl) + 1)*dz
         jstart = iz - ibl
@@ -525,10 +529,11 @@ program platem
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
         end do
       end do
-!$omp end parallel do
+!$omp end do
+      ! Implicit barrier: Loop 3 reads cB(kz,iz) which Loop 1 writes
 
       ! Handle boundary regions: propagators at z-boundaries
-!$omp parallel do private(kz, bebbe)
+!$omp do schedule(static)
       do iz = istp1, ibl
       do kz = 1, mxrho + kbl
         bebbe = behbclam*cA(kz, iz)
@@ -536,10 +541,10 @@ program platem
         cA(kz, iz) = behbclam*bebbe
       end do
       end do
-!$omp end parallel do
+!$omp end do nowait
 
       ! Handle radial boundaries and update propagators
-!$omp parallel do private(kz, bebbe)
+!$omp do schedule(static)
       do iz = ibl + 1, imitt
         ! Outer radial boundary: use bulk propagators
         do kz = mxrho - kbl, mxrho + kbl
@@ -552,17 +557,20 @@ program platem
           cA(kz, iz) = cB(kz, iz)
         end do
       end do
-!$omp end parallel do
+!$omp end do
+      ! Implicit barrier: Loop 4 reads cA which Loops 2 & 3 write
 
       ! Apply symmetry to propagators at midplane
-!$omp parallel do private(jz, kz)
+!$omp do schedule(static)
       do iz = imitt + 1, imitt + ibl
         jz = imitt + 1 - (iz - imitt)
         do kz = 1, mxrho + kbl
           cA(kz, iz) = cA(kz, jz)
         end do
       end do
-!$omp end parallel do
+!$omp end do
+
+!$omp end parallel
 
     end do
 
