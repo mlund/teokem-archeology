@@ -561,24 +561,12 @@ program platem
 
     if (ddmax .lt. CONV_TOL) exit  ! Converged
 
-    ! Adaptive mixing: adjust mixing parameter based on convergence state
-    ! More aggressive mixing when close to solution, conservative when far
-    if (ddmax .gt. 1.0d0) then
-      dmm_adaptive = 0.90d0  ! Standard mixing when far from solution
-      dms_adaptive = 0.50d0
-    else if (ddmax .gt. 0.1d0) then
-      dmm_adaptive = 0.85d0  ! Slightly more aggressive in mid-range
-      dms_adaptive = 0.45d0
-    else if (ddmax .gt. 0.01d0) then
-      dmm_adaptive = 0.75d0  ! More aggressive approaching solution
-      dms_adaptive = 0.35d0
-    else if (ddmax .gt. 0.001d0) then
-      dmm_adaptive = 0.60d0  ! Very aggressive near solution
-      dms_adaptive = 0.25d0
-    else
-      dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
-      dms_adaptive = 0.15d0
-    end if
+    ! Use constant mixing parameters from input file
+    ! NOTE: Adaptive mixing was causing oscillation on restart (kread=1)
+    ! because aggressive mixing (dmm<0.9) prevents convergence when starting
+    ! from an already-converged state. Legacy F77 uses constant mixing.
+    dmm_adaptive = dmm
+    dms_adaptive = dms
     tdmm = 1.d0 - dmm_adaptive
     tdms = 1.d0 - dms_adaptive
 
