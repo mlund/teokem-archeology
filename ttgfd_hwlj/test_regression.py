@@ -6,6 +6,7 @@ Tests:
 1. Fresh start (kread=0) produces expected forces
 2. Restart (kread=1) converges from own fcdfil
 3. Self-consistency between fresh and restart
+4. Density profile consistency between fresh and restart
 """
 
 import numpy as np
@@ -13,6 +14,7 @@ import re
 import sys
 import subprocess
 import os
+import shutil
 
 def extract_param(content, pattern):
     """Extract a single parameter from output."""
@@ -27,6 +29,36 @@ def extract_final_iteration(content):
         ddmax, niter = matches[-1]
         return float(ddmax), int(niter)
     return None, None
+
+def compare_density_profile(file1, file2, name):
+    """Compare two density profile files."""
+    try:
+        data1 = np.loadtxt(file1)
+        data2 = np.loadtxt(file2)
+
+        if data1.shape != data2.shape:
+            return False, float('inf'), f"Shape mismatch: {data1.shape} vs {data2.shape}"
+
+        # Compare all columns except the first (coordinate column)
+        if len(data1.shape) == 1:
+            # Single column file
+            diff = np.abs(data1 - data2)
+            max_diff = np.max(diff)
+            max_rel_diff = max_diff / (np.max(np.abs(data1)) + 1e-16) * 100
+        else:
+            # Multi-column file - skip first column (coordinates)
+            data_cols1 = data1[:, 1:]
+            data_cols2 = data2[:, 1:]
+
+            diff = np.abs(data_cols1 - data_cols2)
+            max_diff = np.max(diff)
+            max_rel_diff = max_diff / (np.max(np.abs(data_cols1)) + 1e-16) * 100
+
+        passed = max_rel_diff < 1.0  # Pass if < 1% difference
+        return passed, max_rel_diff, None
+
+    except Exception as e:
+        return False, float('inf'), str(e)
 
 def run_test(kread, expected_force=None, max_iters=200):
     """Run the test with given kread value."""
@@ -80,7 +112,13 @@ def run_test(kread, expected_force=None, max_iters=200):
         aW = extract_param(output, r'aW =\s+([-\d.E+-]+)')
         bW = extract_param(output, r'bW =\s+([-\d.E+-]+)')
         ddmax, niter = extract_final_iteration(output)
-        
+
+        # Save density profile files with kread suffix
+        profile_files = ['fort.78', 'fort.83', 'fort.85', 'fort.87', 'fort.89']
+        for f in profile_files:
+            if os.path.exists(f):
+                shutil.copy(f, f'{f}.kread{kread}')
+
         return {
             'rcliffF': rcliffF,
             'ctF': ctF,
@@ -206,7 +244,44 @@ def main():
                 else:
                     print(f"  FAIL: {rel_diff:.4f}% difference (expected < 0.01%)")
                     all_passed = False
-    
+
+            # Test 4: Density profile consistency
+            print("\nTEST 4: Density profile consistency")
+            print("-" * 70)
+
+            profile_files = [
+                ('fort.78', 'Integrated density per z-slice'),
+                ('fort.83', 'Radial profile at z=zc1'),
+                ('fort.85', 'Axial profile at rho=0'),
+                ('fort.87', 'Chain propagators at z=zc1'),
+                ('fort.89', 'Propagators along centerline')
+            ]
+
+            profiles_passed = True
+            for fname, description in profile_files:
+                file_kread0 = f'{fname}.kread0'
+                file_kread1 = f'{fname}.kread1'
+
+                if not os.path.exists(file_kread0) or not os.path.exists(file_kread1):
+                    print(f"  {fname}: SKIP (files not found)")
+                    continue
+
+                passed, max_rel_diff, error = compare_density_profile(file_kread0, file_kread1, fname)
+
+                if error:
+                    print(f"  {fname}: ERROR - {error}")
+                    profiles_passed = False
+                    all_passed = False
+                elif passed:
+                    print(f"  {fname}: PASS (max rel diff = {max_rel_diff:.4f}%) ✓")
+                else:
+                    print(f"  {fname}: FAIL (max rel diff = {max_rel_diff:.4f}% > 1.0%)")
+                    profiles_passed = False
+                    all_passed = False
+
+            if profiles_passed:
+                print("\n  RESULT: All density profiles consistent ✓")
+
     # Final result
     print("\n" + "=" * 70)
     if all_passed:

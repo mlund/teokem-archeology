@@ -262,8 +262,9 @@ make test
 
 This validates:
 - **Fresh start (kread=0)**: Forces and energies match expected values
-- **Restart (kread=1)**: Converges from own fcdfil without oscillation  
+- **Restart (kread=1)**: Converges from own fcdfil without oscillation
 - **Self-consistency**: kread=0 and kread=1 results differ by <0.01%
+- **Density profiles**: All output files (fort.78, fort.83, fort.85, fort.87, fort.89) consistent between fresh start and restart (<1% difference)
 
 Expected runtime: ~3 minutes on 4 threads
 
@@ -272,5 +273,14 @@ Expected runtime: ~3 minutes on 4 threads
 The regression tests verify both critical bug fixes:
 1. **Off-by-one error**: Boundary-finding loops correctly match legacy F77
 2. **Restart oscillation**: Converges in ~73 iterations (not infinite loop)
+
+The density profile validation ensures that:
+- Integrated densities per z-slice (fort.78)
+- Radial profiles at z=zc1 (fort.83)
+- Axial profiles at ρ=0 (fort.85)
+- Chain propagators at z=zc1 (fort.87)
+- Propagators along centerline (fort.89)
+
+are all self-consistent between fresh start and restart runs.
 
 All tests must pass for the build to be considered valid.
