@@ -34,6 +34,9 @@ program platem
   double precision :: dmm, dms, dmm_adaptive, dms_adaptive, dpphi, dumsum
   double precision :: interface_width, smooth_factor
   double precision :: eexc, efact, emtrams, epslj
+
+  ! Logical variables
+  logical :: use_adaptive_mixing
   double precision :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
   double precision :: pb, pcdt, pdasum, phi, phisum, pint
   double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
@@ -386,6 +389,7 @@ program platem
   ! Initialize iteration
   ddmax = 10000.d0
   niter = 0
+  use_adaptive_mixing = .true.  ! Will be disabled if restart detected
 
   ! Main self-consistent field iteration loop
   do while (.true.)
@@ -561,12 +565,40 @@ program platem
 
     if (ddmax .lt. CONV_TOL) exit  ! Converged
 
-    ! Use constant mixing parameters from input file
-    ! NOTE: Adaptive mixing was causing oscillation on restart (kread=1)
-    ! because aggressive mixing (dmm<0.9) prevents convergence when starting
-    ! from an already-converged state. Legacy F77 uses constant mixing.
-    dmm_adaptive = dmm
-    dms_adaptive = dms
+    ! Smart adaptive mixing: detect restart scenarios and adjust accordingly
+    ! Fresh start: ddmax ~100 at iteration 2 → use adaptive mixing
+    ! Restart: ddmax ~0.005 at iteration 2 → use conservative mixing
+    if (niter == 2 .and. ddmax < 0.1d0) then
+      ! Restart scenario detected: ddmax already small at iteration 2
+      use_adaptive_mixing = .false.
+      write (*, *) 'Restart detected (ddmax < 0.1 at iter 2): using conservative mixing'
+    end if
+
+    if (.not. use_adaptive_mixing) then
+      ! Conservative mixing for restart scenarios
+      dmm_adaptive = dmm
+      dms_adaptive = dms
+    else
+      ! Adaptive mixing for fresh starts: adjust based on convergence state
+      ! More aggressive mixing when close to solution, conservative when far
+      if (ddmax .gt. 1.0d0) then
+        dmm_adaptive = 0.90d0  ! Standard mixing when far from solution
+        dms_adaptive = 0.50d0
+      else if (ddmax .gt. 0.1d0) then
+        dmm_adaptive = 0.85d0  ! Slightly more aggressive in mid-range
+        dms_adaptive = 0.45d0
+      else if (ddmax .gt. 0.01d0) then
+        dmm_adaptive = 0.75d0  ! More aggressive approaching solution
+        dms_adaptive = 0.35d0
+      else if (ddmax .gt. 0.001d0) then
+        dmm_adaptive = 0.60d0  ! Very aggressive near solution
+        dms_adaptive = 0.25d0
+      else
+        dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
+        dms_adaptive = 0.15d0
+      end if
+    end if
+
     tdmm = 1.d0 - dmm_adaptive
     tdms = 1.d0 - dms_adaptive
 
