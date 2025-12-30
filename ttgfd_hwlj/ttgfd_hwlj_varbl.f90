@@ -1195,7 +1195,7 @@ subroutine CDCALC
   ! Loop over all grid points to calculate contact density
 !$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
   do iz = istp1 + ism, imitt
-    z = dhs - 0.5d0*dz + dble(iz)*dz
+    z = dhs - 0.5d0*dz + dble(iz - (istp1 + ism) + 1)*dz
     zpst = z - dhs - dz
     rho0 = -0.5d0*drho
     do kz = 1, mxrho - ksm
