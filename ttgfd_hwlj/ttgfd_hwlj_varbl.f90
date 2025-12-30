@@ -456,7 +456,7 @@ program platem
       ! Loop over all spatial grid points
 !$omp parallel do private(z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq, rho, irho, fact, efact, ffact) schedule(static)
       do iz = istp1 + ibl, imitt
-        z = bl - 0.5d0*dz + dble(iz)*dz
+        z = bl - 0.5d0*dz + dble(iz - (istp1 + ibl) + 1)*dz
         jstart = iz - ibl
         zpst = z - bl - dz
         irho0min = 1
