@@ -1173,6 +1173,11 @@ program platem
     end do
   end do
 
+  ! Close files to ensure buffers are flushed
+  close (ifc)
+  close (ins)
+  close (iep)
+
   ! Deallocate arrays before exit (COMMON block arrays are static)
   deallocate (c, cA, cB)
 
