@@ -146,6 +146,7 @@ The code has been extensively optimized for modern multi-core processors, achiev
 
 ### Cache Optimization
 - **hvec array transposition**: Reordered array dimensions from `(itdz, krho, kprho)` to `(kprho, krho, itdz)` for stride-1 memory access, eliminating cache misses from 2.5MB strides (+8% speedup)
+  - **Note**: This optimization changes floating-point operation order, making restart files (fcdfil) incompatible between the optimized and legacy F77 versions. Start calculations from scratch (kread=0) when switching between versions.
 
 ### Code Modernization
 - **Compile-time constants**: Moved physical/mathematical constants to PARAMETER declarations
