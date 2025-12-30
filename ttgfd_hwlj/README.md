@@ -252,3 +252,25 @@ This type of calculation is relevant for:
 - Designing polymer additives for material processing
 - Studying membrane-membrane interactions mediated by polymers
 - Nanotechnology applications involving polymer brushes and coatings
+
+## Testing
+
+Run the regression test suite:
+```bash
+make test
+```
+
+This validates:
+- **Fresh start (kread=0)**: Forces and energies match expected values
+- **Restart (kread=1)**: Converges from own fcdfil without oscillation  
+- **Self-consistency**: kread=0 and kread=1 results differ by <0.01%
+
+Expected runtime: ~3 minutes on 4 threads
+
+### Test Details
+
+The regression tests verify both critical bug fixes:
+1. **Off-by-one error**: Boundary-finding loops correctly match legacy F77
+2. **Restart oscillation**: Converges in ~73 iterations (not infinite loop)
+
+All tests must pass for the build to be considered valid.
