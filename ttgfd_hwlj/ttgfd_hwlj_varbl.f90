@@ -20,7 +20,7 @@ program platem
   ! Integer variables
   integer :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
   integer :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
-  integer :: ifc, ins, iep, ioimaxm, kread, niter, kcm, klm, kr, npphi, use1, useful
+  integer :: ifc, ins, iep, ioimaxm, kread, niter, kcm, klm, kr, npphi
 
   ! Double precision variables
   double precision :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
@@ -44,7 +44,7 @@ program platem
   double precision :: rsq, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0
   double precision :: sume, sumsn, sumsp, sumw
   double precision :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
-  double precision :: trho, trhosq, trmix, twopidz
+  double precision :: trho, trhosq, trmix, twopidz, use1, useful
   double precision :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
   double precision :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
@@ -389,7 +389,7 @@ program platem
   ! Initialize iteration
   ddmax = 10000.d0
   niter = 0
-  use_adaptive_mixing = .true.  ! Will be disabled if restart detected
+  use_adaptive_mixing = .false.
 
   ! Main self-consistent field iteration loop
   do while (.true.)
@@ -645,6 +645,7 @@ program platem
         fem(kz, iz) = fem(kz, jz)
       end do
     end do
+
   end do  ! End of main iteration loop
 
   ! Check if maximum iterations exceeded
@@ -1484,7 +1485,7 @@ subroutine EBDU
   ! Calculate Lennard-Jones potential energy at each grid point
 !$omp parallel do private(z, krho, sumpint, tz, tdz, ipz, itdz, sumrho, kprho) schedule(static)
   do iz = ibl + 1, imitt
-    z = -0.5d0*dz + dble(iz)*dz
+    z = (dble(iz) - 0.5d0)*dz
     do krho = 1, mxrho
       sumpint = 0.d0
       tz = bl - 0.5d0*dz
