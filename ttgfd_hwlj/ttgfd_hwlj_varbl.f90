@@ -37,6 +37,8 @@ program platem
 
   ! Logical variables
   logical :: use_adaptive_mixing
+  integer :: oscillation_count
+  double precision :: ddmax_prev
   double precision :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
   double precision :: pb, pcdt, pdasum, phi, phisum, pint
   double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
@@ -388,8 +390,10 @@ program platem
 
   ! Initialize iteration
   ddmax = 10000.d0
+  ddmax_prev = 10000.d0
   niter = 0
-  use_adaptive_mixing = .false.
+  oscillation_count = 0
+  use_adaptive_mixing = .true.
 
   ! Main self-consistent field iteration loop
   do while (.true.)
@@ -579,8 +583,16 @@ program platem
       dmm_adaptive = dmm
       dms_adaptive = dms
     else
+      ! Detect oscillations: ddmax increased after decreasing
+      if (niter .gt. 10 .and. ddmax .gt. ddmax_prev .and. ddmax .lt. 0.3d0) then
+        oscillation_count = oscillation_count + 1
+      else if (ddmax .lt. ddmax_prev) then
+        ! Reset oscillation counter when making progress
+        oscillation_count = max(0, oscillation_count - 1)
+      end if
+
       ! Adaptive mixing for fresh starts: adjust based on convergence state
-      ! More aggressive mixing when close to solution, conservative when far
+      ! Add conservative bias when oscillations detected
       if (ddmax .gt. 1.0d0) then
         dmm_adaptive = 0.90d0  ! Standard mixing when far from solution
         dms_adaptive = 0.50d0
@@ -588,15 +600,43 @@ program platem
         dmm_adaptive = 0.85d0  ! Slightly more aggressive in mid-range
         dms_adaptive = 0.45d0
       else if (ddmax .gt. 0.01d0) then
-        dmm_adaptive = 0.75d0  ! More aggressive approaching solution
-        dms_adaptive = 0.35d0
+        ! When approaching convergence, use conservative mixing if oscillating
+        if (oscillation_count .gt. 3) then
+          dmm_adaptive = 0.92d0  ! Very conservative to dampen oscillations
+          dms_adaptive = 0.52d0
+        else
+          dmm_adaptive = 0.75d0  ! More aggressive when not oscillating
+          dms_adaptive = 0.35d0
+        end if
       else if (ddmax .gt. 0.001d0) then
-        dmm_adaptive = 0.60d0  ! Very aggressive near solution
-        dms_adaptive = 0.25d0
+        if (oscillation_count .gt. 3) then
+          dmm_adaptive = 0.90d0  ! Very conservative near solution if oscillating
+          dms_adaptive = 0.50d0
+        else
+          dmm_adaptive = 0.60d0  ! Aggressive near solution
+          dms_adaptive = 0.25d0
+        end if
       else
-        dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
-        dms_adaptive = 0.15d0
+        if (oscillation_count .gt. 3) then
+          dmm_adaptive = 0.88d0  ! Very conservative very close if oscillating
+          dms_adaptive = 0.48d0
+        else
+          dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
+          dms_adaptive = 0.15d0
+        end if
       end if
+
+      if (niter .gt. 60) then
+        if (oscillation_count .gt. 3) then
+          write (*, '(A,E12.5,A,F5.3,A,I3)') 'Adaptive mixing (osc): ddmax=', ddmax, ', dmm=', &
+                dmm_adaptive, ', osc_count=', oscillation_count
+        else
+          write (*, '(A,E12.5,A,F5.3)') 'Adaptive mixing: ddmax=', ddmax, ', dmm=', dmm_adaptive
+        end if
+      end if
+
+      ! Update previous ddmax for next iteration
+      ddmax_prev = ddmax
     end if
 
     tdmm = 1.d0 - dmm_adaptive
