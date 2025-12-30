@@ -295,8 +295,7 @@ program platem
     rewind ifc
     do iz = istp1, imitt
     do kz = 1, mxrho
-      read (ifc, *) t1, t2, fdmon(kz, iz), trams
-      fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
+      read (ifc, *) t1, t2, fdmon(kz, iz), fem(kz, iz)
     end do
     end do
   end if
