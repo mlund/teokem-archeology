@@ -180,6 +180,13 @@ make        # refactored F90 version (optimized)
 make legacy # original F77 version
 ```
 
+GNU fortran is used by default. To use Intels compiler, update the `Makefile` with:
+
+```bash
+FC = ifx
+FFLAGS = -O3 -xHost -qopenmp -fp-model fast=2 -ipo -unroll
+```
+
 ## Running the Program
 
 ```bash
