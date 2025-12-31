@@ -13,12 +13,10 @@ INC = t2.inc.f90
 
 # Compiler flags
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
-# Using -O2 instead of -O3 to avoid linker fixup errors
-# Removed -march=native which can cause ADRP range issues with large data
-# -fno-automatic: Keep F77 SAVE semantics (local vars persist between calls)
-# -finit-local-zero: Initialize local variables to zero
-# -fopenmp: Enable OpenMP SIMD directives for vectorization (~1% speedup)
-FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp -ffast-math -flto -funroll-loops
+# Successfully using -O3 and -march=native after optimization work
+# -fopenmp: Enable OpenMP parallelization and SIMD directives
+# Removed -fno-automatic and -finit-local-zero: not needed (verified by testing)
+FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fopenmp -ffast-math -flto -funroll-loops
 
 # Strong warning flags
 WARNFLAGS = -Wall \
@@ -30,6 +28,7 @@ WARNFLAGS = -Wall \
             -Wuninitialized \
             -Wconversion \
             -Wconversion-extra \
+            -Wshadow \
             -Wsurprising \
             -Waliasing \
             -Wampersand \
