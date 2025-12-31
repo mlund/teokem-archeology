@@ -40,7 +40,7 @@ WARNFLAGS = -Wall \
             -Wno-tabs \
             -Wreal-q-constant \
             -Wunderflow \
-            -Wunused-parameter \
+            -Wno-unused-parameter \
             -Wrealloc-lhs \
             -Wrealloc-lhs-all \
             -Wtarget-lifetime \

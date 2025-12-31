@@ -30,9 +30,8 @@ program platem
   double precision :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
   double precision :: ckk, ckoll, clifffi, clifffo, cmtrams, collsep, ct, ctf
   double precision :: ctheta, ctn, ctp, cv
-  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2, distance
+  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
   double precision :: dmm, dms, dmm_adaptive, dms_adaptive, dpphi, dumsum
-  double precision :: interface_width, smooth_factor
   double precision :: eexc, efact, emtrams, epslj
 
   ! Logical variables
@@ -49,6 +48,31 @@ program platem
   double precision :: trho, trhosq, trmix, twopidz, use1, useful
   double precision :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
   double precision :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
+
+  ! ========================================================================
+  ! Explicit interfaces for subroutines (required for implicit none)
+  ! ========================================================================
+  interface
+    subroutine CDFACT
+      implicit none
+    end subroutine CDFACT
+
+    subroutine CDCALC
+      implicit none
+    end subroutine CDCALC
+
+    subroutine AVEC
+      implicit none
+    end subroutine AVEC
+
+    subroutine EBLMNEW
+      implicit none
+    end subroutine EBLMNEW
+
+    subroutine EBDU
+      implicit none
+    end subroutine EBDU
+  end interface
 
   ! ========================================================================
   ! File unit numbers
@@ -1209,7 +1233,7 @@ subroutine CDFACT
   ! Local variables
   integer :: iz, jz, iphi, irho, krhopmax, krhop
   double precision :: strho0, rho0, z, zpst, sume, zp, delz2, sumrhop
-  double precision :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, phi, rho2, fact, tcd
+  double precision :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, rho2, fact, tcd
   strho0 = 0.5d0*drho
   rho0 = strho0
   iz = 2*ism
@@ -1270,7 +1294,7 @@ subroutine CDCALC
   ! Local variables
   integer :: iz, jz, kz, iphi, irho, krhop, krhopmax
   double precision :: z, zpst, rho0, sume, zp, delz2, sumrhop, rhopmax, rho02
-  double precision :: rhop, rhomax2, fphi, phisum, phi, rho2, rho, fact
+  double precision :: rhop, rhomax2, fphi, phisum, rho2, rho, fact
 
   ! Loop over all grid points to calculate contact density
 !$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
@@ -1386,7 +1410,7 @@ subroutine EBLMNEW
   integer :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
   double precision :: z, zpst, diffz2, strho0, rho0, rho02, rt2, sume, zp
   double precision :: delz2, zpcsq, zpc2sq, sumrhop, rhopmax, rhop, rhomax2
-  double precision :: fphi, phisum, phi, rho2, rsq, rho, fact, trams, emtrams, cmtrams
+  double precision :: fphi, phisum, rho2, rsq, rho, fact, trams, emtrams, cmtrams
 
   ! Set bulk values at boundaries
 !$omp parallel do private(kz)

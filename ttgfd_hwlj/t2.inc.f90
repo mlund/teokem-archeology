@@ -45,18 +45,10 @@ COMMON/HELTAL/istart, istp1, islut, ism, nfack, imitt, nmon, &
 ! ========================================================================
 
 ! Mathematical constants
-DOUBLE PRECISION, PARAMETER :: PI = 3.141592653589793238462643383279502884197d0
+! Note: Precision limited to double precision (15-17 significant digits)
+DOUBLE PRECISION, PARAMETER :: PI = 3.14159265358979d0
 DOUBLE PRECISION, PARAMETER :: TWOPI = 2.d0*PI
 DOUBLE PRECISION, PARAMETER :: FOURPI = 4.d0*PI
-DOUBLE PRECISION, PARAMETER :: VOLFACT = FOURPI/3.d0
-DOUBLE PRECISION, PARAMETER :: RVOLFACT = 1.d0/VOLFACT
-
-! Physical constants
-DOUBLE PRECISION, PARAMETER :: BK = 1.38066D-23        ! Boltzmann constant (J/K)
-DOUBLE PRECISION, PARAMETER :: AVNO = 6.02214D23       ! Avogadro's number (1/mol)
-DOUBLE PRECISION, PARAMETER :: ELCH = 1.602D-19        ! Elementary charge (C)
-DOUBLE PRECISION, PARAMETER :: VACUUM_PERMITTIVITY = 8.85418782D-12  ! F/m
-DOUBLE PRECISION, PARAMETER :: DIELC_WATER = 78.3d0    ! Dielectric constant (water)
 
 ! Carnahan-Starling equation of state parameters for hard spheres
 DOUBLE PRECISION, PARAMETER :: A1_CS = 1.d0
@@ -69,8 +61,6 @@ DOUBLE PRECISION, PARAMETER :: CONV_TOL = 0.00001d0
 
 ! Derived constants (computed from fundamental constants)
 DOUBLE PRECISION, PARAMETER :: PIS = PI/6.d0
-DOUBLE PRECISION, PARAMETER :: PIT = PI/3.d0
-DOUBLE PRECISION, PARAMETER :: PIF = PI/4.d0
 DOUBLE PRECISION, PARAMETER :: C1 = -1.d0
 DOUBLE PRECISION, PARAMETER :: C2 = -3.75503d0
 DOUBLE PRECISION, PARAMETER :: AA1 = 2.d0*C1 - 2.d0*A1_CS - 4.d0
