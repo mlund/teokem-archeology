@@ -8,8 +8,9 @@ FC = gfortran
 PROGRAM = ttgfd_hwlj
 
 # Source files
+MODULE_SRC = polymer_dft_data.f90
 SRC = ttgfd_hwlj_varbl.f90
-INC = t2.inc.f90
+INC = t2.inc.f90  # Kept for legacy F77 build
 
 # Compiler flags
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
@@ -59,8 +60,9 @@ DEBUGFLAGS = -g \
 all: $(PROGRAM)
 
 # Build the program with warnings
-$(PROGRAM): $(SRC) $(INC)
-	$(FC) $(FFLAGS) $(WARNFLAGS) -o $(PROGRAM) $(SRC)
+# Module must be compiled first to generate .mod file
+$(PROGRAM): $(MODULE_SRC) $(SRC)
+	$(FC) $(FFLAGS) $(WARNFLAGS) -o $(PROGRAM) $(MODULE_SRC) $(SRC)
 
 # Debug build with runtime checks
 .PHONY: debug

@@ -8,8 +8,8 @@
 ! ============================================================================
 program platem
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Constants
   integer(int32), parameter :: MAXMON = 151
@@ -1227,8 +1227,8 @@ END
 ! ============================================================================
 subroutine CDFACT
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Local variables
   integer(int32) :: iz, jz, iphi, irho, krhopmax, krhop
@@ -1289,8 +1289,8 @@ end
 ! ============================================================================
 subroutine CDCALC
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Local variables
   integer(int32) :: iz, jz, kz, iphi, irho, krhop, krhopmax
@@ -1353,8 +1353,8 @@ end
 ! ============================================================================
 subroutine AVEC
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Local variables
   integer(int32) :: iz, kz, jz
@@ -1406,8 +1406,8 @@ end
 ! ============================================================================
 subroutine EBLMNEW
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Local variables
   integer(int32) :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
@@ -1549,8 +1549,8 @@ end function compute_rho_integral
 ! ============================================================================
 subroutine EBDU
   use iso_fortran_env, only: real64, int32
+  use polymer_dft_data
   implicit none
-  include 't2.inc.f90'
 
   ! Local variables
   integer(int32) :: iz, kz, krho, kprho, ipz, itdz
