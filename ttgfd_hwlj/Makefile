@@ -94,7 +94,7 @@ run-profile: profile-gperftools
 # Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
 legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
+	$(FC) -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -ffast-math -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
 
 # Clean build artifacts
 .PHONY: clean
