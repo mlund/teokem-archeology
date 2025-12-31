@@ -7,47 +7,48 @@
 ! inhomogeneous polymer solutions in cylindrical geometry.
 ! ============================================================================
 program platem
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Constants
-  INTEGER, PARAMETER :: MAXMON = 151
+  integer(int32), parameter :: MAXMON = 151
 
   ! Additional arrays for main program - also dynamically allocated
-  double precision, allocatable :: c(:, :, :), cA(:, :), cB(:, :)
-  double precision :: cdens(0:1000), ctvec(0:1000)
+  real(real64), allocatable :: c(:, :, :), cA(:, :), cB(:, :)
+  real(real64) :: cdens(0:1000), ctvec(0:1000)
 
   ! Integer variables
-  integer :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
-  integer :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
-  integer :: ifc, ins, iep, ioimaxm, kread, niter, kcm, klm, kr, npphi
+  integer(int32) :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
+  integer(int32) :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
+  integer(int32) :: ifc, ins, iep, ioimaxm, kread, niter, kcm, klm, kr, npphi
 
-  ! Double precision variables
-  double precision :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
-  double precision :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
-  double precision :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
-  double precision :: bl2, bordekoll, brsum, bsumw, bw
-  double precision :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
-  double precision :: ckk, ckoll, clifffi, clifffo, cmtrams, collsep, ct, ctf
-  double precision :: ctheta, ctn, ctp, cv
-  double precision :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
-  double precision :: dmm, dms, dmm_adaptive, dms_adaptive, dpphi, dumsum
-  double precision :: eexc, efact, emtrams, epslj
+  ! Real variables
+  real(real64) :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
+  real(real64) :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
+  real(real64) :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
+  real(real64) :: bl2, bordekoll, brsum, bsumw, bw
+  real(real64) :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
+  real(real64) :: ckk, ckoll, clifffi, clifffo, cmtrams, collsep, ct, ctf
+  real(real64) :: ctheta, ctn, ctp, cv
+  real(real64) :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
+  real(real64) :: dmm, dms, dmm_adaptive, dms_adaptive, dpphi, dumsum
+  real(real64) :: eexc, efact, emtrams, epslj
 
   ! Logical variables
   logical :: use_adaptive_mixing
-  integer :: oscillation_count
-  double precision :: ddmax_prev
-  double precision :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
-  double precision :: pb, pcdt, pdasum, phi, phisum, pint
-  double precision :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
-  double precision :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  double precision :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0, valid
-  double precision :: sume, sumsn, sumsp, sumw
-  double precision :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
-  double precision :: trho, trhosq, trmix, twopidz, use1, useful
-  double precision :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
-  double precision :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
+  integer(int32) :: oscillation_count
+  real(real64) :: ddmax_prev
+  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
+  real(real64) :: pb, pcdt, pdasum, phi, phisum, pint
+  real(real64) :: rc, rclifffi, rclifffo, rcyl, rcyl2, rdphi
+  real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
+  real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0, valid
+  real(real64) :: sume, sumsn, sumsp, sumw
+  real(real64) :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
+  real(real64) :: trho, trhosq, trmix, twopidz, use1, useful
+  real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
+  real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
   ! Explicit interfaces for subroutines (required for implicit none)
@@ -75,15 +76,13 @@ program platem
   end interface
 
   ! ========================================================================
-  ! File unit numbers
-  ifc = 38  ! Output: concentration profiles
-  ins = 49  ! Input: simulation parameters
-  iep = 50  ! Input: Lennard-Jones epsilon parameter
+  ! File unit numbers (automatically assigned by runtime)
 
   ! Open input and output files
-  open (ifc, file='fcdfil', form='formatted')
-  open (ins, file='input.tsph', form='formatted')
-  open (iep, file='epfil', form='formatted')
+  ! fcdfil: unknown allows both read and write (for restart capability)
+  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
+  open (newunit=ins, file='input.tsph', form='formatted', status='old')
+  open (newunit=iep, file='epfil', form='formatted', status='old')
   rewind ifc
   rewind ins
   rewind iep
@@ -1227,13 +1226,14 @@ END
 ! hard sphere volume using trapezoidal integration in cylindrical coordinates.
 ! ============================================================================
 subroutine CDFACT
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, jz, iphi, irho, krhopmax, krhop
-  double precision :: strho0, rho0, z, zpst, sume, zp, delz2, sumrhop
-  double precision :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, rho2, fact, tcd
+  integer(int32) :: iz, jz, iphi, irho, krhopmax, krhop
+  real(real64) :: strho0, rho0, z, zpst, sume, zp, delz2, sumrhop
+  real(real64) :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, rho2, fact, tcd
   strho0 = 0.5d0*drho
   rho0 = strho0
   iz = 2*ism
@@ -1288,13 +1288,14 @@ end
 ! with angular averaging.
 ! ============================================================================
 subroutine CDCALC
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, jz, kz, iphi, irho, krhop, krhopmax
-  double precision :: z, zpst, rho0, sume, zp, delz2, sumrhop, rhopmax, rho02
-  double precision :: rhop, rhomax2, fphi, phisum, rho2, rho, fact
+  integer(int32) :: iz, jz, kz, iphi, irho, krhop, krhopmax
+  real(real64) :: z, zpst, rho0, sume, zp, delz2, sumrhop, rhopmax, rho02
+  real(real64) :: rhop, rhomax2, fphi, phisum, rho2, rho, fact
 
   ! Loop over all grid points to calculate contact density
 !$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
@@ -1351,12 +1352,13 @@ end
 ! for the polymer chain propagators.
 ! ============================================================================
 subroutine AVEC
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, kz, jz
-  double precision :: cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2
+  integer(int32) :: iz, kz, jz
+  real(real64) :: cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2
 
   ! Calculate excess free energy from contact density using Carnahan-Starling EOS
 !$omp parallel do private(kz, cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2) schedule(static)
@@ -1403,14 +1405,15 @@ end
 ! integrals. Excludes regions inside colloids.
 ! ============================================================================
 subroutine EBLMNEW
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
-  double precision :: z, zpst, diffz2, strho0, rho0, rho02, rt2, sume, zp
-  double precision :: delz2, zpcsq, zpc2sq, sumrhop, rhopmax, rhop, rhomax2
-  double precision :: fphi, phisum, rho2, rsq, rho, fact, trams, emtrams, cmtrams
+  integer(int32) :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
+  real(real64) :: z, zpst, diffz2, strho0, rho0, rho02, rt2, sume, zp
+  real(real64) :: delz2, zpcsq, zpc2sq, sumrhop, rhopmax, rhop, rhomax2
+  real(real64) :: fphi, phisum, rho2, rsq, rho, fact, trams, emtrams, cmtrams
 
   ! Set bulk values at boundaries
 !$omp parallel do private(kz)
@@ -1545,12 +1548,13 @@ end function compute_rho_integral
 
 ! ============================================================================
 subroutine EBDU
+  use iso_fortran_env, only: real64, int32
   implicit none
   include 't2.inc.f90'
 
   ! Local variables
-  integer :: iz, kz, krho, kprho, ipz, itdz
-  double precision :: z, sumpint, tz, tdz, sumrho
+  integer(int32) :: iz, kz, krho, kprho, ipz, itdz
+  real(real64) :: z, sumpint, tz, tdz, sumrho
 
   ! Set boundary values to unity (no external potential at boundaries)
 !$omp parallel do private(kz)
