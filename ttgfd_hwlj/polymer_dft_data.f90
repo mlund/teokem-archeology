@@ -13,6 +13,73 @@ module polymer_dft_data
   implicit none
 
   ! ========================================================================
+  ! Derived types for structured data organization
+  ! ========================================================================
+
+  ! Input parameters read directly from input files
+  ! This encapsulates all user-specified parameters from input.tsph and epfil
+  type :: input_params_t
+    ! Bulk densities (from input.tsph)
+    real(real64) :: bdm         ! Monomer bulk density
+    real(real64) :: bdtot       ! Total bulk density
+
+    ! Polymer parameters (from input.tsph)
+    integer(int32) :: nmon      ! Number of monomers per polymer chain
+
+    ! Grid spacing parameters (from input.tsph)
+    real(real64) :: dz          ! Grid spacing in z direction
+    real(real64) :: drho        ! Grid spacing in radial direction
+    real(real64) :: dphi        ! Angular grid spacing (in units of pi)
+    real(real64) :: dpphi       ! Angular grid spacing for potential calculation
+
+    ! Geometry parameters (from input.tsph)
+    real(real64) :: Rcoll       ! Colloid radius
+    real(real64) :: zc1         ! Position of first colloid center
+    real(real64) :: collsep     ! Separation between colloid centers
+    real(real64) :: Rcyl        ! Cylinder radius (system boundary)
+
+    ! Algorithm parameters (from input.tsph)
+    integer(int32) :: ioimaxm   ! Maximum number of iterations
+    real(real64) :: dmm         ! Density mixing parameter for monomer
+    real(real64) :: dms         ! Density mixing parameter for solvent
+    integer(int32) :: kread     ! Restart flag (0=fresh start, 1=restart from file)
+
+    ! Molecular parameters (from input.tsph)
+    real(real64) :: bl          ! Bond length
+    real(real64) :: dhs         ! Hard sphere diameter (monomer)
+
+    ! Lennard-Jones parameters (from epfil)
+    real(real64) :: epslj       ! Lennard-Jones epsilon parameter
+  end type input_params_t
+
+  ! ========================================================================
+  ! Module variables - structured input parameters
+  ! ========================================================================
+  type(input_params_t) :: input  ! User input parameters
+
+  ! ========================================================================
+  ! Module-level aliases for commonly-used input parameters
+  ! (For backward compatibility with subroutines)
+  ! These are set from input% after reading
+  ! ========================================================================
+  real(real64) :: dz, drho, dphi     ! Grid spacings
+  real(real64) :: dhs, bl            ! Molecular parameters
+  real(real64) :: bdm                ! Monomer bulk density
+  real(real64) :: zc1, Rcoll         ! Geometry
+
+  ! ========================================================================
+  ! Derived parameters (computed from input, shared across subroutines)
+  ! ========================================================================
+  ! Grid spacing reciprocals
+  real(real64) :: rdz, rdrho, rdphi
+
+  ! Geometric derived parameters
+  real(real64) :: dhs2, dhs3, rdhs3  ! Hard sphere diameter: squared, cubed, 1/cubed
+  real(real64) :: bl2                ! Bond length squared
+  real(real64) :: dzrfp              ! dz/(4*pi)
+  real(real64) :: twopidz            ! 2*pi*dz
+
+  ! ========================================================================
   ! Array dimensions - now allocatable (no fixed limits)
   ! ========================================================================
   integer, parameter :: maxphi = 5000  ! Maximum phi grid points for lookup tables
@@ -36,18 +103,14 @@ module polymer_dft_data
   real(real64) :: cos_pphi(maxphi)
 
   ! ========================================================================
-  ! Grid and physical parameters (formerly in COMMON/VAR/)
+  ! Other module-level variables (computed values, not from input)
   ! ========================================================================
-  real(real64) :: dz, scalem
-  real(real64) :: emscale
-  real(real64) :: rdz
+  real(real64) :: scalem, emscale
   real(real64) :: Yfact, rnmon, rrnmon
-  real(real64) :: bdtot, chemps
-  real(real64) :: drho, zc1, Rcoll2
-  real(real64) :: Rcoll, behbclam, bebelam
+  real(real64) :: chemps
+  real(real64) :: Rcoll2, behbclam, bebelam
   real(real64) :: zc2
-  real(real64) :: dphi, dzrfp, rdrho, cdnorm
-  real(real64) :: bdm, bl, dhs, dhs2, rdhs3, dhs3
+  real(real64) :: cdnorm
 
   ! ========================================================================
   ! Integer grid dimensions (formerly in COMMON/HELTAL/)
