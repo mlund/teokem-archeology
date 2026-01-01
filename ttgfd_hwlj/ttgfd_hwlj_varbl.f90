@@ -225,10 +225,15 @@ program platem
   Rcoll2 = Rcoll*Rcoll
   mxrho = int((Rcyl - 1.d0)*rdrho) + 1
 
-  ! Allocate main program arrays (COMMON block arrays are already static)
-  allocate (c(0:maxrho, 0:maxel, MAXMON))
-  allocate (cA(0:maxrho, 0:maxel))
-  allocate (cB(0:maxrho, 0:maxel))
+  ! Allocate module arrays based on calculated grid dimensions
+  ! Include extra space for boundary cells (kbl, ibl)
+  ! hvec needs nfack-1 for z-dimension (used in LJ potential table)
+  call allocate_arrays(mxrho + kbl, imitt + ibl, nfack - 1)
+
+  ! Allocate main program arrays
+  allocate (c(0:mxrho + kbl, 0:imitt + ibl, MAXMON))
+  allocate (cA(0:mxrho + kbl, 0:imitt + ibl))
+  allocate (cB(0:mxrho + kbl, 0:imitt + ibl))
 
   ! Calculate normalization constant for contact density
   CALL CDFACT
@@ -1212,8 +1217,9 @@ program platem
   close (ins)
   close (iep)
 
-  ! Deallocate arrays before exit (COMMON block arrays are static)
+  ! Deallocate arrays before exit
   deallocate (c, cA, cB)
+  call deallocate_arrays()
 
   STOP
 END
