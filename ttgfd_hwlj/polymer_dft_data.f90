@@ -468,13 +468,11 @@ contains
 !$omp end simd
         sumrhop = rhop*phisum*inp%dphi + sumrhop
       end do
-      write (*, *) rho, rhopmax, dabs(zp - z)
       fact = 1.d0
       if (iabs(jz - iz) .eq. grd%ism) fact = 0.5d0
       sume = 2.d0*sumrhop*inp%drho*fact + sume
     end do
     tcd = 3.d0*sume*comp%dzrfp*comp%rdhs3
-    write (*, *) 'tcd = ', tcd, grd%nphi
     cdnorm_out = 1.d0/tcd
     return
   end subroutine CDFACT
