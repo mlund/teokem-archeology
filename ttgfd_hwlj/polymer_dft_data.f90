@@ -419,57 +419,63 @@ contains
   ! functional. This is computed via a three-dimensional integral over the
   ! hard sphere volume using trapezoidal integration in cylindrical coordinates.
   ! ==========================================================================
-  subroutine CDFACT
+  subroutine CDFACT(inp, grd, comp, cos_phi_table, cdnorm_out)
     use iso_fortran_env, only: real64, int32
     implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: cos_phi_table(:)
+    real(real64), intent(out) :: cdnorm_out
 
     ! Local variables
     integer(int32) :: iz, jz, iphi, irho, krhopmax, krhop
     real(real64) :: strho0, rho0, z, zpst, sume, zp, delz2, sumrhop
     real(real64) :: rhopmax, rho, rho02, rhop, rhomax2, fphi, phisum, rho2, fact, tcd
-    strho0 = 0.5d0*drho
+    strho0 = 0.5d0*inp%drho
     rho0 = strho0
-    iz = 2*ism
-    z = 2.d0*dhs - dz
-    zpst = z - dhs - dz
+    iz = 2*grd%ism
+    z = 2.d0*inp%dhs - inp%dz
+    zpst = z - inp%dhs - inp%dz
     sume = 0.d0
     zp = zpst
     ! Integrate over sphere of diameter dhs centered at test point
     ! Triple integration: z', rho', phi in cylindrical coordinates
-    do jz = iz - ism, iz + ism
-      zp = zp + dz
+    do jz = iz - grd%ism, iz + grd%ism
+      zp = zp + inp%dz
       delz2 = (zp - z)**2
       sumrhop = 0.d0
-      rhopmax = dsqrt(dabs(dhs2 - delz2))
-      krhopmax = nint(rhopmax*rdrho)
+      rhopmax = dsqrt(dabs(comp%dhs2 - delz2))
+      krhopmax = nint(rhopmax*comp%rdrho)
       rho = rho0
       rho02 = rho0**2
-      rhop = -0.5d0*drho
+      rhop = -0.5d0*inp%drho
       do krhop = 1, krhopmax
-        rhop = rhop + drho
+        rhop = rhop + inp%drho
         rhomax2 = rho02 + rhop*rhop
         fphi = 2.d0*rho0*rhop
         phisum = 0.d0
 !$omp simd reduction(+:phisum)
-        do iphi = 1, nphi
+        do iphi = 1, grd%nphi
 !     Plus or minus sign doesn't matter for the value of the integral
-          rho2 = rhomax2 - fphi*cos_phi(iphi)
+          rho2 = rhomax2 - fphi*cos_phi_table(iphi)
           rho = dsqrt(rho2)
-          irho = int(rho*rdrho) + 1
+          irho = int(rho*comp%rdrho) + 1
           phisum = 1.d0 + phisum
         end do
 !$omp end simd
-        sumrhop = rhop*phisum*input%dphi + sumrhop
+        sumrhop = rhop*phisum*inp%dphi + sumrhop
       end do
       write (*, *) rho, rhopmax, dabs(zp - z)
       fact = 1.d0
-      if (iabs(jz - iz) .eq. ism) fact = 0.5d0
-      sume = 2.d0*sumrhop*drho*fact + sume
+      if (iabs(jz - iz) .eq. grd%ism) fact = 0.5d0
+      sume = 2.d0*sumrhop*inp%drho*fact + sume
     end do
-    tcd = 3.d0*sume*dzrfp*rdhs3
-    write (*, *) 'tcd = ', tcd, nphi
-    computed%cdnorm = 1.d0/tcd
-    cdnorm = computed%cdnorm  ! Sync to alias
+    tcd = 3.d0*sume*comp%dzrfp*comp%rdhs3
+    write (*, *) 'tcd = ', tcd, grd%nphi
+    cdnorm_out = 1.d0/tcd
     return
   end subroutine CDFACT
 
@@ -481,9 +487,17 @@ contains
   ! diameter dhs, computed using 3D integration in cylindrical coordinates
   ! with angular averaging.
   ! ==========================================================================
-  subroutine CDCALC
+  subroutine CDCALC(inp, grd, comp, fdmon, cos_phi_table, cdmonm)
     use iso_fortran_env, only: real64, int32
     implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: fdmon(0:, 0:)
+    real(real64), intent(in) :: cos_phi_table(:)
+    real(real64), intent(out) :: cdmonm(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, jz, kz, iphi, irho, krhop, krhopmax
@@ -492,44 +506,44 @@ contains
 
     ! Loop over all grid points to calculate contact density
 !$omp parallel do private(z, zpst, rho0, kz, sume, zp, jz, delz2, sumrhop, rhopmax, krhopmax, rho02, rhop, rhomax2, fphi, phisum, iphi, rho2, rho, irho, fact) schedule(static)
-    do iz = istp1 + ism, imitt
-      z = dhs - 0.5d0*dz + dble(iz - (istp1 + ism) + 1)*dz
-      zpst = z - dhs - dz
-      rho0 = -0.5d0*drho
-      do kz = 1, mxrho - ksm
-        rho0 = rho0 + drho
+    do iz = grd%istp1 + grd%ism, grd%imitt
+      z = inp%dhs - 0.5d0*inp%dz + dble(iz - (grd%istp1 + grd%ism) + 1)*inp%dz
+      zpst = z - inp%dhs - inp%dz
+      rho0 = -0.5d0*inp%drho
+      do kz = 1, grd%mxrho - grd%ksm
+        rho0 = rho0 + inp%drho
         sume = 0.d0
         zp = zpst
         ! Integrate density over hard sphere volume
-        do jz = iz - ism, iz + ism
-          zp = zp + dz
+        do jz = iz - grd%ism, iz + grd%ism
+          zp = zp + inp%dz
           delz2 = (zp - z)**2
           sumrhop = 0.d0
-          rhopmax = dsqrt(dabs(dhs2 - delz2))
-          krhopmax = nint(rhopmax*rdrho)
+          rhopmax = dsqrt(dabs(comp%dhs2 - delz2))
+          krhopmax = nint(rhopmax*comp%rdrho)
           rho02 = rho0**2
-          rhop = -0.5d0*drho
+          rhop = -0.5d0*inp%drho
           do krhop = 1, krhopmax
-            rhop = rhop + drho
+            rhop = rhop + inp%drho
             rhomax2 = rho02 + rhop*rhop
             fphi = 2.d0*rho0*rhop
             phisum = 0.d0
 !$omp simd reduction(+:phisum)
-            do iphi = 1, nphi
+            do iphi = 1, grd%nphi
 !     Plus or minus sign doesn't matter for the value of the integral
-              rho2 = rhomax2 - fphi*cos_phi(iphi)
+              rho2 = rhomax2 - fphi*cos_phi_table(iphi)
               rho = dsqrt(rho2)
-              irho = int(rho*rdrho) + 1
+              irho = int(rho*comp%rdrho) + 1
               phisum = fdmon(irho, jz) + phisum
             end do
 !$omp end simd
-            sumrhop = rhop*phisum*input%dphi + sumrhop
+            sumrhop = rhop*phisum*inp%dphi + sumrhop
           end do
           fact = 1.d0
-          if (iabs(jz - iz) .eq. ism) fact = 0.5d0
-          sume = 2.d0*sumrhop*drho*fact + sume
+          if (iabs(jz - iz) .eq. grd%ism) fact = 0.5d0
+          sume = 2.d0*sumrhop*inp%drho*fact + sume
         end do
-        cdmonm(kz, iz) = 3.d0*sume*dzrfp*cdnorm*rdhs3
+        cdmonm(kz, iz) = 3.d0*sume*comp%dzrfp*comp%cdnorm*comp%rdhs3
       end do
     end do
 !$omp end parallel do
@@ -544,9 +558,19 @@ contains
   ! of state. These quantities are used in the density functional expressions
   ! for the polymer chain propagators.
   ! ==========================================================================
-  subroutine AVEC
+  subroutine AVEC(grd, comp, cdmonm, fdmon, fem, ae1, ae2, convp)
     use iso_fortran_env, only: real64, int32
     implicit none
+
+    ! Arguments
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: cdmonm(0:, 0:)
+    real(real64), intent(in) :: fdmon(0:, 0:)
+    real(real64), intent(in) :: fem(0:, 0:)
+    real(real64), intent(out) :: ae1(0:, 0:)
+    real(real64), intent(out) :: ae2(0:, 0:)
+    real(real64), intent(out) :: convp(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, kz, jz
@@ -554,9 +578,9 @@ contains
 
     ! Calculate excess free energy from contact density using Carnahan-Starling EOS
 !$omp parallel do private(kz, cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2) schedule(static)
-    do iz = istp1 + 2*ism, imitt
-      do kz = 1, mxrho - kbl
-        cdt = cdmonm(kz, iz)*dhs3
+    do iz = grd%istp1 + 2*grd%ism, grd%imitt
+      do kz = 1, grd%mxrho - grd%kbl
+        cdt = cdmonm(kz, iz)*comp%dhs3
         pcdt = PIS*cdt
         xsi = (1.d0 - pcdt)
         rxsi = 1.d0/xsi
@@ -569,15 +593,15 @@ contains
         daex2 = rxsi*(c2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                       BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
         convp(kz, iz) = (Y*(fdmon(kz, iz) - fem(kz, iz))*(daex2 - daex1) + &
-                         0.5d0*fem(kz, iz)*daex2)*pis*dhs3
+                         0.5d0*fem(kz, iz)*daex2)*pis*comp%dhs3
       end do
     end do
 !$omp end parallel do
 
 !$omp parallel do private(jz, iz) schedule(static)
-    do kz = 1, mxrho - kbl
-      jz = imitt + 1
-      do iz = imitt + 1, imitt + ibl
+    do kz = 1, grd%mxrho - grd%kbl
+      jz = grd%imitt + 1
+      do iz = grd%imitt + 1, grd%imitt + grd%ibl
         jz = jz - 1
         ae1(kz, iz) = ae1(kz, jz)
         ae2(kz, iz) = ae2(kz, jz)
@@ -596,9 +620,21 @@ contains
   ! include contributions from the excess free energy and the convolution
   ! integrals. Excludes regions inside colloids.
   ! ==========================================================================
-  subroutine EBLMNEW
+  subroutine EBLMNEW(inp, grd, comp, convp, ae1, ae2, cos_phi_table, &
+                     ebelam, ehbclam)
     use iso_fortran_env, only: real64, int32
     implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: convp(0:, 0:)
+    real(real64), intent(in) :: ae1(0:, 0:)
+    real(real64), intent(in) :: ae2(0:, 0:)
+    real(real64), intent(in) :: cos_phi_table(:)
+    real(real64), intent(out) :: ebelam(0:, 0:)
+    real(real64), intent(out) :: ehbclam(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
@@ -608,40 +644,40 @@ contains
 
     ! Set bulk values at boundaries
 !$omp parallel do private(kz)
-    do iz = 1, ibl
-      do kz = 1, mxrho + kbl
-        ebelam(kz, iz) = bebelam
-        ehbclam(kz, iz) = behbclam
+    do iz = 1, grd%ibl
+      do kz = 1, grd%mxrho + grd%kbl
+        ebelam(kz, iz) = comp%bebelam
+        ehbclam(kz, iz) = comp%behbclam
       end do
     end do
 !$omp end parallel do
 
     ! Calculate Boltzmann factors from convolution integrals
 !$omp parallel do private(z, jstart, zpst, diffz2, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, sumrhop, rhopmax, krhopmax, rhop, rhomax2, fphi, phisum, iphi, rho2, rsq, rho, irho, fact, trams, emtrams, cmtrams) schedule(static)
-    do iz = ibl + 1, imitt
-      z = -0.5d0*dz + dble(iz)*dz
-      jstart = iz - ism
-      zpst = z - dhs - dz
-      diffz2 = (zc1 - z)**2
+    do iz = grd%ibl + 1, grd%imitt
+      z = -0.5d0*inp%dz + dble(iz)*inp%dz
+      jstart = iz - grd%ism
+      zpst = z - inp%dhs - inp%dz
+      diffz2 = (inp%zc1 - z)**2
       irho0min = 1
-      strho0 = -0.5d0*drho
+      strho0 = -0.5d0*inp%drho
 
       rho0 = strho0
       ! Loop over radial positions to calculate convolution integrals
-      do kz = irho0min, mxrho
-        rho0 = rho0 + drho
+      do kz = irho0min, grd%mxrho
+        rho0 = rho0 + inp%drho
         rho02 = rho0**2
 
         ! Skip points inside first colloid
-        rt2 = rho02 + (z - zc1)**2
-        if (rt2 .lt. Rcoll2) then
+        rt2 = rho02 + (z - inp%zc1)**2
+        if (rt2 .lt. comp%Rcoll2) then
           ehbclam(kz, iz) = 0.d0
           ebelam(kz, iz) = 0.d0
           cycle
         end if
         ! Skip points inside second colloid
-        rt2 = rho02 + (z - zc2)**2
-        if (rt2 .lt. Rcoll2) then
+        rt2 = rho02 + (z - comp%zc2)**2
+        if (rt2 .lt. comp%Rcoll2) then
           ehbclam(kz, iz) = 0.d0
           ebelam(kz, iz) = 0.d0
           cycle
@@ -652,54 +688,54 @@ contains
         sume = 0.d0
         zp = zpst
         ! Loop over z' within hard sphere diameter from current point
-        do jz = jstart, iz + ism
-          zp = zp + dz
+        do jz = jstart, iz + grd%ism
+          zp = zp + inp%dz
           delz2 = (zp - z)**2
-          zpcsq = (zp - zc1)**2
-          zpc2sq = (zp - zc2)**2
+          zpcsq = (zp - inp%zc1)**2
+          zpc2sq = (zp - comp%zc2)**2
 
           sumrhop = 0.d0
           ! Maximum rho' at this z' to stay within sphere of diameter dhs
-          rhopmax = dsqrt(dabs(dhs2 - delz2))
-          krhopmax = nint(rhopmax*rdrho)
+          rhopmax = dsqrt(dabs(comp%dhs2 - delz2))
+          krhopmax = nint(rhopmax*comp%rdrho)
           rho02 = rho0**2
-          rhop = -0.5d0*drho
+          rhop = -0.5d0*inp%drho
           ! Loop over rho' (radial coordinate at integration point)
           do krhop = 1, krhopmax
-            rhop = rhop + drho
+            rhop = rhop + inp%drho
             rhomax2 = rho02 + rhop*rhop
             fphi = 2.d0*rho0*rhop
             phisum = 0.d0
             ! Loop over phi (angle between rho0 and rhop vectors)
             ! This completes the cylindrical coordinate integration
 !$omp simd reduction(+:phisum)
-            do iphi = 1, nphi
+            do iphi = 1, grd%nphi
               ! Plus or minus sign doesn't matter for the value of the integral
               ! Calculate rho at integration point using law of cosines
-              rho2 = rhomax2 - fphi*cos_phi(iphi)
+              rho2 = rhomax2 - fphi*cos_phi_table(iphi)
               ! Skip if integration point is inside first colloid
               rsq = rho2 + zpcsq
-              if (rsq .lt. Rcoll2) cycle
+              if (rsq .lt. comp%Rcoll2) cycle
               ! Skip if integration point is inside second colloid
               rsq = rho2 + zpc2sq
-              if (rsq .lt. Rcoll2) cycle
+              if (rsq .lt. comp%Rcoll2) cycle
               rho = dsqrt(rho2)
-              irho = int(rho*rdrho) + 1
+              irho = int(rho*comp%rdrho) + 1
               ! Sum convolution term (weighted density) over angular direction
               phisum = convp(irho, jz) + phisum
             end do
 !$omp end simd
             ! Integrate over rho': weight by rhop*dphi*drho (cylindrical volume element)
-            sumrhop = rhop*phisum*input%dphi + sumrhop
+            sumrhop = rhop*phisum*inp%dphi + sumrhop
           end do
           ! Trapezoidal rule: half weight at boundaries
           fact = 1.d0
-          if (iabs(jz - iz) .eq. ism) fact = 0.5d0
+          if (iabs(jz - iz) .eq. grd%ism) fact = 0.5d0
           ! Integrate over z': weight by 2*drho*fact*dz
-          sume = 2.d0*sumrhop*drho*fact + sume
+          sume = 2.d0*sumrhop*inp%drho*fact + sume
         end do
         ! Normalize convolution integral to get trams (local free energy contribution)
-        trams = 3.d0*sume*dzrfp*cdnorm*rdhs3
+        trams = 3.d0*sume*comp%dzrfp*comp%cdnorm*comp%rdhs3
 
         ! Calculate Boltzmann factors from free energy contributions
         ! emtrams: end-segment contribution (half of middle segment)
@@ -707,8 +743,8 @@ contains
         ! cmtrams: middle-segment contribution with Y factor for chain connectivity
         cmtrams = trams + Y*(ae2(kz, iz) - ae1(kz, iz))
         ! exp(-beta*F): Boltzmann weights with bulk chemical potential offset
-        ebelam(kz, iz) = dexp(-emtrams + emscale)
-        ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + scalem)
+        ebelam(kz, iz) = dexp(-emtrams + comp%emscale)
+        ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + comp%scalem)
       end do
     end do
 !$omp end parallel do
@@ -723,9 +759,17 @@ contains
   ! the interaction energy between a test particle at (rho,z) and the entire
   ! density field, using symmetry to include both colloids.
   ! ==========================================================================
-  subroutine EBDU
+  subroutine EBDU(inp, grd, comp, fdmon, hvec, edu)
     use iso_fortran_env, only: real64, int32
     implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: fdmon(0:, 0:)
+    real(real64), intent(in) :: hvec(0:, 0:, 0:)
+    real(real64), intent(out) :: edu(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, kz, krho, kprho, ipz, itdz
@@ -733,8 +777,8 @@ contains
 
     ! Set boundary values to unity (no external potential at boundaries)
 !$omp parallel do private(kz)
-    do iz = 1, ibl
-      do kz = 1, mxrho + kbl
+    do iz = 1, grd%ibl
+      do kz = 1, grd%mxrho + grd%kbl
         edu(kz, iz) = 1.d0
       end do
     end do
@@ -742,35 +786,35 @@ contains
 
     ! Calculate Lennard-Jones potential energy at each grid point
 !$omp parallel do private(z, krho, sumpint, tz, tdz, ipz, itdz, sumrho, kprho) schedule(static)
-    do iz = ibl + 1, imitt
-      z = (dble(iz) - 0.5d0)*dz
-      do krho = 1, mxrho
+    do iz = grd%ibl + 1, grd%imitt
+      z = (dble(iz) - 0.5d0)*inp%dz
+      do krho = 1, grd%mxrho
         sumpint = 0.d0
-        tz = bl - 0.5d0*dz
+        tz = inp%bl - 0.5d0*inp%dz
         ! Integrate LJ interaction with left half of density distribution
-        do ipz = ibl + 1, imitt
-          tz = tz + dz
+        do ipz = grd%ibl + 1, grd%imitt
+          tz = tz + inp%dz
           tdz = z - tz
-          itdz = nint(dabs(tdz*rdz))
+          itdz = nint(dabs(tdz*comp%rdz))
           sumrho = 0.d0
-          do kprho = 1, mxrho
-            sumrho = sumrho + (fdmon(kprho, ipz) - input%bdm)*hvec(kprho, krho, itdz)
+          do kprho = 1, grd%mxrho
+            sumrho = sumrho + (fdmon(kprho, ipz) - inp%bdm)*hvec(kprho, krho, itdz)
           end do
-          sumpint = 2.d0*sumrho*drho + sumpint
+          sumpint = 2.d0*sumrho*inp%drho + sumpint
         end do
 
         ! Integrate LJ interaction with right half (use symmetry)
-        do ipz = imitt + 1, nfack - ibl
-          tz = tz + dz
+        do ipz = grd%imitt + 1, grd%nfack - grd%ibl
+          tz = tz + inp%dz
           tdz = z - tz
-          itdz = nint(dabs(tdz*rdz))
+          itdz = nint(dabs(tdz*comp%rdz))
           sumrho = 0.d0
-          do kprho = 1, mxrho
-            sumrho = sumrho + (fdmon(kprho, nfack + 1 - ipz) - input%bdm)*hvec(kprho, krho, itdz)
+          do kprho = 1, grd%mxrho
+            sumrho = sumrho + (fdmon(kprho, grd%nfack + 1 - ipz) - inp%bdm)*hvec(kprho, krho, itdz)
           end do
-          sumpint = 2.d0*sumrho*drho + sumpint
+          sumpint = 2.d0*sumrho*inp%drho + sumpint
         end do
-        sumpint = sumpint*dz
+        sumpint = sumpint*inp%dz
         edu(krho, iz) = dexp(-sumpint)
       end do
     end do

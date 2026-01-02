@@ -210,7 +210,8 @@ program platem
   allocate (cB(0:mxrho + kbl, 0:nfack))
 
   ! Calculate normalization constant for contact density
-  CALL CDFACT
+  call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
+  cdnorm = computed%cdnorm  ! Sync to alias for backward compatibility
   write (*, *) 'cdnorm = ', cdnorm
 
   ! Initialize excess free energy arrays near z-boundaries (left side)
@@ -407,10 +408,11 @@ program platem
     end if
 
     ! Update fields in density functional theory calculation
-    CALL CDCALC     ! Calculate contact density
-    CALL AVEC       ! Calculate excess free energy
-    CALL EBLMNEW    ! Calculate end-segment Boltzmann factors
-    CALL EBDU       ! Calculate external potential contribution
+    call CDCALC(input, grid, computed, fdmon, cos_phi, cdmonm)     ! Calculate contact density
+    call AVEC(grid, computed, cdmonm, fdmon, fem, ae1, ae2, convp)       ! Calculate excess free energy
+    call EBLMNEW(input, grid, computed, convp, ae1, ae2, cos_phi, &
+                 ebelam, ehbclam)    ! Calculate end-segment Boltzmann factors
+    call EBDU(input, grid, computed, fdmon, hvec, edu)       ! Calculate external potential contribution
 
     ! Apply boundary conditions at outer radial edge (rho > Rcyl)
     ! Set to bulk values since density should approach bulk far from colloids
