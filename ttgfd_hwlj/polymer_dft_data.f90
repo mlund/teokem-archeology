@@ -52,10 +52,77 @@ module polymer_dft_data
     real(real64) :: epslj       ! Lennard-Jones epsilon parameter
   end type input_params_t
 
+  ! Grid dimensions and discretization parameters
+  ! Computed from input_params_t during initialization
+  type :: grid_params_t
+    ! Primary grid loop bounds
+    integer(int32) :: istart    ! Starting index for z-grid (always 0)
+    integer(int32) :: istp1     ! First interior z-index (always 1)
+    integer(int32) :: islut     ! Last z-index (= nfack)
+    integer(int32) :: imitt     ! Midpoint z-index (= nfack/2)
+    integer(int32) :: nfack     ! Total z-grid points for full system
+
+    ! Secondary grid bounds for solvent
+    integer(int32) :: istp1s    ! Solvent start index (= istp1)
+    integer(int32) :: isluts    ! Solvent end index (= islut)
+
+    ! Maximum grid extents
+    integer(int32) :: mxrho     ! Maximum radial grid points
+
+    ! Discretized molecular dimensions (in grid units)
+    integer(int32) :: ism       ! Hard sphere diameter in z-direction grid units
+    integer(int32) :: ksm       ! Hard sphere diameter in rho-direction grid units
+    integer(int32) :: ibl       ! Bond length in z-direction grid units
+    integer(int32) :: kbl       ! Bond length in rho-direction grid units
+
+    ! Angular discretization
+    integer(int32) :: nphi      ! Number of angular grid points
+
+    ! Polymer chain parameters
+    integer(int32) :: nmon      ! Number of monomers (copy from input)
+  end type grid_params_t
+
+  ! Derived parameters computed from input_params_t and grid_params_t
+  type :: computed_params_t
+    ! Grid spacing reciprocals
+    real(real64) :: rdz, rdrho, rdphi
+
+    ! Molecular geometry parameters
+    real(real64) :: dhs2, dhs3, rdhs3  ! dhs^2, dhs^3, 1/dhs^3
+    real(real64) :: bl2                ! bl^2
+
+    ! Grid integration helpers
+    real(real64) :: dzrfp       ! dz/(4*pi)
+    real(real64) :: twopidz     ! 2*pi*dz
+
+    ! Polymer chain parameters
+    real(real64) :: rnmon       ! Real-valued nmon
+    real(real64) :: rrnmon      ! 1/nmon
+    real(real64) :: Yfact       ! (nmon-2)*Y
+
+    ! Thermodynamic scaling factors
+    real(real64) :: scalem, emscale
+
+    ! Boltzmann weight factors
+    real(real64) :: bebelam, behbclam
+
+    ! Geometry parameters
+    real(real64) :: Rcoll2      ! Rcoll^2
+    real(real64) :: zc2         ! zc1 + collsep
+
+    ! Contact density normalization
+    real(real64) :: cdnorm
+
+    ! Solvent chemical potential
+    real(real64) :: chemps
+  end type computed_params_t
+
   ! ========================================================================
   ! Module variables - structured input parameters
   ! ========================================================================
   type(input_params_t) :: input  ! User input parameters
+  type(grid_params_t) :: grid        ! Grid dimensions and discretization
+  type(computed_params_t) :: computed ! Derived parameters
 
   ! ========================================================================
   ! Module-level aliases for commonly-used input parameters
@@ -207,5 +274,142 @@ contains
     if (allocated(ae2)) deallocate(ae2)
     if (allocated(edu)) deallocate(edu)
   end subroutine deallocate_arrays
+
+  ! ==========================================================================
+  ! SUBROUTINE: initialize_grid_params
+  ! ==========================================================================
+  ! Computes grid parameters from input parameters
+  ! Must be called after input parameters are read
+  ! ==========================================================================
+  subroutine initialize_grid_params(inp, grid)
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(out) :: grid
+
+    ! Compute total z-grid extent
+    grid%nfack = int(2.d0*(inp%zc1 + 0.5d0*inp%collsep)/inp%dz + 0.01d0)
+
+    ! Set loop bounds
+    grid%istart = 0
+    grid%istp1 = 1
+    grid%islut = grid%nfack
+    grid%imitt = grid%nfack / 2
+
+    ! Solvent grid bounds (currently same as main grid)
+    grid%istp1s = 1
+    grid%isluts = grid%islut
+
+    ! Discretized molecular dimensions
+    grid%ism = int(inp%dhs/inp%dz + 0.01d0)
+    grid%ksm = int(inp%dhs/inp%drho + 0.01d0)
+    grid%ibl = int(inp%bl/inp%dz + 0.01d0)
+    grid%kbl = int(inp%bl/inp%drho + 0.01d0)
+
+    ! Angular discretization
+    grid%nphi = int(PI/inp%dphi + 0.01d0)
+
+    ! Copy nmon for convenience
+    grid%nmon = inp%nmon
+
+    ! mxrho computed later (depends on rdrho)
+    grid%mxrho = 0
+  end subroutine initialize_grid_params
+
+  ! ==========================================================================
+  ! SUBROUTINE: initialize_computed_params
+  ! ==========================================================================
+  ! Computes derived parameters from input and grid parameters
+  ! Must be called after bulk thermodynamic calculations
+  ! ==========================================================================
+  subroutine initialize_computed_params(inp, grid, computed, chempp, emtrams, cmtrams)
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(inout) :: grid
+    type(computed_params_t), intent(out) :: computed
+    real(real64), intent(in) :: chempp, emtrams, cmtrams
+
+    ! Grid spacing reciprocals
+    computed%rdz = 1.d0 / inp%dz
+    computed%rdrho = 1.d0 / inp%drho
+    computed%rdphi = 1.d0 / inp%dphi
+
+    ! Now compute mxrho (depends on rdrho)
+    grid%mxrho = int((inp%Rcyl - 1.d0) * computed%rdrho) + 1
+
+    ! Molecular geometry
+    computed%dhs2 = inp%dhs * inp%dhs
+    computed%dhs3 = computed%dhs2 * inp%dhs
+    computed%rdhs3 = 1.d0 / computed%dhs3
+    computed%bl2 = inp%bl * inp%bl
+
+    ! Grid integration helpers
+    computed%dzrfp = inp%dz / (4.d0 * PI)
+    computed%twopidz = TWOPI * inp%dz
+
+    ! Polymer chain parameters
+    computed%rnmon = dble(inp%nmon)
+    computed%rrnmon = 1.d0 / computed%rnmon
+    computed%Yfact = (computed%rnmon - 2.d0) * Y
+
+    ! Thermodynamic scaling
+    computed%scalem = chempp / (2.d0 * computed%rnmon)
+    computed%emscale = 2.d0 * computed%scalem
+
+    ! Boltzmann weights
+    computed%bebelam = dexp(-emtrams + computed%emscale)
+    computed%behbclam = dexp(-0.5d0 * cmtrams + computed%scalem)
+
+    ! Geometry
+    computed%Rcoll2 = inp%Rcoll * inp%Rcoll
+    computed%zc2 = inp%zc1 + inp%collsep
+
+    ! Placeholder values
+    computed%cdnorm = 0.d0  ! Set by CDFACT
+    computed%chemps = 0.d0  ! Unused
+  end subroutine initialize_computed_params
+
+  ! ==========================================================================
+  ! SUBROUTINE: sync_aliases_from_structs
+  ! ==========================================================================
+  ! Synchronizes module-level aliases from struct values
+  ! For backward compatibility with existing subroutines
+  ! ==========================================================================
+  subroutine sync_aliases_from_structs()
+    ! Sync grid parameters to module-level aliases
+    istart = grid%istart
+    istp1 = grid%istp1
+    islut = grid%islut
+    ism = grid%ism
+    nfack = grid%nfack
+    imitt = grid%imitt
+    nmon = grid%nmon
+    istp1s = grid%istp1s
+    isluts = grid%isluts
+    mxrho = grid%mxrho
+    ksm = grid%ksm
+    nphi = grid%nphi
+    ibl = grid%ibl
+    kbl = grid%kbl
+
+    ! Sync computed parameters to module-level aliases
+    rdz = computed%rdz
+    rdrho = computed%rdrho
+    rdphi = computed%rdphi
+    dhs2 = computed%dhs2
+    dhs3 = computed%dhs3
+    rdhs3 = computed%rdhs3
+    bl2 = computed%bl2
+    dzrfp = computed%dzrfp
+    twopidz = computed%twopidz
+    scalem = computed%scalem
+    emscale = computed%emscale
+    Yfact = computed%Yfact
+    rnmon = computed%rnmon
+    rrnmon = computed%rrnmon
+    chemps = computed%chemps
+    Rcoll2 = computed%Rcoll2
+    zc2 = computed%zc2
+    behbclam = computed%behbclam
+    bebelam = computed%bebelam
+    cdnorm = computed%cdnorm
+  end subroutine sync_aliases_from_structs
 
 end module polymer_dft_data

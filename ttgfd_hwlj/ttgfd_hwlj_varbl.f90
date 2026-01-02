@@ -117,49 +117,32 @@ program platem
   zc1 = input%zc1
   Rcoll = input%Rcoll
 
-  ! Compute derived geometric parameters
-  bl2 = input%bl*input%bl
+  ! Initialize grid parameters from input
+  call initialize_grid_params(input, grid)
+
+  ! Compute local derived parameters needed for bulk thermodynamic calculations
+  ! These will be recomputed and stored in structs by initialize_computed_params later
   dhs2 = input%dhs*input%dhs
   dhs3 = dhs2*input%dhs
   rdhs3 = 1.d0/dhs3
+  rnmon = dble(input%nmon)
+  rrnmon = 1.d0/rnmon
 
   ! Read Lennard-Jones energy parameter and compute LJ coefficients
   read (iep, *) input%epslj
   alj = 4.d0*input%epslj*dhs3*dhs3    ! Attractive (r^-6) coefficient
   rlj = 4.d0*input%epslj*dhs3**4      ! Repulsive (r^-12) coefficient
 
-  ! Compute additional derived parameters
+  ! Compute additional local parameters needed for bulk calculations
   Rcyl2 = input%Rcyl*input%Rcyl
   tdmm = 1.d0 - input%dmm
   tdms = 1.d0 - input%dms
-  rdz = 1.d0/input%dz
-  rdrho = 1.d0/input%drho
-  rdphi = 1.d0/input%dphi
-  twopidz = TWOPI*input%dz
-  dzrfp = input%dz/(4.d0*PI)
 
-  ! Discretization parameters
-  nphi = int(PI/input%dphi + 0.01d0)
-
-  ! Initialize cosine lookup table for dphi
-  do iphi = 1, nphi
+  ! Initialize cosine lookup table for dphi (using grid%nphi from initialize_grid_params)
+  do iphi = 1, grid%nphi
     phi = (dble(iphi) - 0.5d0)*input%dphi
     cos_phi(iphi) = dcos(phi)
   end do
-
-  irdz = int(rdz + 0.001d0)
-  nfack = int(2.d0*(input%zc1 + 0.5d0*input%collsep)/input%dz + 0.01d0)
-  istart = 0
-  istp1 = 1
-  islut = nfack
-  istp1s = 1
-  isluts = islut
-  ism = int(input%dhs/input%dz + 0.01d0)      ! Hard sphere diameter in grid units (z)
-  ksm = int(input%dhs/input%drho + 0.01d0)    ! Hard sphere diameter in grid units (rho)
-  ibl = int(input%bl/input%dz + 0.01d0)       ! Bond length in grid units (z)
-  kbl = int(input%bl/input%drho + 0.01d0)     ! Bond length in grid units (rho)
-  rnmon = dble(input%nmon)
-  rrnmon = 1.d0/rnmon
 
   ! Bulk thermodynamic properties
   Yfact = (rnmon - 2.d0)*Y
@@ -207,8 +190,14 @@ program platem
   bebelam = dexp(-emtrams + emscale)
   behbclam = dexp(-0.5d0*cmtrams + scalem)
 
+  ! Initialize computed parameters from input, grid, and bulk calculations
+  ! This recomputes and stores all derived parameters in structured form
+  call initialize_computed_params(input, grid, computed, chempp, emtrams, cmtrams)
+
+  ! Sync struct values to module-level aliases for backward compatibility
+  call sync_aliases_from_structs()
+
   ! Print simulation parameters
-  imitt = nfack/2
   write (*, *) 'GFD POLYMER SOLUTION MODEL!'
   write (*, *) 'input%bdm,bdpol =', input%bdm, bdpol
   write (*, *) 'monomer density  = ', input%bdm
@@ -222,7 +211,6 @@ program platem
   write (*, *) 'polymer chemical pot. (betamu) = ', chempp
   write (*, *) 'solvent chemical pot. (betamu) = ', chemps
   write (*, *) 'total bulk pressure = ', Pb
-  zc2 = input%zc1 + input%collsep
   write (*, *) 'zc1,zc2 = ', input%zc1, zc2
   write (*, *) 'nfack,imitt = ', nfack, imitt
   write (*, *) 'istp1,islut = ', istp1, islut
@@ -233,8 +221,6 @@ program platem
   write (*, *) 'Rcyl  = ', input%Rcyl
   write (*, *) 'bFex = ', bFex
   write (*, *) 'bebelam,behbclam = ', bebelam, behbclam
-  Rcoll2 = input%Rcoll*input%Rcoll
-  mxrho = int((input%Rcyl - 1.d0)*rdrho) + 1
 
   ! Allocate module arrays based on calculated grid dimensions
   ! Include extra space for boundary cells (kbl, ibl)
@@ -1293,7 +1279,8 @@ subroutine CDFACT
   end do
   tcd = 3.d0*sume*dzrfp*rdhs3
   write (*, *) 'tcd = ', tcd, nphi
-  cdnorm = 1.d0/tcd
+  computed%cdnorm = 1.d0/tcd
+  cdnorm = computed%cdnorm  ! Sync to alias
   return
 end
 
