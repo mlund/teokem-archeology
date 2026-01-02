@@ -125,28 +125,6 @@ module polymer_dft_data
   type(computed_params_t) :: computed ! Derived parameters
 
   ! ========================================================================
-  ! Module-level aliases for commonly-used input parameters
-  ! (For backward compatibility with subroutines)
-  ! These are set from input% after reading
-  ! ========================================================================
-  real(real64) :: dz, drho, dphi     ! Grid spacings
-  real(real64) :: dhs, bl            ! Molecular parameters
-  real(real64) :: bdm                ! Monomer bulk density
-  real(real64) :: zc1, Rcoll         ! Geometry
-
-  ! ========================================================================
-  ! Derived parameters (computed from input, shared across subroutines)
-  ! ========================================================================
-  ! Grid spacing reciprocals
-  real(real64) :: rdz, rdrho, rdphi
-
-  ! Geometric derived parameters
-  real(real64) :: dhs2, dhs3, rdhs3  ! Hard sphere diameter: squared, cubed, 1/cubed
-  real(real64) :: bl2                ! Bond length squared
-  real(real64) :: dzrfp              ! dz/(4*pi)
-  real(real64) :: twopidz            ! 2*pi*dz
-
-  ! ========================================================================
   ! Array dimensions - now allocatable (no fixed limits)
   ! ========================================================================
   integer, parameter :: maxphi = 5000  ! Maximum phi grid points for lookup tables
@@ -168,23 +146,6 @@ module polymer_dft_data
   ! Cosine lookup tables for performance optimization
   real(real64) :: cos_phi(maxphi)
   real(real64) :: cos_pphi(maxphi)
-
-  ! ========================================================================
-  ! Other module-level variables (computed values, not from input)
-  ! ========================================================================
-  real(real64) :: scalem, emscale
-  real(real64) :: Yfact, rnmon, rrnmon
-  real(real64) :: chemps
-  real(real64) :: Rcoll2, behbclam, bebelam
-  real(real64) :: zc2
-  real(real64) :: cdnorm
-
-  ! ========================================================================
-  ! Integer grid dimensions (formerly in COMMON/HELTAL/)
-  ! ========================================================================
-  integer(int32) :: istart, istp1, islut, ism, nfack, imitt, nmon
-  integer(int32) :: istp1s, isluts, mxrho, ksm, nphi
-  integer(int32) :: ibl, kbl
 
   ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
@@ -365,52 +326,6 @@ contains
     computed%cdnorm = 0.d0  ! Set by CDFACT
     computed%chemps = 0.d0  ! Unused
   end subroutine initialize_computed_params
-
-  ! ==========================================================================
-  ! SUBROUTINE: sync_aliases_from_structs
-  ! ==========================================================================
-  ! Synchronizes module-level aliases from struct values
-  ! For backward compatibility with existing subroutines
-  ! ==========================================================================
-  subroutine sync_aliases_from_structs()
-    ! Sync grid parameters to module-level aliases
-    istart = grid%istart
-    istp1 = grid%istp1
-    islut = grid%islut
-    ism = grid%ism
-    nfack = grid%nfack
-    imitt = grid%imitt
-    nmon = grid%nmon
-    istp1s = grid%istp1s
-    isluts = grid%isluts
-    mxrho = grid%mxrho
-    ksm = grid%ksm
-    nphi = grid%nphi
-    ibl = grid%ibl
-    kbl = grid%kbl
-
-    ! Sync computed parameters to module-level aliases
-    rdz = computed%rdz
-    rdrho = computed%rdrho
-    rdphi = computed%rdphi
-    dhs2 = computed%dhs2
-    dhs3 = computed%dhs3
-    rdhs3 = computed%rdhs3
-    bl2 = computed%bl2
-    dzrfp = computed%dzrfp
-    twopidz = computed%twopidz
-    scalem = computed%scalem
-    emscale = computed%emscale
-    Yfact = computed%Yfact
-    rnmon = computed%rnmon
-    rrnmon = computed%rrnmon
-    chemps = computed%chemps
-    Rcoll2 = computed%Rcoll2
-    zc2 = computed%zc2
-    behbclam = computed%behbclam
-    bebelam = computed%bebelam
-    cdnorm = computed%cdnorm
-  end subroutine sync_aliases_from_structs
 
   ! ==========================================================================
   ! SUBROUTINE: CDFACT

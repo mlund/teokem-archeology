@@ -50,6 +50,9 @@ program platem
   real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
   real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
+  ! Local temporary variables for bulk calculations (before structs are initialized)
+  real(real64) :: dhs2, dhs3, rdhs3, rnmon, rrnmon, Yfact, scalem, emscale
+
   ! ========================================================================
   ! ========================================================================
   ! File unit numbers (automatically assigned by runtime)
@@ -83,16 +86,6 @@ program platem
   read (ins, *) input%dhs         ! Hard sphere diameter (monomer)
   read (ins, *) input%dpphi       ! Angular grid spacing for potential calculation
 
-  ! Copy input parameters to module-level aliases for subroutine access
-  dz = input%dz
-  drho = input%drho
-  dphi = input%dphi
-  dhs = input%dhs
-  bl = input%bl
-  bdm = input%bdm
-  zc1 = input%zc1
-  Rcoll = input%Rcoll
-
   ! Initialize grid parameters from input
   call initialize_grid_params(input, grid)
 
@@ -114,7 +107,7 @@ program platem
   tdmm = 1.d0 - input%dmm
   tdms = 1.d0 - input%dms
 
-  ! Initialize cosine lookup table for dphi (using grid%nphi from initialize_grid_params)
+  ! Initialize cosine lookup table for input%dphi (using grid%nphi from initialize_grid_params)
   do iphi = 1, grid%nphi
     phi = (dble(iphi) - 0.5d0)*input%dphi
     cos_phi(iphi) = dcos(phi)
@@ -163,61 +156,55 @@ program platem
   cmtrams = trams + Y*(aex2 - aex1)
   bemtrams = emtrams
   bcmtrams = cmtrams
-  bebelam = dexp(-emtrams + emscale)
-  behbclam = dexp(-0.5d0*cmtrams + scalem)
 
   ! Initialize computed parameters from input, grid, and bulk calculations
   ! This recomputes and stores all derived parameters in structured form
   call initialize_computed_params(input, grid, computed, chempp, emtrams, cmtrams)
-
-  ! Sync struct values to module-level aliases for backward compatibility
-  call sync_aliases_from_structs()
 
   ! Print simulation parameters
   write (*, *) 'GFD POLYMER SOLUTION MODEL!'
   write (*, *) 'input%bdm,bdpol =', input%bdm, bdpol
   write (*, *) 'monomer density  = ', input%bdm
   write (*, *) 'bdt = ', bdt
-  write (*, *) 'collsep,dz = ', input%collsep, input%dz
-  write (*, *) 'Rcoll = ', input%Rcoll
-  write (*, *) 'bond length (bl): ', input%bl
-  write (*, *) 'monomer hs diameter (bl): ', input%dhs
+  write (*, *) 'collsep,input%dz = ', input%collsep, input%dz
+  write (*, *) 'input%Rcoll = ', input%Rcoll
+  write (*, *) 'bond length (input%bl): ', input%bl
+  write (*, *) 'monomer hs diameter (input%bl): ', input%dhs
   write (*, *) 'no. of monomers/polymer = ', input%nmon
   write (*, *) 'max no. of iterations = ', input%ioimaxm
   write (*, *) 'polymer chemical pot. (betamu) = ', chempp
-  write (*, *) 'solvent chemical pot. (betamu) = ', chemps
+  write (*, *) 'solvent chemical pot. (betamu) = ', computed%chemps
   write (*, *) 'total bulk pressure = ', Pb
-  write (*, *) 'zc1,zc2 = ', input%zc1, zc2
-  write (*, *) 'nfack,imitt = ', nfack, imitt
-  write (*, *) 'istp1,islut = ', istp1, islut
-  write (*, *) 'istp1s,isluts = ', istp1s, isluts
-  write (*, *) 'ism,ibl = ', ism, ibl
-  write (*, *) 'ksm,kbl = ', ksm, kbl
+  write (*, *) 'input%zc1,computed%zc2 = ', input%zc1, computed%zc2
+  write (*, *) 'nfack,grid%imitt = ', grid%nfack, grid%imitt
+  write (*, *) 'istp1,grid%islut = ', grid%istp1, grid%islut
+  write (*, *) 'istp1s,isluts = ', grid%istp1s, grid%isluts
+  write (*, *) 'ism,grid%ibl = ', grid%ism, grid%ibl
+  write (*, *) 'ksm,grid%kbl = ', grid%ksm, grid%kbl
   write (*, *) 'dmm,dms (density mixing param. mon.,solv.) = ', input%dmm, input%dms
   write (*, *) 'Rcyl  = ', input%Rcyl
   write (*, *) 'bFex = ', bFex
-  write (*, *) 'bebelam,behbclam = ', bebelam, behbclam
+  write (*, *) 'bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
   ! Allocate module arrays based on calculated grid dimensions
-  ! Include extra space for boundary cells (kbl, ibl)
+  ! Include extra space for boundary cells (grid%kbl, grid%ibl)
   ! hvec needs nfack-1 for z-dimension (used in LJ potential table)
-  call allocate_arrays(mxrho + kbl, imitt + ibl, nfack - 1)
+  call allocate_arrays(grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
 
   ! Allocate main program arrays
-  ! Note: cB needs nfack dimension because it's accessed as islut + 1 - iz
-  allocate (c(0:mxrho + kbl, 0:imitt + ibl, MAXMON))
-  allocate (cA(0:mxrho + kbl, 0:imitt + ibl))
-  allocate (cB(0:mxrho + kbl, 0:nfack))
+  ! Note: cB needs grid%nfack dimension because it's accessed as grid%islut + 1 - iz
+  allocate (c(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl, MAXMON))
+  allocate (cA(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl))
+  allocate (cB(0:grid%mxrho + grid%kbl, 0:grid%nfack))
 
   ! Calculate normalization constant for contact density
   call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
-  cdnorm = computed%cdnorm  ! Sync to alias for backward compatibility
-  write (*, *) 'cdnorm = ', cdnorm
+  write (*, *) 'cdnorm = ', computed%cdnorm
 
   ! Initialize excess free energy arrays near z-boundaries (left side)
   ! These regions are near the system edge and require special treatment
-  do iz = istp1, istp1 + 2*ibl - 1
-  do kz = 1, mxrho + kbl
+  do iz = grid%istp1, grid%istp1 + 2*grid%ibl - 1
+  do kz = 1, grid%mxrho + grid%kbl
     cdt = input%bdm*dhs3
     pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
@@ -235,8 +222,8 @@ program platem
   end do
   end do
   ! Initialize excess free energy arrays near radial boundaries (outer edge)
-  do iz = istp1 + 2*ibl, imitt + ibl
-  do kz = mxrho - kbl + 1, mxrho + kbl
+  do iz = grid%istp1 + 2*grid%ibl, grid%imitt + grid%ibl
+  do kz = grid%mxrho - grid%kbl + 1, grid%mxrho + grid%kbl
     cdt = input%bdm*dhs3
     pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
@@ -257,27 +244,27 @@ program platem
   ! Initialize density fields: either from scratch or read from file
   if (input%kread .eq. 0) then
     ! Starting from bulk values with excluded volume for colloids
-    z = -0.5d0*dz
+    z = -0.5d0*input%dz
     ! Skip boundary region at z < 0
-    do iz = 1, ibl
-      z = z + dz
+    do iz = 1, grid%ibl
+      z = z + input%dz
     end do
     ! Initialize all grid points to bulk values, then zero out colloid interiors
-    do iz = ibl + 1, imitt
-      z = z + dz
-      z2 = (z - zc1)**2
-      z22 = (z - zc2)**2
-      rho = -0.5d0*drho
+    do iz = grid%ibl + 1, grid%imitt
+      z = z + input%dz
+      z2 = (z - input%zc1)**2
+      z22 = (z - computed%zc2)**2
+      rho = -0.5d0*input%drho
       ! Loop over radial positions
-      do kz = 1, mxrho
-        rho = rho + drho
-        fdmon(kz, iz) = bdm
+      do kz = 1, grid%mxrho
+        rho = rho + input%drho
+        fdmon(kz, iz) = input%bdm
         fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-        ebelam(kz, iz) = bebelam
-        ehbclam(kz, iz) = behbclam
+        ebelam(kz, iz) = computed%bebelam
+        ehbclam(kz, iz) = computed%behbclam
         ! Check if point is inside first colloid
         rt2 = rho*rho + z2
-        if (rt2 .lt. Rcoll2) then
+        if (rt2 .lt. computed%Rcoll2) then
           fdmon(kz, iz) = 0.d0
           fem(kz, iz) = 0.d0
           ebelam(kz, iz) = 0.d0
@@ -285,7 +272,7 @@ program platem
         end if
         ! Check if point is inside second colloid
         rt2 = rho*rho + z22
-        if (rt2 .lt. Rcoll2) then
+        if (rt2 .lt. computed%Rcoll2) then
           fdmon(kz, iz) = 0.d0
           fem(kz, iz) = 0.d0
           ebelam(kz, iz) = 0.d0
@@ -296,8 +283,8 @@ program platem
   else
     ! Read initial guess from file (restart from previous calculation)
     rewind ifc
-    do iz = istp1, imitt
-    do kz = 1, mxrho
+    do iz = grid%istp1, grid%imitt
+    do kz = 1, grid%mxrho
       read (ifc, *) t1, t2, fdmon(kz, iz), fem(kz, iz)
     end do
     end do
@@ -305,37 +292,37 @@ program platem
 
   ! Set boundary conditions at z-boundaries (left edge)
   ! All densities set to bulk values
-  do iz = istp1, ibl
-  do kz = 1, mxrho + kbl
-    fdmon(kz, iz) = bdm
+  do iz = grid%istp1, grid%ibl
+  do kz = 1, grid%mxrho + grid%kbl
+    fdmon(kz, iz) = input%bdm
     fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-    ebelam(kz, iz) = bebelam
-    ehbclam(kz, iz) = behbclam
-    cdmonm(kz, iz) = bdm
+    ebelam(kz, iz) = computed%bebelam
+    ehbclam(kz, iz) = computed%behbclam
+    cdmonm(kz, iz) = input%bdm
   end do
   end do
   ! Set boundary conditions at radial edge (outer cylinder boundary)
   ! All densities set to bulk values
-  do iz = 1, imitt
-  do kz = mxrho + 1, mxrho + kbl
-    fdmon(kz, iz) = bdm
+  do iz = 1, grid%imitt
+  do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
+    fdmon(kz, iz) = input%bdm
     fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-    ebelam(kz, iz) = bebelam
-    ehbclam(kz, iz) = behbclam
-    cdmonm(kz, iz) = bdm
+    ebelam(kz, iz) = computed%bebelam
+    ehbclam(kz, iz) = computed%behbclam
+    cdmonm(kz, iz) = input%bdm
   end do
   end do
 
-  ! Apply symmetry boundary conditions at z = imitt midplane
-  jz = imitt + 1
-  do iz = imitt + 1, imitt + ibl
+  ! Apply symmetry boundary conditions at z = grid%imitt midplane
+  jz = grid%imitt + 1
+  do iz = grid%imitt + 1, grid%imitt + grid%ibl
     jz = jz - 1
-    do kz = 1, mxrho + kbl
+    do kz = 1, grid%mxrho + grid%kbl
       fdmon(kz, iz) = fdmon(kz, jz)
       fem(kz, iz) = fem(kz, jz)
       ebelam(kz, iz) = ebelam(kz, jz)
       ehbclam(kz, iz) = ehbclam(kz, jz)
-      cdmonm(kz, iz) = bdm
+      cdmonm(kz, iz) = input%bdm
     end do
   end do
   write (*, *) 'fdmon(1,1) = ', fdmon(1, 1)
@@ -354,21 +341,21 @@ program platem
     cos_pphi(iphi) = dcos(phi)
   end do
 
-  kcm = nfack
+  kcm = grid%nfack
   ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
   ! Loop order matches F77 for numerical consistency
 !$omp parallel do private(tdz, tdzsq, rho, rhosq, use1, trho, trhosq, trmix, useful, pint, iphi, s2, krho, kprho) schedule(static)
   do itdz = 0, kcm - 1
-    tdz = -dz + dble(itdz + 1)*dz
+    tdz = -input%dz + dble(itdz + 1)*input%dz
     tdzsq = tdz*tdz
-    rho = -0.5d0*drho
-    do krho = 1, mxrho
-      rho = rho + drho
+    rho = -0.5d0*input%drho
+    do krho = 1, grid%mxrho
+      rho = rho + input%drho
       rhosq = rho*rho
       use1 = tdzsq + rhosq
-      trho = -0.5d0*drho
-      do kprho = 1, mxrho
-        trho = trho + drho
+      trho = -0.5d0*input%drho
+      do kprho = 1, grid%mxrho
+        trho = trho + input%drho
         trhosq = trho*trho
         trmix = 2.d0*trho*rho
         useful = use1 + trhosq
@@ -377,7 +364,7 @@ program platem
 !$omp simd reduction(+:pint)
         do iphi = 1, npphi
           s2 = useful - trmix*cos_pphi(iphi)
-          if (s2 .gt. dhs2) then
+          if (s2 .gt. computed%dhs2) then
             ! Lennard-Jones potential: U(r) = 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
             pint = rlj/s2**6 - alj/s2**3 + pint
           end if
@@ -416,21 +403,21 @@ program platem
 
     ! Apply boundary conditions at outer radial edge (rho > Rcyl)
     ! Set to bulk values since density should approach bulk far from colloids
-    do iz = istp1, imitt
-    do kz = mxrho + 1, mxrho + kbl
-      ebelam(kz, iz) = bebelam
-      ehbclam(kz, iz) = behbclam
+    do iz = grid%istp1, grid%imitt
+    do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
+      ebelam(kz, iz) = computed%bebelam
+      ehbclam(kz, iz) = computed%behbclam
       edu(kz, iz) = 1.d0
     end do
     end do
 
-    ! Apply symmetry boundary conditions at z = imitt (midplane between colloids)
+    ! Apply symmetry boundary conditions at z = grid%imitt (midplane between colloids)
     ! The system is symmetric about the midplane, so mirror the field values
-    ! This loop copies from iz = imitt down to iz = 1 (reverse order)
-    jz = imitt + 1
-    do iz = imitt + 1, imitt + ibl
+    ! This loop copies from iz = grid%imitt down to iz = 1 (reverse order)
+    jz = grid%imitt + 1
+    do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
-      do kz = 1, mxrho + kbl
+      do kz = 1, grid%mxrho + grid%kbl
         ebelam(kz, iz) = ebelam(kz, jz)
         ehbclam(kz, iz) = ehbclam(kz, jz)
         edu(kz, iz) = edu(kz, jz)
@@ -438,10 +425,10 @@ program platem
     end do
 
     ! Second symmetry application (appears redundant but ensures consistency)
-    jz = imitt + 1
-    do iz = imitt + 1, imitt + ibl
+    jz = grid%imitt + 1
+    do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
-      do kz = 1, mxrho + kbl
+      do kz = 1, grid%mxrho + grid%kbl
         ebelam(kz, iz) = ebelam(kz, jz)
         ehbclam(kz, iz) = ehbclam(kz, jz)
         edu(kz, iz) = edu(kz, jz)
@@ -452,8 +439,8 @@ program platem
     ! cA(r) = exp(-beta*mu_end)*exp(-U_LJ) where:
     !   ebelam = exp(-beta*mu_end) from hard-sphere and chain connectivity
     !   edu = exp(-U_LJ) from Lennard-Jones interactions
-    do iz = istp1, imitt + ibl
-    do kz = 1, mxrho + kbl
+    do iz = grid%istp1, grid%imitt + grid%ibl
+    do kz = 1, grid%mxrho + grid%kbl
       cA(kz, iz) = ebelam(kz, iz)*edu(kz, iz)
     end do
     end do
@@ -470,47 +457,47 @@ program platem
 
       ! Loop over all spatial grid points
 !$omp do schedule(static)
-      do iz = istp1 + ibl, imitt
-        z = bl - 0.5d0*dz + dble(iz - (istp1 + ibl) + 1)*dz
-        jstart = iz - ibl
-        zpst = z - bl - dz
+      do iz = grid%istp1 + grid%ibl, grid%imitt
+        z = input%bl - 0.5d0*input%dz + dble(iz - (grid%istp1 + grid%ibl) + 1)*input%dz
+        jstart = iz - grid%ibl
+        zpst = z - input%bl - input%dz
         irho0min = 1
-        strho0 = -0.5d0*drho
+        strho0 = -0.5d0*input%drho
         rho0 = strho0
-        do kz = irho0min, mxrho - ibl
-          rho0 = rho0 + drho
+        do kz = irho0min, grid%mxrho - grid%ibl
+          rho0 = rho0 + input%drho
 
           rho02 = rho0**2
-          rt2 = rho02 + (z - zc1)**2
-          if (rt2 .lt. Rcoll2) then
+          rt2 = rho02 + (z - input%zc1)**2
+          if (rt2 .lt. computed%Rcoll2) then
             c(kz, iz, imon) = 0.d0
-            if (iz .gt. imitt - ibl - 1) cB(kz, islut + 1 - iz) = 0.d0
+            if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = 0.d0
             cB(kz, iz) = 0.d0
             cycle
           end if
-          rt2 = rho02 + (z - zc2)**2
-          if (rt2 .lt. Rcoll2) then
+          rt2 = rho02 + (z - computed%zc2)**2
+          if (rt2 .lt. computed%Rcoll2) then
             c(kz, iz, imon) = 0.d0
-            cB(kz, islut + 1 - iz) = 0.d0
+            cB(kz, grid%islut + 1 - iz) = 0.d0
             cB(kz, iz) = 0.d0
             cycle
           end if
 
           ! Integrate over bond orientations: sum contributions from all points
-          ! within bond length bl of current position (rho0, z)
+          ! within bond length input%bl of current position (rho0, z)
           sume = 0.d0
           zp = zpst
-          do jz = jstart, iz + ibl
-            zp = zp + dz
+          do jz = jstart, iz + grid%ibl
+            zp = zp + input%dz
             delz2 = (zp - z)**2
-            zpcsq = (zp - zc1)**2
-            zpc2sq = (zp - zc2)**2
+            zpcsq = (zp - input%zc1)**2
+            zpc2sq = (zp - computed%zc2)**2
             phisum = 0.d0
-            zfact = dabs(bl2 - delz2)
+            zfact = dabs(computed%bl2 - delz2)
             rhoz2 = rho0**2 + zfact
             fphi = 2.d0*rho0*dsqrt(zfact)
 !$omp simd reduction(+:phisum)
-            do iphi = 1, nphi
+            do iphi = 1, grid%nphi
 !     Plus or minus sign doesn't matter for the value of the integral
               rho2 = rhoz2 - fphi*cos_phi(iphi)
               rsq1 = rho2 + zpcsq
@@ -518,21 +505,21 @@ program platem
 
               ! Mask-based approach: 1.0 if outside both colloids, 0.0 if inside either
               ! This eliminates conditional exits (cycle) for full SIMD vectorization
-              valid = merge(1.0d0, 0.0d0, rsq1 >= Rcoll2 .and. rsq2 >= Rcoll2)
+              valid = merge(1.0d0, 0.0d0, rsq1 >= computed%Rcoll2 .and. rsq2 >= computed%Rcoll2)
 
               rho = dsqrt(rho2)
-              irho = int(rho*rdrho) + 1
+              irho = int(rho*computed%rdrho) + 1
               phisum = phisum + valid * cA(irho, jz)
             end do
 !$omp end simd
             fact = 1.d0
-            if (iabs(jz - iz) .eq. ibl) fact = 0.5d0
-            sume = 2.d0*phisum*dphi*fact + sume
+            if (iabs(jz - iz) .eq. grid%ibl) fact = 0.5d0
+            sume = 2.d0*phisum*input%dphi*fact + sume
           end do
           efact = dsqrt(edu(kz, iz))
-          ffact = sume*dzrfp*ehbclam(kz, iz)/bl*efact
+          ffact = sume*computed%dzrfp*ehbclam(kz, iz)/input%bl*efact
           c(kz, iz, imon) = ffact
-          if (iz .gt. imitt - ibl - 1) cB(kz, islut + 1 - iz) = ffact*ehbclam(kz, iz)*efact
+          if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = ffact*ehbclam(kz, iz)*efact
           cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
         end do
       end do
@@ -541,26 +528,26 @@ program platem
 
       ! Handle boundary regions: propagators at z-boundaries
 !$omp do schedule(static)
-      do iz = istp1, ibl
-      do kz = 1, mxrho + kbl
-        bebbe = behbclam*cA(kz, iz)
+      do iz = grid%istp1, grid%ibl
+      do kz = 1, grid%mxrho + grid%kbl
+        bebbe = computed%behbclam*cA(kz, iz)
         c(kz, iz, imon) = bebbe
-        cA(kz, iz) = behbclam*bebbe
+        cA(kz, iz) = computed%behbclam*bebbe
       end do
       end do
 !$omp end do nowait
 
       ! Handle radial boundaries and update propagators
 !$omp do schedule(static)
-      do iz = ibl + 1, imitt
+      do iz = grid%ibl + 1, grid%imitt
         ! Outer radial boundary: use bulk propagators
-        do kz = mxrho - kbl, mxrho + kbl
-          bebbe = behbclam*cA(kz, iz)
+        do kz = grid%mxrho - grid%kbl, grid%mxrho + grid%kbl
+          bebbe = computed%behbclam*cA(kz, iz)
           c(kz, iz, imon) = bebbe
-          cA(kz, iz) = behbclam*bebbe
+          cA(kz, iz) = computed%behbclam*bebbe
         end do
         ! Interior region: use backward propagator for next iteration
-        do kz = 1, mxrho - ibl - 1
+        do kz = 1, grid%mxrho - grid%ibl - 1
           cA(kz, iz) = cB(kz, iz)
         end do
       end do
@@ -569,9 +556,9 @@ program platem
 
       ! Apply symmetry to propagators at midplane
 !$omp do schedule(static)
-      do iz = imitt + 1, imitt + ibl
-        jz = imitt + 1 - (iz - imitt)
-        do kz = 1, mxrho + kbl
+      do iz = grid%imitt + 1, grid%imitt + grid%ibl
+        jz = grid%imitt + 1 - (iz - grid%imitt)
+        do kz = 1, grid%mxrho + grid%kbl
           cA(kz, iz) = cA(kz, jz)
         end do
       end do
@@ -659,15 +646,15 @@ program platem
     ! Update densities using mixing scheme and check convergence
     ! Calculate new densities from propagators and mix with old values
     ddmax = 0.d0
-    z = -0.5d0*dz
-    do i = istp1, imitt
-      z = z + dz
-      diffz2 = (z - zc1)**2
-      rho = -0.5d0*drho
-      do j = 1, mxrho
-        rho = rho + drho
+    z = -0.5d0*input%dz
+    do i = grid%istp1, grid%imitt
+      z = z + input%dz
+      diffz2 = (z - input%zc1)**2
+      rho = -0.5d0*input%drho
+      do j = 1, grid%mxrho
+        rho = rho + input%drho
         rsq = rho*rho + diffz2
-        if (rsq .lt. Rcoll2) then
+        if (rsq .lt. computed%Rcoll2) then
           fem(j, i) = 0.d0
           fdmon(j, i) = 0.d0
         else
@@ -690,11 +677,11 @@ program platem
     end do
 
     ! Apply symmetry to updated densities at midplane
-    ! Mirror fdmon and fem across z = imitt to maintain symmetry
-    jz = imitt + 1
-    do iz = imitt + 1, imitt + ibl
+    ! Mirror fdmon and fem across z = grid%imitt to maintain symmetry
+    jz = grid%imitt + 1
+    do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
-      do kz = 1, mxrho + kbl
+      do kz = 1, grid%mxrho + grid%kbl
         fdmon(kz, iz) = fdmon(kz, jz)
         fem(kz, iz) = fem(kz, jz)
       end do
@@ -713,11 +700,11 @@ program platem
   rewind 78
   rewind 85
   sumW = 0.d0
-  z = -0.5d0*dz
+  z = -0.5d0*input%dz
 
   ! Write density profiles along z-axis at rho=0 (centerline)
-  do iz = istp1, imitt
-    z = z + dz
+  do iz = grid%istp1, grid%imitt
+    z = z + input%dz
     ! File 85: monomer and end-segment densities at centerline
     write (85, *) z, fdmon(1, iz), fem(1, iz)
     ! File 89: propagators for segments 1,3,5,9 and ehbclam at centerline
@@ -726,23 +713,23 @@ program platem
 
     ! Radially integrate density within radius 1.0 to get average
     fsum = 0.d0
-    klm = nint(1.d0/drho)
-    rho = -0.5d0*drho
+    klm = nint(1.d0/input%drho)
+    rho = -0.5d0*input%drho
     do i = 1, klm
-      rho = rho + drho
+      rho = rho + input%drho
       fsum = fsum + fdmon(i, iz)*2.d0*PI*rho
     end do
     ! File 78: z-position and radially averaged density
-    write (78, *) z, fsum*drho/(PI*1.d0**2)
+    write (78, *) z, fsum*input%drho/(PI*1.d0**2)
   end do
 
-  ! Write radial profiles at z = zc1 (first colloid center position)
+  ! Write radial profiles at z = input%zc1 (first colloid center position)
   rewind 83
   rewind 87
-  iz = int(zc1*rdz) + 1
-  rho = -0.5d0*drho
-  do kr = 1, mxrho
-    rho = rho + drho
+  iz = int(input%zc1*computed%rdz) + 1
+  rho = -0.5d0*input%drho
+  do kr = 1, grid%mxrho
+    rho = rho + input%drho
     ! File 87: radial profile of propagators for segments 1,3,5,9 and ehbclam
     write (87, '(6f14.7)') rho, c(kr, iz, 1), c(kr, iz, 3), c(kr, iz, 5), &
       ehbclam(kr, iz), c(kr, iz, 9)
@@ -760,23 +747,23 @@ program platem
   sumsn = 0.d0
   bsumW = 0.d0
   chvol = 0.d0
-  z = -0.5d0*dz
+  z = -0.5d0*input%dz
 
   ! Integrate grand potential density over system volume
-  do iz = istp1, imitt
-    z = z + dz
+  do iz = grid%istp1, grid%imitt
+    z = z + input%dz
     arsum = 0.d0
     brsum = 0.d0
     cv = 0.d0
-    diffz2 = (z - zc1)**2
-    rho = -0.5d0*drho
-    do kz = 1, mxrho
-      rho = rho + drho
+    diffz2 = (z - input%zc1)**2
+    rho = -0.5d0*input%drho
+    do kz = 1, grid%mxrho
+      rho = rho + input%drho
       rsq = rho*rho + diffz2
       fdm = fdmon(kz, iz)
 
       ! Only integrate outside colloid volume
-      if (rsq .ge. Rcoll2) then
+      if (rsq .ge. computed%Rcoll2) then
         ! Chemical potential contributions
         belamb = dlog(ebelam(kz, iz)) - emscale
         bclamb = 2.d0*(dlog(ehbclam(kz, iz)) - scalem)
@@ -799,13 +786,13 @@ program platem
       arsum = arsum - 0.5d0*rho*eexc*(fdm + input%bdm)
       brsum = brsum + rho*(0.5d0*(fdm - input%bdm)*eexc - fdm*eexc)
     end do
-    ! Integrate radially: multiply by 2*pi*rho*drho
-    asumW = 2.d0*PI*arsum*drho + asumW
-    bsumW = 2.d0*PI*brsum*drho + bsumW
+    ! Integrate radially: multiply by 2*pi*rho*input%drho
+    asumW = 2.d0*PI*arsum*input%drho + asumW
+    bsumW = 2.d0*PI*brsum*input%drho + bsumW
   end do
-  ! Integrate along z-axis: multiply by dz
-  asumW = asumW*dz
-  bsumW = bsumW*dz
+  ! Integrate along z-axis: multiply by input%dz
+  asumW = asumW*input%dz
+  bsumW = bsumW*input%dz
   ! Factor of 2 accounts for both halves of symmetric system
   aW = 2.d0*asumW
   bW = 2.d0*bsumW
@@ -816,37 +803,37 @@ program platem
   ! ===== Calculate forces on colloid from contact density =====
   ! Integrate contact density over colloid surface to get net force
 
-  ! Determine integration limits for first colloid (centered at zc1)
-  izmin = nint((zc1 + 0.5d0*dz - Rcoll)*rdz + 0.5d0)
-  zmin = (dfloat(izmin) - 0.5d0)*dz
-  izmax = nint((zc1 - 0.5d0*dz + Rcoll)*rdz + 0.5d0)
-  zmax = (dfloat(izmax) - 0.5d0)*dz
-  izc1 = nint(zc1*rdz + 0.5d0)
-  write (*, *) 'zmin,zc1,zmax = ', zmin, zc1, zmax
+  ! Determine integration limits for first colloid (centered at input%zc1)
+  izmin = nint((input%zc1 + 0.5d0*input%dz - input%Rcoll)*computed%rdz + 0.5d0)
+  zmin = (dfloat(izmin) - 0.5d0)*input%dz
+  izmax = nint((input%zc1 - 0.5d0*input%dz + input%Rcoll)*computed%rdz + 0.5d0)
+  zmax = (dfloat(izmax) - 0.5d0)*input%dz
+  izc1 = nint(input%zc1*computed%rdz + 0.5d0)
+  write (*, *) 'zmin,input%zc1,zmax = ', zmin, input%zc1, zmax
   write (*, *) 'izmin,izc1,izmax = ', izmin, izc1, izmax
-  write (*, *) dfloat(izmin)*dz - 0.5d0*dz, dfloat(izmax)*dz - 0.5d0*dz
-  write (*, *) dfloat(izc1)*dz - 0.5d0*dz
+  write (*, *) dfloat(izmin)*input%dz - 0.5d0*input%dz, dfloat(izmax)*input%dz - 0.5d0*input%dz
+  write (*, *) dfloat(izc1)*input%dz - 0.5d0*input%dz
   ict = 0
 
-  ! Calculate force on outer hemisphere (z < zc1) of first colloid
+  ! Calculate force on outer hemisphere (z < input%zc1) of first colloid
   rhoFo = 0.d0
   rcliffFo = 0.d0
-  z = zmin - dz
+  z = zmin - input%dz
   do iz = izmin, izc1 - 1
-    z = z + dz
-    zsq = (z - zc1)**2
+    z = z + input%dz
+    zsq = (z - input%zc1)**2
     ! Only process z-slices that intersect the colloid
-    if (zsq .le. Rcoll2) then
-      rho = -0.5d0*drho
+    if (zsq .le. computed%Rcoll2) then
+      rho = -0.5d0*input%drho
       irho = 0
       ! Find first grid point outside colloid at this z
       do
-        rho = rho + drho
+        rho = rho + input%drho
         irho = irho + 1
-        if ((rho*rho + zsq) .gt. Rcoll2) exit
+        if ((rho*rho + zsq) .gt. computed%Rcoll2) exit
       end do
       Rc = dsqrt(rho*rho + zsq)
-      rhoc = dsqrt(Rcoll2 - zsq)
+      rhoc = dsqrt(computed%Rcoll2 - zsq)
 
       ! Quadratic interpolation to get density at exact colloid surface
       ! Use 3 points near boundary (irho, irho+1, irho+2)
@@ -855,15 +842,15 @@ program platem
         y2 = fdmon(irho + 1, iz)
         y1 = fdmon(irho + 2, iz)
         x3 = rho
-        x2 = rho + drho
-        x1 = rho + 2.d0*drho
+        x2 = rho + input%drho
+        x1 = rho + 2.d0*input%drho
       else
         y3 = fdmon(irho + 1, iz)
         y2 = fdmon(irho + 2, iz)
         y1 = fdmon(irho + 3, iz)
-        x3 = rho + drho
-        x2 = rho + 2.d0*drho
-        x1 = rho + 3.d0*drho
+        x3 = rho + input%drho
+        x2 = rho + 2.d0*input%drho
+        x1 = rho + 3.d0*input%drho
         write (*, *) 'TJOHO!'
       end if
 
@@ -872,8 +859,8 @@ program platem
       fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-      ! cos(theta) = (z - zc1)/Rcoll for surface normal direction
-      ctheta = (z - zc1)/Rcoll
+      ! cos(theta) = (z - input%zc1)/input%Rcoll for surface normal direction
+      ctheta = (z - input%zc1)/input%Rcoll
       rhoFo = 2.d0*PI*rhoc*ctheta*fdc + rhoFo
       rcliffFo = 2.d0*PI*ctheta*fdc + rcliffFo
       ict = ict + 1
@@ -881,43 +868,43 @@ program platem
       cdens(ict) = fdc
     end if
   end do
-  write (*, *) 'rcliffFo = ', Rcoll*rcliffFo*dz
+  write (*, *) 'rcliffFo = ', input%Rcoll*rcliffFo*input%dz
   write (*, *) 'z = ', z
 
-  ! Calculate force on inner hemisphere (z > zc1) of first colloid
+  ! Calculate force on inner hemisphere (z > input%zc1) of first colloid
   rhoFi = 0.d0
   rcliffFi = 0.d0
-  z = zc1 - 0.5d0*dz
+  z = input%zc1 - 0.5d0*input%dz
   do iz = izc1, izmax
-    z = z + dz
-    zsq = (z - zc1)**2
+    z = z + input%dz
+    zsq = (z - input%zc1)**2
     ! Only process z-slices that intersect the colloid
-    if (zsq .le. Rcoll2) then
-      rho = -0.5d0*drho
+    if (zsq .le. computed%Rcoll2) then
+      rho = -0.5d0*input%drho
       irho = 0
       ! Find first grid point outside colloid at this z
       do
-        rho = rho + drho
+        rho = rho + input%drho
         irho = irho + 1
-        if ((rho*rho + zsq) .gt. Rcoll2) exit
+        if ((rho*rho + zsq) .gt. computed%Rcoll2) exit
       end do
       Rc = dsqrt(rho*rho + zsq)
-      rhoc = dsqrt(Rcoll2 - zsq)
+      rhoc = dsqrt(computed%Rcoll2 - zsq)
 
       if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
         y3 = fdmon(irho, iz)
         y2 = fdmon(irho + 1, iz)
         y1 = fdmon(irho + 2, iz)
         x3 = rho
-        x2 = rho + drho
-        x1 = rho + 2.d0*drho
+        x2 = rho + input%drho
+        x1 = rho + 2.d0*input%drho
       else
         y3 = fdmon(irho + 1, iz)
         y2 = fdmon(irho + 2, iz)
         y1 = fdmon(irho + 3, iz)
-        x3 = rho + drho
-        x2 = rho + 2.d0*drho
-        x1 = rho + 3.d0*drho
+        x3 = rho + input%drho
+        x2 = rho + 2.d0*input%drho
+        x1 = rho + 3.d0*input%drho
         write (*, *) 'TJOHO!!!!', fdmon(irho, iz), rho
       end if
 
@@ -925,7 +912,7 @@ program platem
       fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-      ctheta = (z - zc1)/Rcoll
+      ctheta = (z - input%zc1)/input%Rcoll
       rhoFi = 2.d0*PI*rhoc*ctheta*fdc + rhoFi
       rcliffFi = 2.d0*PI*ctheta*fdc + rcliffFi
       ict = ict + 1
@@ -933,10 +920,10 @@ program platem
       cdens(ict) = fdc
     end if
   end do
-  write (*, *) 'rcliffFi = ', Rcoll*rcliffFi*dz
-  rhoF = (rhoFi + rhoFo)*dz
+  write (*, *) 'rcliffFi = ', input%Rcoll*rcliffFi*input%dz
+  rhoF = (rhoFi + rhoFo)*input%dz
   write (*, *)
-  write (*, *) 'rcliffF = ', Rcoll*(rcliffFi + rcliffFo)*dz
+  write (*, *) 'rcliffF = ', input%Rcoll*(rcliffFi + rcliffFo)*input%dz
   write (*, *)
   write (*, *) 'z = ', z
 
@@ -969,8 +956,8 @@ program platem
     ctF = 0.5d0*(fdc - fk*ct)*(ctn**2 - ct**2) + fk*(ctn**3 - ct**3)/3.d0 + ctF
     ch2 = 0.25d0*(fdc + fdcn)*(ctn**2 - ct**2) + ch2
   end do
-  ctF = 2.d0*PI*Rcoll2*ctF
-  ch2 = 2.d0*PI*Rcoll2*ch2
+  ctF = 2.d0*PI*computed%Rcoll2*ctF
+  ch2 = 2.d0*PI*computed%Rcoll2*ch2
   write (*, *)
   write (*, *) 'ctF = ', ctF
   write (*, *)
@@ -980,51 +967,51 @@ program platem
   ! Alternative force calculation: integrate over rho slices at constant z
 
   ! Determine maximum radial index inside sphere
-  irhomax = nint(Rcoll*rdrho + 1.d0)
-  rhomax = (dfloat(irhomax) - 0.5d0)*drho
+  irhomax = nint(input%Rcoll*computed%rdrho + 1.d0)
+  rhomax = (dfloat(irhomax) - 0.5d0)*input%drho
   ! Stay inside the sphere to avoid boundary issues
   irhomax = irhomax - 1
-  rhomax = rhomax - drho
+  rhomax = rhomax - input%drho
   write (*, *) 'rhomax,irhomax = ', rhomax, irhomax
   ict = 0
   zFo = 0.d0
   cho = 0.d0
   cliffFo = 0.d0
-  rho = -0.5d0*dz
+  rho = -0.5d0*input%dz
 
   ! Loop over radial slices from center outward (outer hemisphere in z)
   do irho = 1, irhomax
-    rho = rho + drho
+    rho = rho + input%drho
     rhosq = rho*rho
     ! Only process rho values that intersect the colloid
-    if (rhosq .le. Rcoll2) then
-      z = zc1 + 0.5d0*dz
+    if (rhosq .le. computed%Rcoll2) then
+      z = input%zc1 + 0.5d0*input%dz
       iz = izc1
       ! Find first grid point outside colloid at this rho (moving down in z)
       do
-        z = z - dz
+        z = z - input%dz
         iz = iz - 1
-        zsq = (z - zc1)**2
-        if ((rhosq + zsq) .gt. Rcoll2) exit
+        zsq = (z - input%zc1)**2
+        if ((rhosq + zsq) .gt. computed%Rcoll2) exit
       end do
       Rc = dsqrt(rhosq + zsq)
-      deltazc = dsqrt(Rcoll2 - rhosq)
+      deltazc = dsqrt(computed%Rcoll2 - rhosq)
 
       ! Quadratic interpolation in z-direction to get surface density
       if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
         y3 = fdmon(irho, iz)
         y2 = fdmon(irho, iz - 1)
         y1 = fdmon(irho, iz - 2)
-        x3 = dabs(z - zc1)
-        x2 = x3 + dz
-        x1 = x3 + 2.d0*dz
+        x3 = dabs(z - input%zc1)
+        x2 = x3 + input%dz
+        x1 = x3 + 2.d0*input%dz
       else
         y3 = fdmon(irho, iz - 1)
         y2 = fdmon(irho, iz - 2)
         y1 = fdmon(irho, iz - 3)
-        x3 = dabs(z - zc1) + dz
-        x2 = x3 + dz
-        x1 = x3 + 2.d0*dz
+        x3 = dabs(z - input%zc1) + input%dz
+        x2 = x3 + input%dz
+        x1 = x3 + 2.d0*input%dz
         write (*, *) 'TJOHO1!'
       end if
 
@@ -1032,7 +1019,7 @@ program platem
       fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-      ctheta = -deltazc/Rcoll
+      ctheta = -deltazc/input%Rcoll
       ict = ict + 1
       ctvec(ict) = ctheta
       cdens(ict) = fdc
@@ -1040,43 +1027,43 @@ program platem
   end do
 
   ! Loop over radial slices in reverse (inner hemisphere in z)
-  rho = rho + drho
+  rho = rho + input%drho
   irho = irhomax + 1
   zFi = 0.d0
   chi = 0.d0
   cliffFi = 0.d0
   do krho = 1, irhomax
     irho = irho - 1
-    rho = rho - drho
+    rho = rho - input%drho
     rhosq = rho*rho
     ! Only process rho values that intersect the colloid
-    if (rhosq .le. Rcoll2) then
-      z = zc1 - 0.5d0*dz
+    if (rhosq .le. computed%Rcoll2) then
+      z = input%zc1 - 0.5d0*input%dz
       iz = izc1 - 1
       ! Find first grid point outside colloid at this rho (moving up in z)
       do
-        z = z + dz
+        z = z + input%dz
         iz = iz + 1
-        zsq = (z - zc1)**2
-        if ((rhosq + zsq) .gt. Rcoll2) exit
+        zsq = (z - input%zc1)**2
+        if ((rhosq + zsq) .gt. computed%Rcoll2) exit
       end do
       Rc = dsqrt(rhosq + zsq)
-      deltazc = dsqrt(Rcoll2 - rhosq)
+      deltazc = dsqrt(computed%Rcoll2 - rhosq)
 
       if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
         y3 = fdmon(irho, iz)
         y2 = fdmon(irho, iz + 1)
         y1 = fdmon(irho, iz + 2)
-        x3 = dabs(z - zc1)
-        x2 = x3 + dz
-        x1 = x3 + 2.d0*dz
+        x3 = dabs(z - input%zc1)
+        x2 = x3 + input%dz
+        x1 = x3 + 2.d0*input%dz
       else
         y3 = fdmon(irho, iz + 1)
         y2 = fdmon(irho, iz + 2)
         y1 = fdmon(irho, iz + 3)
-        x3 = dabs(z - zc1) + dz
-        x2 = x3 + dz
-        x1 = x3 + 2.d0*dz
+        x3 = dabs(z - input%zc1) + input%dz
+        x2 = x3 + input%dz
+        x1 = x3 + 2.d0*input%dz
         write (*, *) 'TJOHO2!'
       end if
 
@@ -1084,7 +1071,7 @@ program platem
       fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
             y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
             y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
-      ctheta = deltazc/Rcoll
+      ctheta = deltazc/input%Rcoll
       zFi = 2.d0*PI*rho*ctheta*fdc + zFi
       chi = 2.d0*PI*rho*ctheta + chi
       cliffFi = 2.d0*PI*ctheta*fdc + cliffFi
@@ -1153,10 +1140,10 @@ program platem
     end if
 
     ! Convert cos(theta) to rho coordinate: rho = R*sin(theta) = R*sqrt(1-cos^2)
-    rho = Rcoll*dsqrt(1.d0 - ct*ct)
-    rhon = Rcoll*dsqrt(1.d0 - ctn*ctn)
-    if (kct .eq. 0) rho = Rcoll
-    if (kct .eq. ict) rhon = Rcoll
+    rho = input%Rcoll*dsqrt(1.d0 - ct*ct)
+    rhon = input%Rcoll*dsqrt(1.d0 - ctn*ctn)
+    if (kct .eq. 0) rho = input%Rcoll
+    if (kct .eq. ict) rhon = input%Rcoll
     if (dabs(rhon - rho) .lt. 0.00000001d0) then
       fk = 0.d0
     else
@@ -1165,11 +1152,11 @@ program platem
     ccc = (fdc - fk*rho)*(rhon - rho) + 0.5d0*fk*(rhon*rhon - rho*rho) + ccc
   end do
 
-  ctF = 2.d0*PI*Rcoll2*ctF
-  ch2 = 2.d0*PI*Rcoll2*ch2
-  cckoll = 2.d0*PI*cckoll*drho
-  ckoll = 2.d0*PI*ckoll*Rcoll*drho
-  ckk = 2.d0*PI*ckk*Rcoll*drho
+  ctF = 2.d0*PI*computed%Rcoll2*ctF
+  ch2 = 2.d0*PI*computed%Rcoll2*ch2
+  cckoll = 2.d0*PI*cckoll*input%drho
+  ckoll = 2.d0*PI*ckoll*input%Rcoll*input%drho
+  ckk = 2.d0*PI*ckk*input%Rcoll*input%drho
   ccc = 2.d0*PI*ccc
   write (*, *)
   write (*, *) 'ctF = ', ctF
@@ -1177,12 +1164,12 @@ program platem
   write (*, *) 'ch2 = ', ch2
 
   rewind ifc
-  z = -0.5d0*dz
-  do iz = istp1, imitt
-    z = z + dz
-    rho = -0.5d0*drho
-    do kz = 1, mxrho
-      rho = rho + drho
+  z = -0.5d0*input%dz
+  do iz = grid%istp1, grid%imitt
+    z = z + input%dz
+    rho = -0.5d0*input%drho
+    do kz = 1, grid%mxrho
+      rho = rho + input%drho
       write (ifc, '(2f12.5,2f21.12)') &
         z, rho, fdmon(kz, iz), fem(kz, iz)
     end do
