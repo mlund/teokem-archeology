@@ -18,35 +18,38 @@ program platem
   real(real64), allocatable :: c(:, :, :), cA(:, :), cB(:, :)
   real(real64) :: cdens(0:1000), ctvec(0:1000)
 
+  ! Bulk thermodynamic properties
+  type(bulk_properties_t) :: bulk
+
   ! Integer variables
   integer(int32) :: i, j, k, iz, jz, kz, irho, krho, iphi, imon, kmon
   integer(int32) :: ict, kct, izc1, izmin, izmax, irho0min, irhomax, jstart
   integer(int32) :: ifc, ins, iep, niter, klm, kr, npphi
 
   ! Real variables
-  real(real64) :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
-  real(real64) :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
-  real(real64) :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
+  real(real64) :: add, alj, arsum, asumw, aw
+  real(real64) :: bclamb, bcmtrams
+  real(real64) :: bds, bebbe, belamb, bemtrams, bfdc, bfde
   real(real64) :: bordekoll, brsum, bsumw, bw
-  real(real64) :: ccc, ccckoll, cckoll, ch2, chempp, chi, cho, chvol
-  real(real64) :: ckk, ckoll, clifffi, clifffo, cmtrams, ct, ctf
+  real(real64) :: ccc, ccckoll, cckoll, ch2, chi, cho, chvol
+  real(real64) :: ckk, ckoll, clifffi, clifffo, ct, ctf
   real(real64) :: ctheta, ctn, ctp, cv
-  real(real64) :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
+  real(real64) :: ddiff, ddmax, deltazc, delz2, diffz2
   real(real64) :: dmm_adaptive, dms_adaptive, dumsum
-  real(real64) :: eexc, efact, emtrams
+  real(real64) :: eexc, efact
 
   ! Logical variables
   logical :: use_adaptive_mixing
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
   real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, fphi, fsum
-  real(real64) :: pb, pdasum, phi, phisum
+  real(real64) :: phi, phisum
   real(real64) :: rc, rclifffi, rclifffo, rcyl2
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  real(real64) :: rsq, rsq1, rsq2, rt2, rxsib, rxsibsq, strho0, valid
+  real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
   real(real64) :: sume, sumsn, sumsp, sumw
-  real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn, trams
-  real(real64) :: x, x1, x2, x3, xsib, y1, y2, y3
+  real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn
+  real(real64) :: x, x1, x2, x3, y1, y2, y3
   real(real64) :: z, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
@@ -109,68 +112,28 @@ program platem
     cos_phi(iphi) = dcos(phi)
   end do
 
-  ! Bulk thermodynamic properties
+  ! Calculate bulk thermodynamic properties
   computed%Yfact = (computed%rnmon - 2.d0)*Y
-  bdpol = input%bdm/computed%rnmon  ! Polymer bulk density
-
-  ! Hard sphere packing fraction and related quantities
-  bdt = input%bdm*computed%dhs3
-  aeta = PIS*bdt
-  xsib = 1.d0 - aeta
-  rxsib = 1.d0/xsib
-  rxsibsq = rxsib*rxsib
-
-  ! Excess free energy terms (Carnahan-Starling)
-  aex1 = -(C1 + 1.d0)*dlog(xsib) - &
-         0.5d0*(AA1*PIS*bdt + BB1*(PIS*bdt)**2)*rxsibsq
-  aex2 = -(C2 + 1.d0)*dlog(xsib) - &
-         0.5d0*(AA2*PIS*bdt + BB2*(PIS*bdt)**2)*rxsibsq
-  bFex = (input%bdm - 2.d0*bdpol)*Y*(aex2 - aex1) + bdpol*aex2
-
-  ! Derivatives of excess free energy
-  daex1 = rxsib*(C1 + 1 - 0.5d0*(AA1 + 2.d0*BB1*aeta)*rxsib - &
-                 aeta*(AA1 + BB1*aeta)*rxsibsq)
-  daex2 = rxsib*(C2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
-                 aeta*(AA2 + BB2*aeta)*rxsibsq)
-  pdasum = computed%Yfact*(daex2 - daex1) + daex2
-  baex1 = aex1
-  baex2 = aex2
-  bdaex1 = daex1
-  bdaex2 = daex2
-
-  ! Bulk pressure and chemical potentials
-  Pb = bdpol + bdpol*aeta*pdasum
-  chempp = dlog(bdpol) + computed%Yfact*(aex2 - aex1) + aex2 + PIS*input%bdm*pdasum*computed%dhs3
-  computed%scalem = chempp/(2.d0*computed%rnmon)
-  computed%emscale = 2.d0*computed%scalem
-
-  ! Convolution terms for inhomogeneous density functional
-  bconvp = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
-            input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
-  trams = bconvp
-  emtrams = trams + 0.5d0*aex2
-  cmtrams = trams + Y*(aex2 - aex1)
-  bemtrams = emtrams
-  bcmtrams = cmtrams
+  call calculate_bulk_properties(input, computed, bulk)
 
   ! Initialize computed parameters from input, grid, and bulk calculations
   ! This recomputes and stores all derived parameters in structured form
-  call initialize_computed_params(input, grid, computed, chempp, emtrams, cmtrams)
+  call initialize_computed_params(input, grid, computed, bulk%chempp, bulk%emtrams, bulk%cmtrams)
 
   ! Print simulation parameters
   write (*, *) 'GFD POLYMER SOLUTION MODEL!'
-  write (*, *) 'input%bdm,bdpol =', input%bdm, bdpol
+  write (*, *) 'input%bdm,bdpol =', input%bdm, bulk%bdpol
   write (*, *) 'monomer density  = ', input%bdm
-  write (*, *) 'bdt = ', bdt
+  write (*, *) 'bdt = ', bulk%bdt
   write (*, *) 'collsep,input%dz = ', input%collsep, input%dz
   write (*, *) 'input%Rcoll = ', input%Rcoll
   write (*, *) 'bond length (input%bl): ', input%bl
   write (*, *) 'monomer hs diameter (input%bl): ', input%dhs
   write (*, *) 'no. of monomers/polymer = ', input%nmon
   write (*, *) 'max no. of iterations = ', input%ioimaxm
-  write (*, *) 'polymer chemical pot. (betamu) = ', chempp
+  write (*, *) 'polymer chemical pot. (betamu) = ', bulk%chempp
   write (*, *) 'solvent chemical pot. (betamu) = ', computed%chemps
-  write (*, *) 'total bulk pressure = ', Pb
+  write (*, *) 'total bulk pressure = ', bulk%Pb
   write (*, *) 'input%zc1,computed%zc2 = ', input%zc1, computed%zc2
   write (*, *) 'grid%nfack,grid%imitt = ', grid%nfack, grid%imitt
   write (*, *) 'grid%istp1,grid%islut = ', grid%istp1, grid%islut
@@ -179,7 +142,7 @@ program platem
   write (*, *) 'grid%ksm,grid%kbl = ', grid%ksm, grid%kbl
   write (*, *) 'dmm,dms (density mixing param. mon.,solv.) = ', input%dmm, input%dms
   write (*, *) 'Rcyl  = ', input%Rcyl
-  write (*, *) 'bFex = ', bFex
+  write (*, *) 'bFex = ', bulk%bFex
   write (*, *) 'computed%bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
   ! Allocate module arrays based on calculated grid dimensions
@@ -574,7 +537,7 @@ program platem
   ! ===== Calculate grand potential (thermodynamic potential) =====
   ! The grand potential Omega = F - mu*N measures the thermodynamic cost
   ! of the inhomogeneous density distribution relative to bulk
-  bfde = 2.d0*bdpol  ! Bulk end-segment density
+  bfde = 2.d0*bulk%bdpol  ! Bulk end-segment density
   bfdc = input%bdm - bfde  ! Bulk internal-segment density
   asumW = 0.d0
   sumsp = 0.d0
@@ -610,9 +573,9 @@ program platem
         ! where f(r) is Helmholtz free energy density
         arsum = &
           rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
-               bdpol - fdm*computed%rrnmon + Fex - bFex) + arsum
+               bulk%bdpol - fdm*computed%rrnmon + Fex - bulk%bFex) + arsum
         brsum = &
-          rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bFex) + brsum
+          rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bulk%bFex) + brsum
       end if
 
       ! Add Lennard-Jones contribution to grand potential

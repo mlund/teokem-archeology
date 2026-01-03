@@ -82,6 +82,17 @@ module polymer_dft_data
     integer(int32) :: nmon      ! Number of monomers (copy from input)
   end type grid_params_t
 
+  ! Bulk thermodynamic properties from Carnahan-Starling equation of state
+  type :: bulk_properties_t
+    real(real64) :: bdpol      ! Polymer bulk density (bdm/nmon)
+    real(real64) :: bdt        ! Monomer packing density (bdm*dhs^3)
+    real(real64) :: Pb         ! Bulk pressure
+    real(real64) :: bFex       ! Bulk excess free energy
+    real(real64) :: chempp     ! Polymer chemical potential
+    real(real64) :: emtrams    ! End-segment Boltzmann factor term
+    real(real64) :: cmtrams    ! Middle-segment Boltzmann factor term
+  end type bulk_properties_t
+
   ! Derived parameters computed from input_params_t and grid_params_t
   type :: computed_params_t
     ! Grid spacing reciprocals
@@ -1034,5 +1045,82 @@ contains
 
     return
   end subroutine initialize_boundary_excess_free_energy
+
+  ! ==========================================================================
+  ! SUBROUTINE: calculate_bulk_properties
+  ! ==========================================================================
+  ! Calculates bulk thermodynamic properties using the Carnahan-Starling
+  ! equation of state for hard spheres, with corrections for polymer chains.
+  !
+  ! Computes:
+  !   - Packing fractions and related quantities
+  !   - Excess free energy and its derivatives
+  !   - Bulk pressure
+  !   - Chemical potentials for polymer and solvent
+  !   - Boltzmann weight factors (scalem, emscale)
+  !   - Convolution terms for DFT functional
+  !
+  ! Also updates computed%scalem and computed%emscale which are needed
+  ! throughout the calculation.
+  !
+  ! Arguments:
+  !   inp   - Input parameters (bdm, nmon, dhs)
+  !   comp  - Computed parameters (dhs3, rnmon, rrnmon, Yfact)
+  !           Also updated: scalem, emscale (output)
+  !   bulk  - Output: bulk thermodynamic properties
+  ! ==========================================================================
+  subroutine calculate_bulk_properties(inp, comp, bulk)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(computed_params_t), intent(inout) :: comp  ! scalem, emscale are outputs
+    type(bulk_properties_t), intent(out) :: bulk
+
+    ! Local variables
+    real(real64) :: aeta, xsib, rxsib, rxsibsq
+    real(real64) :: aex1, aex2, daex1, daex2, pdasum, bconvp, trams
+
+    ! Bulk thermodynamic properties
+    bulk%bdpol = inp%bdm/comp%rnmon  ! Polymer bulk density
+
+    ! Hard sphere packing fraction and related quantities
+    bulk%bdt = inp%bdm*comp%dhs3
+    aeta = PIS*bulk%bdt
+    xsib = 1.d0 - aeta
+    rxsib = 1.d0/xsib
+    rxsibsq = rxsib*rxsib
+
+    ! Excess free energy terms (Carnahan-Starling)
+    aex1 = -(C1 + 1.d0)*dlog(xsib) - &
+           0.5d0*(AA1*PIS*bulk%bdt + BB1*(PIS*bulk%bdt)**2)*rxsibsq
+    aex2 = -(C2 + 1.d0)*dlog(xsib) - &
+           0.5d0*(AA2*PIS*bulk%bdt + BB2*(PIS*bulk%bdt)**2)*rxsibsq
+    bulk%bFex = (inp%bdm - 2.d0*bulk%bdpol)*Y*(aex2 - aex1) + bulk%bdpol*aex2
+
+    ! Derivatives of excess free energy
+    daex1 = rxsib*(C1 + 1 - 0.5d0*(AA1 + 2.d0*BB1*aeta)*rxsib - &
+                   aeta*(AA1 + BB1*aeta)*rxsibsq)
+    daex2 = rxsib*(C2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
+                   aeta*(AA2 + BB2*aeta)*rxsibsq)
+    pdasum = comp%Yfact*(daex2 - daex1) + daex2
+
+    ! Bulk pressure and chemical potentials
+    bulk%Pb = bulk%bdpol + bulk%bdpol*aeta*pdasum
+    bulk%chempp = dlog(bulk%bdpol) + comp%Yfact*(aex2 - aex1) + aex2 + &
+                  PIS*inp%bdm*pdasum*comp%dhs3
+    comp%scalem = bulk%chempp/(2.d0*comp%rnmon)
+    comp%emscale = 2.d0*comp%scalem
+
+    ! Convolution terms for inhomogeneous density functional
+    bconvp = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
+              inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
+    trams = bconvp
+    bulk%emtrams = trams + 0.5d0*aex2
+    bulk%cmtrams = trams + Y*(aex2 - aex1)
+
+    return
+  end subroutine calculate_bulk_properties
 
 end module polymer_dft_data
