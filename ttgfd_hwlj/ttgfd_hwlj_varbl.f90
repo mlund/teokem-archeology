@@ -41,11 +41,11 @@ program platem
   real(real64) :: ddmax_prev
   real(real64) :: fact, ffact, fphi
   real(real64) :: phi, phisum
-  real(real64) :: rcliffF, rcyl2
+  real(real64) :: rcliffF
   real(real64) :: rho, rho0, rho02, rho2, rhoz2
   real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
   real(real64) :: sume
-  real(real64) :: tdmm, tdms, tfdm, tfem
+  real(real64) :: tdmm, tfdm, tfem
   real(real64) :: z, zfact, zp, zpc2sq, zpcsq, zpst
 
   ! ========================================================================
@@ -78,11 +78,6 @@ program platem
   open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
 
   rewind ifc
-
-  ! Compute additional local parameters needed for bulk calculations
-  Rcyl2 = input%Rcyl*input%Rcyl
-  tdmm = 1.d0 - input%dmm
-  tdms = 1.d0 - input%dms
 
   ! Initialize cosine lookup table for input%dphi (using grid%nphi from initialize_grid_params)
   do iphi = 1, grid%nphi
@@ -416,7 +411,6 @@ program platem
     end if
 
     tdmm = 1.d0 - dmm_adaptive
-    tdms = 1.d0 - dms_adaptive
 
     ! Update densities using mixing scheme and check convergence
     ! Calculate new densities from propagators and mix with old values
