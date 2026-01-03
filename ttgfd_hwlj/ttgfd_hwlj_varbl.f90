@@ -19,9 +19,9 @@ program platem
   real(real64) :: cdens(0:1000), ctvec(0:1000)
 
   ! Integer variables
-  integer(int32) :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
-  integer(int32) :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
-  integer(int32) :: ifc, ins, iep, niter, kcm, klm, kr, npphi
+  integer(int32) :: i, j, k, iz, jz, kz, irho, krho, iphi, imon, kmon
+  integer(int32) :: ict, kct, izc1, izmin, izmax, irho0min, irhomax, jstart
+  integer(int32) :: ifc, ins, iep, niter, klm, kr, npphi
 
   ! Real variables
   real(real64) :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
@@ -40,13 +40,12 @@ program platem
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
   real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
-  real(real64) :: pb, pcdt, pdasum, phi, phisum, pint
+  real(real64) :: pb, pcdt, pdasum, phi, phisum
   real(real64) :: rc, rclifffi, rclifffo, rcyl2
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0, valid
+  real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, sqrxsi, strho0, valid
   real(real64) :: sume, sumsn, sumsp, sumw
-  real(real64) :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
-  real(real64) :: trho, trhosq, trmix, use1, useful
+  real(real64) :: t, t1, t2, tdmm, tdms, tfdm, tfem, th, tn, trams
   real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
   real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
@@ -328,50 +327,8 @@ program platem
   ! Precompute Lennard-Jones interaction potential on grid (hvec array)
   ! This tabulates U_LJ for all distance combinations to speed up later calculations
   write (*, *) 'dpphi = ', input%dpphi
-  input%dpphi = input%dpphi*PI
-  npphi = int(PI/input%dpphi + 0.01d0)
-  write (*, *) 'dpphi,npphi = ', input%dpphi, npphi
-
-  ! Initialize cosine lookup table for dpphi
-  do iphi = 1, npphi
-    phi = (dble(iphi) - 0.5d0)*input%dpphi
-    cos_pphi(iphi) = dcos(phi)
-  end do
-
-  kcm = grid%nfack
-  ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
-  ! Loop order matches F77 for numerical consistency
-!$omp parallel do private(tdz, tdzsq, rho, rhosq, use1, trho, trhosq, trmix, useful, pint, iphi, s2, krho, kprho) schedule(static)
-  do itdz = 0, kcm - 1
-    tdz = -input%dz + dble(itdz + 1)*input%dz
-    tdzsq = tdz*tdz
-    rho = -0.5d0*input%drho
-    do krho = 1, grid%mxrho
-      rho = rho + input%drho
-      rhosq = rho*rho
-      use1 = tdzsq + rhosq
-      trho = -0.5d0*input%drho
-      do kprho = 1, grid%mxrho
-        trho = trho + input%drho
-        trhosq = trho*trho
-        trmix = 2.d0*trho*rho
-        useful = use1 + trhosq
-        pint = 0.d0
-        ! Angular integration for cylindrical geometry
-!$omp simd reduction(+:pint)
-        do iphi = 1, npphi
-          s2 = useful - trmix*cos_pphi(iphi)
-          if (s2 .gt. computed%dhs2) then
-            ! Lennard-Jones potential: U(r) = 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
-            pint = rlj/s2**6 - alj/s2**3 + pint
-          end if
-        end do
-!$omp end simd
-        fields%hvec(kprho, krho, itdz) = trho*pint*input%dpphi
-      end do
-    end do
-  end do
-!$omp end parallel do
+  call calculate_lj_potential_table(input, grid, computed, alj, rlj, fields, cos_pphi, npphi)
+  write (*, *) 'dpphi,npphi = ', input%dpphi*PI, npphi
   write (*, *) 'hvec fixad'
 
   ! Initialize iteration

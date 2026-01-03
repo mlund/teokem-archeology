@@ -740,4 +740,91 @@ contains
     return
   end subroutine EBDU
 
+  ! ==========================================================================
+  ! SUBROUTINE: calculate_lj_potential_table
+  ! ==========================================================================
+  ! Precomputes Lennard-Jones interaction potential on a grid for all
+  ! distance combinations. This tabulation significantly speeds up the
+  ! external potential calculation in EBDU.
+  !
+  ! The hvec array stores weighted LJ interaction integrals:
+  !   hvec(rho', rho, dz) = rho' * integral[U_LJ(r) * dphi]
+  ! where r is computed from (rho, rho', dz, phi) using cylindrical geometry.
+  !
+  ! Arguments:
+  !   inp     - Input parameters (dz, drho, dpphi)
+  !   grd     - Grid parameters (nfack, mxrho)
+  !   comp    - Computed parameters (dhs2)
+  !   alj     - LJ attractive coefficient (4*eps*sigma^6)
+  !   rlj     - LJ repulsive coefficient (4*eps*sigma^12)
+  !   flds    - Fields structure (hvec will be filled)
+  !   cos_pphi - Cosine lookup table (output, will be filled)
+  !   npphi   - Number of angular grid points (output)
+  ! ==========================================================================
+  subroutine calculate_lj_potential_table(inp, grd, comp, alj, rlj, flds, &
+                                          cos_pphi, npphi)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    real(real64), intent(in) :: alj, rlj
+    type(fields_t), intent(inout) :: flds
+    real(real64), intent(out) :: cos_pphi(:)
+    integer(int32), intent(out) :: npphi
+
+    ! Local variables
+    integer(int32) :: itdz, iphi, krho, kprho
+    real(real64) :: phi, tdz, tdzsq, rho, rhosq, use1, trho, trhosq
+    real(real64) :: trmix, useful, pint, s2, dpphi_rad
+
+    ! Convert dpphi to radians and calculate number of angular points
+    dpphi_rad = inp%dpphi*PI
+    npphi = int(PI/dpphi_rad + 0.01d0)
+
+    ! Initialize cosine lookup table for angular integration
+    do iphi = 1, npphi
+      phi = (dble(iphi) - 0.5d0)*dpphi_rad
+      cos_pphi(iphi) = dcos(phi)
+    end do
+
+    ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
+    ! Loop order matches F77 for numerical consistency
+!$omp parallel do private(tdz, tdzsq, rho, rhosq, use1, trho, trhosq, trmix, useful, pint, iphi, s2, krho, kprho) schedule(static)
+    do itdz = 0, grd%nfack - 1
+      tdz = -inp%dz + dble(itdz + 1)*inp%dz
+      tdzsq = tdz*tdz
+      rho = -0.5d0*inp%drho
+      do krho = 1, grd%mxrho
+        rho = rho + inp%drho
+        rhosq = rho*rho
+        use1 = tdzsq + rhosq
+        trho = -0.5d0*inp%drho
+        do kprho = 1, grd%mxrho
+          trho = trho + inp%drho
+          trhosq = trho*trho
+          trmix = 2.d0*trho*rho
+          useful = use1 + trhosq
+          pint = 0.d0
+          ! Angular integration for cylindrical geometry
+!$omp simd reduction(+:pint)
+          do iphi = 1, npphi
+            s2 = useful - trmix*cos_pphi(iphi)
+            if (s2 .gt. comp%dhs2) then
+              ! Lennard-Jones potential: U(r) = 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
+              pint = rlj/s2**6 - alj/s2**3 + pint
+            end if
+          end do
+!$omp end simd
+          flds%hvec(kprho, krho, itdz) = trho*pint*dpphi_rad
+        end do
+      end do
+    end do
+!$omp end parallel do
+
+    return
+  end subroutine calculate_lj_potential_table
+
 end module polymer_dft_data
