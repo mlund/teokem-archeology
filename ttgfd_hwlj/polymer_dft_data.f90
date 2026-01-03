@@ -957,4 +957,82 @@ contains
     return
   end subroutine initialize_density_fields
 
+  ! ==========================================================================
+  ! SUBROUTINE: initialize_boundary_excess_free_energy
+  ! ==========================================================================
+  ! Initializes excess free energy arrays (ae1, ae2, convp) at system
+  ! boundaries where the density functional calculations need special
+  ! treatment due to proximity to system edges.
+  !
+  ! The excess free energy is computed using the Carnahan-Starling equation
+  ! of state for hard spheres, with corrections for polymer chain connectivity.
+  !
+  ! Two boundary regions are initialized:
+  !   1. Near z-boundaries (left side): close to z = 0
+  !   2. Near radial boundaries (outer edge): close to rho = Rcyl
+  !
+  ! Arguments:
+  !   inp  - Input parameters (bdm, dhs)
+  !   grd  - Grid parameters (istp1, ibl, mxrho, kbl, imitt)
+  !   comp - Computed parameters (dhs3, rrnmon)
+  !   flds - Fields structure (output: ae1, ae2, convp)
+  ! ==========================================================================
+  subroutine initialize_boundary_excess_free_energy(inp, grd, comp, flds)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    type(fields_t), intent(inout) :: flds
+
+    ! Local variables
+    integer(int32) :: iz, kz
+    real(real64) :: cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2
+
+    ! Initialize excess free energy arrays near z-boundaries (left side)
+    ! These regions are near the system edge and require special treatment
+    do iz = grd%istp1, grd%istp1 + 2*grd%ibl - 1
+    do kz = 1, grd%mxrho + grd%kbl
+      cdt = inp%bdm*comp%dhs3
+      pcdt = PIS*cdt
+      xsi = (1.d0 - pcdt)
+      rxsi = 1.d0/xsi
+      sqrxsi = rxsi*rxsi
+      flog = dlog(xsi)
+      flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+      flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+      daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                    BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+      daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                    BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+      flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
+                       inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
+    end do
+    end do
+
+    ! Initialize excess free energy arrays near radial boundaries (outer edge)
+    do iz = grd%istp1 + 2*grd%ibl, grd%imitt + grd%ibl
+    do kz = grd%mxrho - grd%kbl + 1, grd%mxrho + grd%kbl
+      cdt = inp%bdm*comp%dhs3
+      pcdt = PIS*cdt
+      xsi = (1.d0 - pcdt)
+      rxsi = 1.d0/xsi
+      sqrxsi = rxsi*rxsi
+      flog = dlog(xsi)
+      flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+      flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+      daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                    BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+      daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                    BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+      flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
+                       inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
+    end do
+    end do
+
+    return
+  end subroutine initialize_boundary_excess_free_energy
+
 end module polymer_dft_data

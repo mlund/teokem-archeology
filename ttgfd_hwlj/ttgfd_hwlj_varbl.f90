@@ -28,7 +28,7 @@ program platem
   real(real64) :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
   real(real64) :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
   real(real64) :: bordekoll, brsum, bsumw, bw
-  real(real64) :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
+  real(real64) :: ccc, ccckoll, cckoll, ch2, chempp, chi, cho, chvol
   real(real64) :: ckk, ckoll, clifffi, clifffo, cmtrams, ct, ctf
   real(real64) :: ctheta, ctn, ctp, cv
   real(real64) :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
@@ -39,14 +39,14 @@ program platem
   logical :: use_adaptive_mixing
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
-  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
-  real(real64) :: pb, pcdt, pdasum, phi, phisum
+  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, fphi, fsum
+  real(real64) :: pb, pdasum, phi, phisum
   real(real64) :: rc, rclifffi, rclifffo, rcyl2
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, sqrxsi, strho0, valid
+  real(real64) :: rsq, rsq1, rsq2, rt2, rxsib, rxsibsq, strho0, valid
   real(real64) :: sume, sumsn, sumsp, sumw
   real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn, trams
-  real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
+  real(real64) :: x, x1, x2, x3, xsib, y1, y2, y3
   real(real64) :: z, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
@@ -197,45 +197,8 @@ program platem
   call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
   write (*, *) 'computed%cdnorm = ', computed%cdnorm
 
-  ! Initialize excess free energy arrays near z-boundaries (left side)
-  ! These regions are near the system edge and require special treatment
-  do iz = grid%istp1, grid%istp1 + 2*grid%ibl - 1
-  do kz = 1, grid%mxrho + grid%kbl
-    cdt = input%bdm*computed%dhs3
-    pcdt = PIS*cdt
-    xsi = (1.d0 - pcdt)
-    rxsi = 1.d0/xsi
-    sqrxsi = rxsi*rxsi
-    flog = dlog(xsi)
-    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                  BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                  BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
-                     input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
-  end do
-  end do
-  ! Initialize excess free energy arrays near radial boundaries (outer edge)
-  do iz = grid%istp1 + 2*grid%ibl, grid%imitt + grid%ibl
-  do kz = grid%mxrho - grid%kbl + 1, grid%mxrho + grid%kbl
-    cdt = input%bdm*computed%dhs3
-    pcdt = PIS*cdt
-    xsi = (1.d0 - pcdt)
-    rxsi = 1.d0/xsi
-    sqrxsi = rxsi*rxsi
-    flog = dlog(xsi)
-    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                  BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                  BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
-                     input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
-  end do
-  end do
+  ! Initialize excess free energy arrays at system boundaries
+  call initialize_boundary_excess_free_energy(input, grid, computed, fields)
 
   ! Initialize density fields: either from scratch or read from file
   call initialize_density_fields(input, grid, computed, fields, ifc)
