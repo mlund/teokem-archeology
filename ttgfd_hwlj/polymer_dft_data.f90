@@ -309,11 +309,11 @@ contains
   ! Computes derived parameters from input and grid parameters
   ! Must be called after bulk thermodynamic calculations
   ! ==========================================================================
-  subroutine initialize_computed_params(inp, grid, computed, chempp, emtrams, cmtrams)
+  subroutine initialize_computed_params(inp, grid, computed, bulk)
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(inout) :: grid
     type(computed_params_t), intent(out) :: computed
-    real(real64), intent(in) :: chempp, emtrams, cmtrams
+    type(bulk_properties_t), intent(in) :: bulk
 
     ! Grid spacing reciprocals
     computed%rdz = 1.d0 / inp%dz
@@ -339,12 +339,12 @@ contains
     computed%Yfact = (computed%rnmon - 2.d0) * Y
 
     ! Thermodynamic scaling
-    computed%scalem = chempp / (2.d0 * computed%rnmon)
+    computed%scalem = bulk%chempp / (2.d0 * computed%rnmon)
     computed%emscale = 2.d0 * computed%scalem
 
     ! Boltzmann weights
-    computed%bebelam = dexp(-emtrams + computed%emscale)
-    computed%behbclam = dexp(-0.5d0 * cmtrams + computed%scalem)
+    computed%bebelam = dexp(-bulk%emtrams + computed%emscale)
+    computed%behbclam = dexp(-0.5d0 * bulk%cmtrams + computed%scalem)
 
     ! Geometry
     computed%Rcoll2 = inp%Rcoll * inp%Rcoll

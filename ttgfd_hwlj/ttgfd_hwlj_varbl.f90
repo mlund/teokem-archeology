@@ -120,7 +120,7 @@ program platem
 
   ! Initialize computed parameters from input, grid, and bulk calculations
   ! This recomputes and stores all derived parameters in structured form
-  call initialize_computed_params(input, grid, computed, bulk%chempp, bulk%emtrams, bulk%cmtrams)
+  call initialize_computed_params(input, grid, computed, bulk)
 
   ! Print simulation parameters
   write (*, *) 'GFD POLYMER SOLUTION MODEL!'
