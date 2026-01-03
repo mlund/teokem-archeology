@@ -50,9 +50,6 @@ program platem
   real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
   real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
-  ! Local temporary variables for bulk calculations (before structs are initialized)
-  real(real64) :: dhs2, dhs3, rdhs3, rnmon, rrnmon, Yfact, scalem, emscale
-
   ! ========================================================================
   ! ========================================================================
   ! File unit numbers (automatically assigned by runtime)
@@ -91,16 +88,16 @@ program platem
 
   ! Compute local derived parameters needed for bulk thermodynamic calculations
   ! These will be recomputed and stored in structs by initialize_computed_params later
-  dhs2 = input%dhs*input%dhs
-  dhs3 = dhs2*input%dhs
-  rdhs3 = 1.d0/dhs3
-  rnmon = dble(input%nmon)
-  rrnmon = 1.d0/rnmon
+  computed%dhs2 = input%dhs*input%dhs
+  computed%dhs3 = computed%dhs2*input%dhs
+  computed%rdhs3 = 1.d0/computed%dhs3
+  computed%rnmon = dble(input%nmon)
+  computed%rrnmon = 1.d0/computed%rnmon
 
   ! Read Lennard-Jones energy parameter and compute LJ coefficients
   read (iep, *) input%epslj
-  alj = 4.d0*input%epslj*dhs3*dhs3    ! Attractive (r^-6) coefficient
-  rlj = 4.d0*input%epslj*dhs3**4      ! Repulsive (r^-12) coefficient
+  alj = 4.d0*input%epslj*computed%dhs3*computed%dhs3    ! Attractive (r^-6) coefficient
+  rlj = 4.d0*input%epslj*computed%dhs3**4      ! Repulsive (r^-12) coefficient
 
   ! Compute additional local parameters needed for bulk calculations
   Rcyl2 = input%Rcyl*input%Rcyl
@@ -114,11 +111,11 @@ program platem
   end do
 
   ! Bulk thermodynamic properties
-  Yfact = (rnmon - 2.d0)*Y
-  bdpol = input%bdm/rnmon  ! Polymer bulk density
+  computed%Yfact = (computed%rnmon - 2.d0)*Y
+  bdpol = input%bdm/computed%rnmon  ! Polymer bulk density
 
   ! Hard sphere packing fraction and related quantities
-  bdt = input%bdm*dhs3
+  bdt = input%bdm*computed%dhs3
   aeta = PIS*bdt
   xsib = 1.d0 - aeta
   rxsib = 1.d0/xsib
@@ -136,7 +133,7 @@ program platem
                  aeta*(AA1 + BB1*aeta)*rxsibsq)
   daex2 = rxsib*(C2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
                  aeta*(AA2 + BB2*aeta)*rxsibsq)
-  pdasum = Yfact*(daex2 - daex1) + daex2
+  pdasum = computed%Yfact*(daex2 - daex1) + daex2
   baex1 = aex1
   baex2 = aex2
   bdaex1 = daex1
@@ -144,13 +141,13 @@ program platem
 
   ! Bulk pressure and chemical potentials
   Pb = bdpol + bdpol*aeta*pdasum
-  chempp = dlog(bdpol) + Yfact*(aex2 - aex1) + aex2 + PIS*input%bdm*pdasum*dhs3
-  scalem = chempp/(2.d0*rnmon)
-  emscale = 2.d0*scalem
+  chempp = dlog(bdpol) + computed%Yfact*(aex2 - aex1) + aex2 + PIS*input%bdm*pdasum*computed%dhs3
+  computed%scalem = chempp/(2.d0*computed%rnmon)
+  computed%emscale = 2.d0*computed%scalem
 
   ! Convolution terms for inhomogeneous density functional
-  bconvp = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
-            input%bdm*rrnmon*daex2)*PIS*dhs3
+  bconvp = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
+            input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
   trams = bconvp
   emtrams = trams + 0.5d0*aex2
   cmtrams = trams + Y*(aex2 - aex1)
@@ -176,19 +173,19 @@ program platem
   write (*, *) 'solvent chemical pot. (betamu) = ', computed%chemps
   write (*, *) 'total bulk pressure = ', Pb
   write (*, *) 'input%zc1,computed%zc2 = ', input%zc1, computed%zc2
-  write (*, *) 'nfack,grid%imitt = ', grid%nfack, grid%imitt
-  write (*, *) 'istp1,grid%islut = ', grid%istp1, grid%islut
-  write (*, *) 'istp1s,isluts = ', grid%istp1s, grid%isluts
-  write (*, *) 'ism,grid%ibl = ', grid%ism, grid%ibl
-  write (*, *) 'ksm,grid%kbl = ', grid%ksm, grid%kbl
+  write (*, *) 'grid%nfack,grid%imitt = ', grid%nfack, grid%imitt
+  write (*, *) 'grid%istp1,grid%islut = ', grid%istp1, grid%islut
+  write (*, *) 'grid%istp1s,grid%isluts = ', grid%istp1s, grid%isluts
+  write (*, *) 'grid%ism,grid%ibl = ', grid%ism, grid%ibl
+  write (*, *) 'grid%ksm,grid%kbl = ', grid%ksm, grid%kbl
   write (*, *) 'dmm,dms (density mixing param. mon.,solv.) = ', input%dmm, input%dms
   write (*, *) 'Rcyl  = ', input%Rcyl
   write (*, *) 'bFex = ', bFex
-  write (*, *) 'bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
+  write (*, *) 'computed%bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
   ! Allocate module arrays based on calculated grid dimensions
   ! Include extra space for boundary cells (grid%kbl, grid%ibl)
-  ! hvec needs nfack-1 for z-dimension (used in LJ potential table)
+  ! hvec needs grid%nfack-1 for z-dimension (used in LJ potential table)
   call allocate_arrays(fields, grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
 
   ! Allocate main program arrays
@@ -199,13 +196,13 @@ program platem
 
   ! Calculate normalization constant for contact density
   call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
-  write (*, *) 'cdnorm = ', computed%cdnorm
+  write (*, *) 'computed%cdnorm = ', computed%cdnorm
 
   ! Initialize excess free energy arrays near z-boundaries (left side)
   ! These regions are near the system edge and require special treatment
   do iz = grid%istp1, grid%istp1 + 2*grid%ibl - 1
   do kz = 1, grid%mxrho + grid%kbl
-    cdt = input%bdm*dhs3
+    cdt = input%bdm*computed%dhs3
     pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
     rxsi = 1.d0/xsi
@@ -217,14 +214,14 @@ program platem
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
-                     input%bdm*rrnmon*daex2)*PIS*dhs3
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
+                     input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
   end do
   end do
   ! Initialize excess free energy arrays near radial boundaries (outer edge)
   do iz = grid%istp1 + 2*grid%ibl, grid%imitt + grid%ibl
   do kz = grid%mxrho - grid%kbl + 1, grid%mxrho + grid%kbl
-    cdt = input%bdm*dhs3
+    cdt = input%bdm*computed%dhs3
     pcdt = PIS*cdt
     xsi = (1.d0 - pcdt)
     rxsi = 1.d0/xsi
@@ -236,8 +233,8 @@ program platem
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
-                     input%bdm*rrnmon*daex2)*PIS*dhs3
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*computed%rrnmon)*(daex2 - daex1) + &
+                     input%bdm*computed%rrnmon*daex2)*PIS*computed%dhs3
   end do
   end do
 
@@ -259,7 +256,7 @@ program platem
       do kz = 1, grid%mxrho
         rho = rho + input%drho
         fields%fdmon(kz, iz) = input%bdm
-        fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+        fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
         fields%ebelam(kz, iz) = computed%bebelam
         fields%ehbclam(kz, iz) = computed%behbclam
         ! Check if point is inside first colloid
@@ -295,7 +292,7 @@ program platem
   do iz = grid%istp1, grid%ibl
   do kz = 1, grid%mxrho + grid%kbl
     fields%fdmon(kz, iz) = input%bdm
-    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
     fields%ebelam(kz, iz) = computed%bebelam
     fields%ehbclam(kz, iz) = computed%behbclam
     fields%cdmonm(kz, iz) = input%bdm
@@ -306,7 +303,7 @@ program platem
   do iz = 1, grid%imitt
   do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
     fields%fdmon(kz, iz) = input%bdm
-    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
     fields%ebelam(kz, iz) = computed%bebelam
     fields%ehbclam(kz, iz) = computed%behbclam
     fields%cdmonm(kz, iz) = input%bdm
@@ -764,8 +761,8 @@ program platem
       ! Only integrate outside colloid volume
       if (rsq .ge. computed%Rcoll2) then
         ! Chemical potential contributions
-        belamb = dlog(fields%ebelam(kz, iz)) - emscale
-        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - scalem)
+        belamb = dlog(fields%ebelam(kz, iz)) - computed%emscale
+        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - computed%scalem)
         fde = fields%fem(kz, iz)
         fdc = fdm - fde
         ! Excess free energy from hard-sphere interactions
@@ -775,9 +772,9 @@ program platem
         ! where f(r) is Helmholtz free energy density
         arsum = &
           rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
-               bdpol - fdm*rrnmon + Fex - bFex) + arsum
+               bdpol - fdm*computed%rrnmon + Fex - bFex) + arsum
         brsum = &
-          rho*(fdc*bclamb + fde*belamb - fdm*rrnmon + Fex - bFex) + brsum
+          rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bFex) + brsum
       end if
 
       ! Add Lennard-Jones contribution to grand potential
