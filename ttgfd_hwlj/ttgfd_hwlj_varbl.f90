@@ -28,27 +28,26 @@ program platem
   integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
   ! Real variables
-  real(real64) :: add, alj, arsum, asumw, aw
-  real(real64) :: bclamb
-  real(real64) :: bds, bebbe, belamb, bfdc, bfde
-  real(real64) :: bordekoll, brsum, bsumw, bw
-  real(real64) :: ccc, ccckoll, cckoll, ch2, chi, cho, chvol
+  real(real64) :: add, alj, aw
+  real(real64) :: bds, bebbe
+  real(real64) :: bordekoll, bw
+  real(real64) :: ccc, ccckoll, cckoll, ch2, chi, cho
   real(real64) :: ckk, ckoll, clifffi, clifffo, ct, ctf
-  real(real64) :: ctheta, ctn, ctp, cv
+  real(real64) :: ctheta, ctn, ctp
   real(real64) :: ddiff, ddmax, deltazc, delz2, diffz2
   real(real64) :: dmm_adaptive, dms_adaptive, dumsum
-  real(real64) :: eexc, efact
+  real(real64) :: efact
 
   ! Logical variables
   logical :: use_adaptive_mixing
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
-  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, fphi
+  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, ffact, fk, fphi
   real(real64) :: phi, phisum
   real(real64) :: rc, rclifffi, rclifffo, rcyl2
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
   real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
-  real(real64) :: sume, sumsn, sumsp, sumw
+  real(real64) :: sume
   real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn
   real(real64) :: x, x1, x2, x3, y1, y2, y3
   real(real64) :: z, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
@@ -504,70 +503,9 @@ program platem
   ! Write density profiles and calculate thermodynamic properties
   call output_density_profiles(input, grid, computed, fields, c, &
                                 iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
-  sumW = 0.d0
 
   ! ===== Calculate grand potential (thermodynamic potential) =====
-  ! The grand potential Omega = F - mu*N measures the thermodynamic cost
-  ! of the inhomogeneous density distribution relative to bulk
-  bfde = 2.d0*bulk%bdpol  ! Bulk end-segment density
-  bfdc = input%bdm - bfde  ! Bulk internal-segment density
-  asumW = 0.d0
-  sumsp = 0.d0
-  sumsn = 0.d0
-  bsumW = 0.d0
-  chvol = 0.d0
-  z = -0.5d0*input%dz
-
-  ! Integrate grand potential density over system volume
-  do iz = grid%istp1, grid%imitt
-    z = z + input%dz
-    arsum = 0.d0
-    brsum = 0.d0
-    cv = 0.d0
-    diffz2 = (z - input%zc1)**2
-    rho = -0.5d0*input%drho
-    do kz = 1, grid%mxrho
-      rho = rho + input%drho
-      rsq = rho*rho + diffz2
-      fdm = fields%fdmon(kz, iz)
-
-      ! Only integrate outside colloid volume
-      if (rsq .ge. computed%Rcoll2) then
-        ! Chemical potential contributions
-        belamb = dlog(fields%ebelam(kz, iz)) - computed%emscale
-        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - computed%scalem)
-        fde = fields%fem(kz, iz)
-        fdc = fdm - fde
-        ! Excess free energy from hard-sphere interactions
-        Fex = fdc*Y*(fields%ae2(kz, iz) - fields%ae1(kz, iz)) + 0.5d0*fde*fields%ae2(kz, iz)
-
-        ! Grand potential density omega(r) = f(r) - mu*rho(r)
-        ! where f(r) is Helmholtz free energy density
-        arsum = &
-          rho*(fdc*bclamb + bfdc*bulk%cmtrams + fde*belamb + bfde*bulk%emtrams + &
-               bulk%bdpol - fdm*computed%rrnmon + Fex - bulk%bFex) + arsum
-        brsum = &
-          rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bulk%bFex) + brsum
-      end if
-
-      ! Add Lennard-Jones contribution to grand potential
-      eexc = -dlog(fields%edu(kz, iz))
-      arsum = arsum - 0.5d0*rho*eexc*(fdm + input%bdm)
-      brsum = brsum + rho*(0.5d0*(fdm - input%bdm)*eexc - fdm*eexc)
-    end do
-    ! Integrate radially: multiply by 2*pi*rho*input%drho
-    asumW = 2.d0*PI*arsum*input%drho + asumW
-    bsumW = 2.d0*PI*brsum*input%drho + bsumW
-  end do
-  ! Integrate along z-axis: multiply by input%dz
-  asumW = asumW*input%dz
-  bsumW = bsumW*input%dz
-  ! Factor of 2 accounts for both halves of symmetric system
-  aW = 2.d0*asumW
-  bW = 2.d0*bsumW
-  write (*, *)
-  write (*, *) 'aW = ', aW
-  write (*, *) 'bW = ', bW
+  call calculate_grand_potential(input, grid, computed, fields, bulk, aW, bW)
 
   ! ===== Calculate forces on colloid from contact density =====
   ! Integrate contact density over colloid surface to get net force

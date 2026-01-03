@@ -1204,4 +1204,105 @@ contains
     return
   end subroutine output_density_profiles
 
+  !-----------------------------------------------------------------------------
+  ! calculate_grand_potential - Calculate grand potential (thermodynamic free energy)
+  !
+  ! Computes the grand potential Omega = F - mu*N, which measures the
+  ! thermodynamic cost of the inhomogeneous density distribution relative
+  ! to the bulk state. Integrates the grand potential density over the
+  ! system volume, excluding colloid interiors.
+  !
+  ! Returns two formulations:
+  ! - aW: Full grand potential including all terms
+  ! - bW: Alternative formulation for comparison
+  !
+  ! Inputs:
+  !   inp - Input parameters (bdm, dz, drho, zc1)
+  !   grd - Grid parameters (istp1, imitt, mxrho)
+  !   comp - Computed parameters (Rcoll2, emscale, scalem, rrnmon)
+  !   flds - Fields (fdmon, fem, ebelam, ehbclam, ae1, ae2, edu)
+  !   bulk - Bulk thermodynamic properties
+  !
+  ! Outputs:
+  !   aW - Grand potential (primary formulation)
+  !   bW - Grand potential (alternative formulation)
+  !-----------------------------------------------------------------------------
+  subroutine calculate_grand_potential(inp, grd, comp, flds, bulk, aW, bW)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    type(fields_t), intent(in) :: flds
+    type(bulk_properties_t), intent(in) :: bulk
+    real(real64), intent(out) :: aW, bW
+
+    ! Local variables
+    integer(int32) :: iz, kz
+    real(real64) :: z, rho, rsq, diffz2
+    real(real64) :: bfde, bfdc, asumW, bsumW
+    real(real64) :: arsum, brsum
+    real(real64) :: fdm, fde, fdc, belamb, bclamb, Fex, eexc
+
+    bfde = 2.d0*bulk%bdpol  ! Bulk end-segment density
+    bfdc = inp%bdm - bfde   ! Bulk internal-segment density
+    asumW = 0.d0
+    bsumW = 0.d0
+    z = -0.5d0*inp%dz
+
+    ! Integrate grand potential density over system volume
+    do iz = grd%istp1, grd%imitt
+      z = z + inp%dz
+      arsum = 0.d0
+      brsum = 0.d0
+      diffz2 = (z - inp%zc1)**2
+      rho = -0.5d0*inp%drho
+      do kz = 1, grd%mxrho
+        rho = rho + inp%drho
+        rsq = rho*rho + diffz2
+        fdm = flds%fdmon(kz, iz)
+
+        ! Only integrate outside colloid volume
+        if (rsq .ge. comp%Rcoll2) then
+          ! Chemical potential contributions
+          belamb = dlog(flds%ebelam(kz, iz)) - comp%emscale
+          bclamb = 2.d0*(dlog(flds%ehbclam(kz, iz)) - comp%scalem)
+          fde = flds%fem(kz, iz)
+          fdc = fdm - fde
+          ! Excess free energy from hard-sphere interactions
+          Fex = fdc*Y*(flds%ae2(kz, iz) - flds%ae1(kz, iz)) + 0.5d0*fde*flds%ae2(kz, iz)
+
+          ! Grand potential density omega(r) = f(r) - mu*rho(r)
+          ! where f(r) is Helmholtz free energy density
+          arsum = &
+            rho*(fdc*bclamb + bfdc*bulk%cmtrams + fde*belamb + bfde*bulk%emtrams + &
+                 bulk%bdpol - fdm*comp%rrnmon + Fex - bulk%bFex) + arsum
+          brsum = &
+            rho*(fdc*bclamb + fde*belamb - fdm*comp%rrnmon + Fex - bulk%bFex) + brsum
+        end if
+
+        ! Add Lennard-Jones contribution to grand potential
+        eexc = -dlog(flds%edu(kz, iz))
+        arsum = arsum - 0.5d0*rho*eexc*(fdm + inp%bdm)
+        brsum = brsum + rho*(0.5d0*(fdm - inp%bdm)*eexc - fdm*eexc)
+      end do
+      ! Integrate radially: multiply by 2*pi*rho*inp%drho
+      asumW = 2.d0*PI*arsum*inp%drho + asumW
+      bsumW = 2.d0*PI*brsum*inp%drho + bsumW
+    end do
+    ! Integrate along z-axis: multiply by inp%dz
+    asumW = asumW*inp%dz
+    bsumW = bsumW*inp%dz
+    ! Factor of 2 accounts for both halves of symmetric system
+    aW = 2.d0*asumW
+    bW = 2.d0*bsumW
+
+    write (*, *)
+    write (*, *) 'aW = ', aW
+    write (*, *) 'bW = ', bW
+
+    return
+  end subroutine calculate_grand_potential
+
 end module polymer_dft_data
