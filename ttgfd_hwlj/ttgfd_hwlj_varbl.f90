@@ -45,9 +45,9 @@ program platem
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
   real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, sqrxsi, strho0, valid
   real(real64) :: sume, sumsn, sumsp, sumw
-  real(real64) :: t, t1, t2, tdmm, tdms, tfdm, tfem, th, tn, trams
+  real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn, trams
   real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
-  real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
+  real(real64) :: z, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
 
   ! ========================================================================
   ! ========================================================================
@@ -238,89 +238,7 @@ program platem
   end do
 
   ! Initialize density fields: either from scratch or read from file
-  if (input%kread .eq. 0) then
-    ! Starting from bulk values with excluded volume for colloids
-    z = -0.5d0*input%dz
-    ! Skip boundary region at z < 0
-    do iz = 1, grid%ibl
-      z = z + input%dz
-    end do
-    ! Initialize all grid points to bulk values, then zero out colloid interiors
-    do iz = grid%ibl + 1, grid%imitt
-      z = z + input%dz
-      z2 = (z - input%zc1)**2
-      z22 = (z - computed%zc2)**2
-      rho = -0.5d0*input%drho
-      ! Loop over radial positions
-      do kz = 1, grid%mxrho
-        rho = rho + input%drho
-        fields%fdmon(kz, iz) = input%bdm
-        fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
-        fields%ebelam(kz, iz) = computed%bebelam
-        fields%ehbclam(kz, iz) = computed%behbclam
-        ! Check if point is inside first colloid
-        rt2 = rho*rho + z2
-        if (rt2 .lt. computed%Rcoll2) then
-          fields%fdmon(kz, iz) = 0.d0
-          fields%fem(kz, iz) = 0.d0
-          fields%ebelam(kz, iz) = 0.d0
-          fields%ehbclam(kz, iz) = 0.d0
-        end if
-        ! Check if point is inside second colloid
-        rt2 = rho*rho + z22
-        if (rt2 .lt. computed%Rcoll2) then
-          fields%fdmon(kz, iz) = 0.d0
-          fields%fem(kz, iz) = 0.d0
-          fields%ebelam(kz, iz) = 0.d0
-          fields%ehbclam(kz, iz) = 0.d0
-        end if
-      end do
-    end do
-  else
-    ! Read initial guess from file (restart from previous calculation)
-    rewind ifc
-    do iz = grid%istp1, grid%imitt
-    do kz = 1, grid%mxrho
-      read (ifc, *) t1, t2, fields%fdmon(kz, iz), fields%fem(kz, iz)
-    end do
-    end do
-  end if
-
-  ! Set boundary conditions at z-boundaries (left edge)
-  ! All densities set to bulk values
-  do iz = grid%istp1, grid%ibl
-  do kz = 1, grid%mxrho + grid%kbl
-    fields%fdmon(kz, iz) = input%bdm
-    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
-    fields%ebelam(kz, iz) = computed%bebelam
-    fields%ehbclam(kz, iz) = computed%behbclam
-    fields%cdmonm(kz, iz) = input%bdm
-  end do
-  end do
-  ! Set boundary conditions at radial edge (outer cylinder boundary)
-  ! All densities set to bulk values
-  do iz = 1, grid%imitt
-  do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
-    fields%fdmon(kz, iz) = input%bdm
-    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*computed%rrnmon
-    fields%ebelam(kz, iz) = computed%bebelam
-    fields%ehbclam(kz, iz) = computed%behbclam
-    fields%cdmonm(kz, iz) = input%bdm
-  end do
-  end do
-
-  ! Apply symmetry boundary conditions at z = grid%imitt midplane
-  jz = grid%imitt + 1
-  do iz = grid%imitt + 1, grid%imitt + grid%ibl
-    jz = jz - 1
-    do kz = 1, grid%mxrho + grid%kbl
-      fields%fdmon(kz, iz) = fields%fdmon(kz, jz)
-      fields%fem(kz, iz) = fields%fem(kz, jz)
-      fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
-      fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
-      fields%cdmonm(kz, iz) = input%bdm
-    end do
-  end do
+  call initialize_density_fields(input, grid, computed, fields, ifc)
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
   write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)
 

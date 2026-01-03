@@ -827,4 +827,134 @@ contains
     return
   end subroutine calculate_lj_potential_table
 
+  ! ==========================================================================
+  ! SUBROUTINE: initialize_density_fields
+  ! ==========================================================================
+  ! Initializes all density fields either from scratch (bulk with excluded
+  ! volume) or by reading from a restart file. Also sets boundary conditions
+  ! at all system boundaries.
+  !
+  ! For fresh start (kread=0):
+  !   - Sets all interior points to bulk density
+  !   - Zeros out colloid interiors (excluded volume)
+  !
+  ! For restart (kread=1):
+  !   - Reads density fields from file unit ifc
+  !
+  ! Then applies boundary conditions:
+  !   - z-boundaries: bulk values
+  !   - Radial boundaries: bulk values
+  !   - Midplane symmetry: mirror values from opposite side
+  !
+  ! Arguments:
+  !   inp  - Input parameters (kread, dz, drho, bdm, zc1)
+  !   grd  - Grid parameters (ibl, istp1, imitt, mxrho, kbl)
+  !   comp - Computed parameters (zc2, Rcoll2, rrnmon, bebelam, behbclam)
+  !   flds - Fields structure (output: fdmon, fem, ebelam, ehbclam, cdmonm)
+  !   ifc  - File unit for reading restart data (if kread=1)
+  ! ==========================================================================
+  subroutine initialize_density_fields(inp, grd, comp, flds, ifc)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    ! Arguments
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    type(fields_t), intent(inout) :: flds
+    integer(int32), intent(in) :: ifc
+
+    ! Local variables
+    integer(int32) :: iz, jz, kz
+    real(real64) :: z, z2, z22, rho, rt2, t1, t2
+
+    ! Initialize density fields: either from scratch or read from file
+    if (inp%kread .eq. 0) then
+      ! Starting from bulk values with excluded volume for colloids
+      z = -0.5d0*inp%dz
+      ! Skip boundary region at z < 0
+      do iz = 1, grd%ibl
+        z = z + inp%dz
+      end do
+      ! Initialize all grid points to bulk values, then zero out colloid interiors
+      do iz = grd%ibl + 1, grd%imitt
+        z = z + inp%dz
+        z2 = (z - inp%zc1)**2
+        z22 = (z - comp%zc2)**2
+        rho = -0.5d0*inp%drho
+        ! Loop over radial positions
+        do kz = 1, grd%mxrho
+          rho = rho + inp%drho
+          flds%fdmon(kz, iz) = inp%bdm
+          flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
+          flds%ebelam(kz, iz) = comp%bebelam
+          flds%ehbclam(kz, iz) = comp%behbclam
+          ! Check if point is inside first colloid
+          rt2 = rho*rho + z2
+          if (rt2 .lt. comp%Rcoll2) then
+            flds%fdmon(kz, iz) = 0.d0
+            flds%fem(kz, iz) = 0.d0
+            flds%ebelam(kz, iz) = 0.d0
+            flds%ehbclam(kz, iz) = 0.d0
+          end if
+          ! Check if point is inside second colloid
+          rt2 = rho*rho + z22
+          if (rt2 .lt. comp%Rcoll2) then
+            flds%fdmon(kz, iz) = 0.d0
+            flds%fem(kz, iz) = 0.d0
+            flds%ebelam(kz, iz) = 0.d0
+            flds%ehbclam(kz, iz) = 0.d0
+          end if
+        end do
+      end do
+    else
+      ! Read initial guess from file (restart from previous calculation)
+      rewind ifc
+      do iz = grd%istp1, grd%imitt
+      do kz = 1, grd%mxrho
+        read (ifc, *) t1, t2, flds%fdmon(kz, iz), flds%fem(kz, iz)
+      end do
+      end do
+    end if
+
+    ! Set boundary conditions at z-boundaries (left edge)
+    ! All densities set to bulk values
+    do iz = grd%istp1, grd%ibl
+    do kz = 1, grd%mxrho + grd%kbl
+      flds%fdmon(kz, iz) = inp%bdm
+      flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
+      flds%ebelam(kz, iz) = comp%bebelam
+      flds%ehbclam(kz, iz) = comp%behbclam
+      flds%cdmonm(kz, iz) = inp%bdm
+    end do
+    end do
+
+    ! Set boundary conditions at radial edge (outer cylinder boundary)
+    ! All densities set to bulk values
+    do iz = 1, grd%imitt
+    do kz = grd%mxrho + 1, grd%mxrho + grd%kbl
+      flds%fdmon(kz, iz) = inp%bdm
+      flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
+      flds%ebelam(kz, iz) = comp%bebelam
+      flds%ehbclam(kz, iz) = comp%behbclam
+      flds%cdmonm(kz, iz) = inp%bdm
+    end do
+    end do
+
+    ! Apply symmetry boundary conditions at z = grd%imitt midplane
+    jz = grd%imitt + 1
+    do iz = grd%imitt + 1, grd%imitt + grd%ibl
+      jz = jz - 1
+      do kz = 1, grd%mxrho + grd%kbl
+        flds%fdmon(kz, iz) = flds%fdmon(kz, jz)
+        flds%fem(kz, iz) = flds%fem(kz, jz)
+        flds%ebelam(kz, iz) = flds%ebelam(kz, jz)
+        flds%ehbclam(kz, iz) = flds%ehbclam(kz, jz)
+        flds%cdmonm(kz, iz) = inp%bdm
+      end do
+    end do
+
+    return
+  end subroutine initialize_density_fields
+
 end module polymer_dft_data
