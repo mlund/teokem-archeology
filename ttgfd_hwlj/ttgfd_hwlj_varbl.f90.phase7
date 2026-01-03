@@ -18,40 +18,40 @@ program platem
   real(real64), allocatable :: c(:, :, :), cA(:, :), cB(:, :)
   real(real64) :: cdens(0:1000), ctvec(0:1000)
 
-  ! Bulk thermodynamic properties
-  type(bulk_properties_t) :: bulk
-
   ! Integer variables
-  integer(int32) :: i, j, k, iz, jz, kz, irho, krho, iphi, imon, kmon
-  integer(int32) :: ict, kct, izc1, izmin, izmax, irho0min, irhomax, jstart
-  integer(int32) :: ifc, ins, iep, niter, npphi
-  integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
+  integer(int32) :: i, j, k, iz, jz, kz, irho, krho, kprho, iphi, imon, kmon
+  integer(int32) :: itdz, ict, kct, irdz, izc1, izmin, izmax, irho0min, irhomax, jstart
+  integer(int32) :: ifc, ins, iep, niter, kcm, klm, kr, npphi
 
   ! Real variables
-  real(real64) :: add, alj, arsum, asumw, aw
-  real(real64) :: bclamb
-  real(real64) :: bds, bebbe, belamb, bfdc, bfde
+  real(real64) :: add, aeta, aex1, aex2, alj, arsum, asumw, aw
+  real(real64) :: baex1, baex2, bclamb, bcmtrams, bconvp, bdaex1, bdaex2
+  real(real64) :: bdpol, bds, bdt, bebbe, belamb, bemtrams, bfdc, bfde, bfex
   real(real64) :: bordekoll, brsum, bsumw, bw
-  real(real64) :: ccc, ccckoll, cckoll, ch2, chi, cho, chvol
-  real(real64) :: ckk, ckoll, clifffi, clifffo, ct, ctf
+  real(real64) :: ccc, ccckoll, cckoll, cdt, ch2, chempp, chi, cho, chvol
+  real(real64) :: ckk, ckoll, clifffi, clifffo, cmtrams, ct, ctf
   real(real64) :: ctheta, ctn, ctp, cv
-  real(real64) :: ddiff, ddmax, deltazc, delz2, diffz2
+  real(real64) :: daex1, daex2, ddiff, ddmax, deltazc, delz2, diffz2
   real(real64) :: dmm_adaptive, dms_adaptive, dumsum
-  real(real64) :: eexc, efact
+  real(real64) :: eexc, efact, emtrams
 
   ! Logical variables
   logical :: use_adaptive_mixing
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
-  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, fphi
-  real(real64) :: phi, phisum
+  real(real64) :: fact, fdc, fdcm1, fdcn, fdcp1, fde, fdm, fex, ffact, fk, flog, fphi, fsum
+  real(real64) :: pb, pcdt, pdasum, phi, phisum, pint
   real(real64) :: rc, rclifffi, rclifffo, rcyl2
   real(real64) :: rho, rho0, rho02, rho2, rhoc, rhof, rhofi, rhofo, rhomax, rhon, rhosq, rhoz2, rlj
-  real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
+  real(real64) :: rsq, rsq1, rsq2, rt2, rxsi, rxsib, rxsibsq, s2, sqrxsi, strho0, valid
   real(real64) :: sume, sumsn, sumsp, sumw
-  real(real64) :: t, tdmm, tdms, tfdm, tfem, th, tn
-  real(real64) :: x, x1, x2, x3, y1, y2, y3
-  real(real64) :: z, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
+  real(real64) :: t, t1, t2, tdmm, tdms, tdz, tdzsq, tfdm, tfem, th, tn, trams
+  real(real64) :: trho, trhosq, trmix, use1, useful
+  real(real64) :: x, x1, x2, x3, xsi, xsib, y1, y2, y3
+  real(real64) :: z, z2, z22, zfact, zfi, zfo, zmax, zmin, zp, zpc2sq, zpcsq, zpst, zsq
+
+  ! Local temporary variables for bulk calculations (before structs are initialized)
+  real(real64) :: dhs2, dhs3, rdhs3, rnmon, rrnmon, Yfact, scalem, emscale
 
   ! ========================================================================
   ! ========================================================================
@@ -62,14 +62,6 @@ program platem
   open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
   open (newunit=ins, file='input.tsph', form='formatted', status='old')
   open (newunit=iep, file='epfil', form='formatted', status='old')
-
-  ! Open output files for density profiles (use traditional fort.* names for compatibility)
-  open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
-  open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
-  open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
-  open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
-  open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
-
   rewind ifc
   rewind ins
   rewind iep
@@ -99,16 +91,16 @@ program platem
 
   ! Compute local derived parameters needed for bulk thermodynamic calculations
   ! These will be recomputed and stored in structs by initialize_computed_params later
-  computed%dhs2 = input%dhs*input%dhs
-  computed%dhs3 = computed%dhs2*input%dhs
-  computed%rdhs3 = 1.d0/computed%dhs3
-  computed%rnmon = dble(input%nmon)
-  computed%rrnmon = 1.d0/computed%rnmon
+  dhs2 = input%dhs*input%dhs
+  dhs3 = dhs2*input%dhs
+  rdhs3 = 1.d0/dhs3
+  rnmon = dble(input%nmon)
+  rrnmon = 1.d0/rnmon
 
   ! Read Lennard-Jones energy parameter and compute LJ coefficients
   read (iep, *) input%epslj
-  alj = 4.d0*input%epslj*computed%dhs3*computed%dhs3    ! Attractive (r^-6) coefficient
-  rlj = 4.d0*input%epslj*computed%dhs3**4      ! Repulsive (r^-12) coefficient
+  alj = 4.d0*input%epslj*dhs3*dhs3    ! Attractive (r^-6) coefficient
+  rlj = 4.d0*input%epslj*dhs3**4      ! Repulsive (r^-12) coefficient
 
   ! Compute additional local parameters needed for bulk calculations
   Rcyl2 = input%Rcyl*input%Rcyl
@@ -121,42 +113,82 @@ program platem
     cos_phi(iphi) = dcos(phi)
   end do
 
-  ! Calculate bulk thermodynamic properties
-  computed%Yfact = (computed%rnmon - 2.d0)*Y
-  call calculate_bulk_properties(input, computed, bulk)
+  ! Bulk thermodynamic properties
+  Yfact = (rnmon - 2.d0)*Y
+  bdpol = input%bdm/rnmon  ! Polymer bulk density
+
+  ! Hard sphere packing fraction and related quantities
+  bdt = input%bdm*dhs3
+  aeta = PIS*bdt
+  xsib = 1.d0 - aeta
+  rxsib = 1.d0/xsib
+  rxsibsq = rxsib*rxsib
+
+  ! Excess free energy terms (Carnahan-Starling)
+  aex1 = -(C1 + 1.d0)*dlog(xsib) - &
+         0.5d0*(AA1*PIS*bdt + BB1*(PIS*bdt)**2)*rxsibsq
+  aex2 = -(C2 + 1.d0)*dlog(xsib) - &
+         0.5d0*(AA2*PIS*bdt + BB2*(PIS*bdt)**2)*rxsibsq
+  bFex = (input%bdm - 2.d0*bdpol)*Y*(aex2 - aex1) + bdpol*aex2
+
+  ! Derivatives of excess free energy
+  daex1 = rxsib*(C1 + 1 - 0.5d0*(AA1 + 2.d0*BB1*aeta)*rxsib - &
+                 aeta*(AA1 + BB1*aeta)*rxsibsq)
+  daex2 = rxsib*(C2 + 1 - 0.5d0*(AA2 + 2.d0*BB2*aeta)*rxsib - &
+                 aeta*(AA2 + BB2*aeta)*rxsibsq)
+  pdasum = Yfact*(daex2 - daex1) + daex2
+  baex1 = aex1
+  baex2 = aex2
+  bdaex1 = daex1
+  bdaex2 = daex2
+
+  ! Bulk pressure and chemical potentials
+  Pb = bdpol + bdpol*aeta*pdasum
+  chempp = dlog(bdpol) + Yfact*(aex2 - aex1) + aex2 + PIS*input%bdm*pdasum*dhs3
+  scalem = chempp/(2.d0*rnmon)
+  emscale = 2.d0*scalem
+
+  ! Convolution terms for inhomogeneous density functional
+  bconvp = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
+            input%bdm*rrnmon*daex2)*PIS*dhs3
+  trams = bconvp
+  emtrams = trams + 0.5d0*aex2
+  cmtrams = trams + Y*(aex2 - aex1)
+  bemtrams = emtrams
+  bcmtrams = cmtrams
 
   ! Initialize computed parameters from input, grid, and bulk calculations
   ! This recomputes and stores all derived parameters in structured form
-  call initialize_computed_params(input, grid, computed, bulk%chempp, bulk%emtrams, bulk%cmtrams)
+  call initialize_computed_params(input, grid, computed, chempp, emtrams, cmtrams)
 
   ! Print simulation parameters
   write (*, *) 'GFD POLYMER SOLUTION MODEL!'
-  write (*, *) 'input%bdm,bdpol =', input%bdm, bulk%bdpol
+  write (*, *) 'input%bdm,bdpol =', input%bdm, bdpol
   write (*, *) 'monomer density  = ', input%bdm
-  write (*, *) 'bdt = ', bulk%bdt
+  write (*, *) 'bdt = ', bdt
   write (*, *) 'collsep,input%dz = ', input%collsep, input%dz
   write (*, *) 'input%Rcoll = ', input%Rcoll
   write (*, *) 'bond length (input%bl): ', input%bl
   write (*, *) 'monomer hs diameter (input%bl): ', input%dhs
   write (*, *) 'no. of monomers/polymer = ', input%nmon
   write (*, *) 'max no. of iterations = ', input%ioimaxm
-  write (*, *) 'polymer chemical pot. (betamu) = ', bulk%chempp
+  write (*, *) 'polymer chemical pot. (betamu) = ', chempp
   write (*, *) 'solvent chemical pot. (betamu) = ', computed%chemps
-  write (*, *) 'total bulk pressure = ', bulk%Pb
+  write (*, *) 'total bulk pressure = ', Pb
   write (*, *) 'input%zc1,computed%zc2 = ', input%zc1, computed%zc2
-  write (*, *) 'grid%nfack,grid%imitt = ', grid%nfack, grid%imitt
-  write (*, *) 'grid%istp1,grid%islut = ', grid%istp1, grid%islut
-  write (*, *) 'grid%istp1s,grid%isluts = ', grid%istp1s, grid%isluts
-  write (*, *) 'grid%ism,grid%ibl = ', grid%ism, grid%ibl
-  write (*, *) 'grid%ksm,grid%kbl = ', grid%ksm, grid%kbl
+  write (*, *) 'nfack,grid%imitt = ', grid%nfack, grid%imitt
+  write (*, *) 'istp1,grid%islut = ', grid%istp1, grid%islut
+  write (*, *) 'istp1s,isluts = ', grid%istp1s, grid%isluts
+  write (*, *) 'ism,grid%ibl = ', grid%ism, grid%ibl
+  write (*, *) 'ksm,grid%kbl = ', grid%ksm, grid%kbl
   write (*, *) 'dmm,dms (density mixing param. mon.,solv.) = ', input%dmm, input%dms
   write (*, *) 'Rcyl  = ', input%Rcyl
-  write (*, *) 'bFex = ', bulk%bFex
-  write (*, *) 'computed%bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
+  write (*, *) 'bFex = ', bFex
+  write (*, *) 'bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
   ! Allocate module arrays based on calculated grid dimensions
   ! Include extra space for boundary cells (grid%kbl, grid%ibl)
-  ! hvec needs grid%nfack-1 for z-dimension (used in LJ potential table)
+  ! hvec needs nfack-1 for z-dimension (used in LJ potential table)
   call allocate_arrays(fields, grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
 
   ! Allocate main program arrays
@@ -167,21 +199,182 @@ program platem
 
   ! Calculate normalization constant for contact density
   call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
-  write (*, *) 'computed%cdnorm = ', computed%cdnorm
+  write (*, *) 'cdnorm = ', computed%cdnorm
 
-  ! Initialize excess free energy arrays at system boundaries
-  call initialize_boundary_excess_free_energy(input, grid, computed, fields)
+  ! Initialize excess free energy arrays near z-boundaries (left side)
+  ! These regions are near the system edge and require special treatment
+  do iz = grid%istp1, grid%istp1 + 2*grid%ibl - 1
+  do kz = 1, grid%mxrho + grid%kbl
+    cdt = input%bdm*dhs3
+    pcdt = PIS*cdt
+    xsi = (1.d0 - pcdt)
+    rxsi = 1.d0/xsi
+    sqrxsi = rxsi*rxsi
+    flog = dlog(xsi)
+    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                  BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                  BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
+                     input%bdm*rrnmon*daex2)*PIS*dhs3
+  end do
+  end do
+  ! Initialize excess free energy arrays near radial boundaries (outer edge)
+  do iz = grid%istp1 + 2*grid%ibl, grid%imitt + grid%ibl
+  do kz = grid%mxrho - grid%kbl + 1, grid%mxrho + grid%kbl
+    cdt = input%bdm*dhs3
+    pcdt = PIS*cdt
+    xsi = (1.d0 - pcdt)
+    rxsi = 1.d0/xsi
+    sqrxsi = rxsi*rxsi
+    flog = dlog(xsi)
+    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                  BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+    daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                  BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
+                     input%bdm*rrnmon*daex2)*PIS*dhs3
+  end do
+  end do
 
   ! Initialize density fields: either from scratch or read from file
-  call initialize_density_fields(input, grid, computed, fields, ifc)
+  if (input%kread .eq. 0) then
+    ! Starting from bulk values with excluded volume for colloids
+    z = -0.5d0*input%dz
+    ! Skip boundary region at z < 0
+    do iz = 1, grid%ibl
+      z = z + input%dz
+    end do
+    ! Initialize all grid points to bulk values, then zero out colloid interiors
+    do iz = grid%ibl + 1, grid%imitt
+      z = z + input%dz
+      z2 = (z - input%zc1)**2
+      z22 = (z - computed%zc2)**2
+      rho = -0.5d0*input%drho
+      ! Loop over radial positions
+      do kz = 1, grid%mxrho
+        rho = rho + input%drho
+        fields%fdmon(kz, iz) = input%bdm
+        fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+        fields%ebelam(kz, iz) = computed%bebelam
+        fields%ehbclam(kz, iz) = computed%behbclam
+        ! Check if point is inside first colloid
+        rt2 = rho*rho + z2
+        if (rt2 .lt. computed%Rcoll2) then
+          fields%fdmon(kz, iz) = 0.d0
+          fields%fem(kz, iz) = 0.d0
+          fields%ebelam(kz, iz) = 0.d0
+          fields%ehbclam(kz, iz) = 0.d0
+        end if
+        ! Check if point is inside second colloid
+        rt2 = rho*rho + z22
+        if (rt2 .lt. computed%Rcoll2) then
+          fields%fdmon(kz, iz) = 0.d0
+          fields%fem(kz, iz) = 0.d0
+          fields%ebelam(kz, iz) = 0.d0
+          fields%ehbclam(kz, iz) = 0.d0
+        end if
+      end do
+    end do
+  else
+    ! Read initial guess from file (restart from previous calculation)
+    rewind ifc
+    do iz = grid%istp1, grid%imitt
+    do kz = 1, grid%mxrho
+      read (ifc, *) t1, t2, fields%fdmon(kz, iz), fields%fem(kz, iz)
+    end do
+    end do
+  end if
+
+  ! Set boundary conditions at z-boundaries (left edge)
+  ! All densities set to bulk values
+  do iz = grid%istp1, grid%ibl
+  do kz = 1, grid%mxrho + grid%kbl
+    fields%fdmon(kz, iz) = input%bdm
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%ebelam(kz, iz) = computed%bebelam
+    fields%ehbclam(kz, iz) = computed%behbclam
+    fields%cdmonm(kz, iz) = input%bdm
+  end do
+  end do
+  ! Set boundary conditions at radial edge (outer cylinder boundary)
+  ! All densities set to bulk values
+  do iz = 1, grid%imitt
+  do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
+    fields%fdmon(kz, iz) = input%bdm
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%ebelam(kz, iz) = computed%bebelam
+    fields%ehbclam(kz, iz) = computed%behbclam
+    fields%cdmonm(kz, iz) = input%bdm
+  end do
+  end do
+
+  ! Apply symmetry boundary conditions at z = grid%imitt midplane
+  jz = grid%imitt + 1
+  do iz = grid%imitt + 1, grid%imitt + grid%ibl
+    jz = jz - 1
+    do kz = 1, grid%mxrho + grid%kbl
+      fields%fdmon(kz, iz) = fields%fdmon(kz, jz)
+      fields%fem(kz, iz) = fields%fem(kz, jz)
+      fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
+      fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
+      fields%cdmonm(kz, iz) = input%bdm
+    end do
+  end do
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
   write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)
 
   ! Precompute Lennard-Jones interaction potential on grid (hvec array)
   ! This tabulates U_LJ for all distance combinations to speed up later calculations
   write (*, *) 'dpphi = ', input%dpphi
-  call calculate_lj_potential_table(input, grid, computed, alj, rlj, fields, cos_pphi, npphi)
-  write (*, *) 'dpphi,npphi = ', input%dpphi*PI, npphi
+  input%dpphi = input%dpphi*PI
+  npphi = int(PI/input%dpphi + 0.01d0)
+  write (*, *) 'dpphi,npphi = ', input%dpphi, npphi
+
+  ! Initialize cosine lookup table for dpphi
+  do iphi = 1, npphi
+    phi = (dble(iphi) - 0.5d0)*input%dpphi
+    cos_pphi(iphi) = dcos(phi)
+  end do
+
+  kcm = grid%nfack
+  ! Triple loop over rho, rho', z to compute pairwise LJ interaction integrals
+  ! Loop order matches F77 for numerical consistency
+!$omp parallel do private(tdz, tdzsq, rho, rhosq, use1, trho, trhosq, trmix, useful, pint, iphi, s2, krho, kprho) schedule(static)
+  do itdz = 0, kcm - 1
+    tdz = -input%dz + dble(itdz + 1)*input%dz
+    tdzsq = tdz*tdz
+    rho = -0.5d0*input%drho
+    do krho = 1, grid%mxrho
+      rho = rho + input%drho
+      rhosq = rho*rho
+      use1 = tdzsq + rhosq
+      trho = -0.5d0*input%drho
+      do kprho = 1, grid%mxrho
+        trho = trho + input%drho
+        trhosq = trho*trho
+        trmix = 2.d0*trho*rho
+        useful = use1 + trhosq
+        pint = 0.d0
+        ! Angular integration for cylindrical geometry
+!$omp simd reduction(+:pint)
+        do iphi = 1, npphi
+          s2 = useful - trmix*cos_pphi(iphi)
+          if (s2 .gt. computed%dhs2) then
+            ! Lennard-Jones potential: U(r) = 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
+            pint = rlj/s2**6 - alj/s2**3 + pint
+          end if
+        end do
+!$omp end simd
+        fields%hvec(kprho, krho, itdz) = trho*pint*input%dpphi
+      end do
+    end do
+  end do
+!$omp end parallel do
   write (*, *) 'hvec fixad'
 
   ! Initialize iteration
@@ -502,14 +695,51 @@ program platem
 
   ! ===== Output converged results =====
   ! Write density profiles and calculate thermodynamic properties
-  call output_density_profiles(input, grid, computed, fields, c, &
-                                iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
+  rewind 89
+  rewind 78
+  rewind 85
   sumW = 0.d0
+  z = -0.5d0*input%dz
+
+  ! Write density profiles along z-axis at rho=0 (centerline)
+  do iz = grid%istp1, grid%imitt
+    z = z + input%dz
+    ! File 85: monomer and end-segment densities at centerline
+    write (85, *) z, fields%fdmon(1, iz), fields%fem(1, iz)
+    ! File 89: propagators for segments 1,3,5,9 and ehbclam at centerline
+    write (89, '(6f14.7)') z, c(1, iz, 1), c(1, iz, 3), c(1, iz, 5), &
+      fields%ehbclam(1, iz), c(1, iz, 9)
+
+    ! Radially integrate density within radius 1.0 to get average
+    fsum = 0.d0
+    klm = nint(1.d0/input%drho)
+    rho = -0.5d0*input%drho
+    do i = 1, klm
+      rho = rho + input%drho
+      fsum = fsum + fields%fdmon(i, iz)*2.d0*PI*rho
+    end do
+    ! File 78: z-position and radially averaged density
+    write (78, *) z, fsum*input%drho/(PI*1.d0**2)
+  end do
+
+  ! Write radial profiles at z = input%zc1 (first colloid center position)
+  rewind 83
+  rewind 87
+  iz = int(input%zc1*computed%rdz) + 1
+  rho = -0.5d0*input%drho
+  do kr = 1, grid%mxrho
+    rho = rho + input%drho
+    ! File 87: radial profile of propagators for segments 1,3,5,9 and ehbclam
+    write (87, '(6f14.7)') rho, c(kr, iz, 1), c(kr, iz, 3), c(kr, iz, 5), &
+      fields%ehbclam(kr, iz), c(kr, iz, 9)
+    ! File 83: radial profile of monomer and end-segment densities
+    write (83, *) rho, fields%fdmon(kr, iz), fields%fem(kr, iz)
+  end do
 
   ! ===== Calculate grand potential (thermodynamic potential) =====
   ! The grand potential Omega = F - mu*N measures the thermodynamic cost
   ! of the inhomogeneous density distribution relative to bulk
-  bfde = 2.d0*bulk%bdpol  ! Bulk end-segment density
+  bfde = 2.d0*bdpol  ! Bulk end-segment density
   bfdc = input%bdm - bfde  ! Bulk internal-segment density
   asumW = 0.d0
   sumsp = 0.d0
@@ -534,8 +764,8 @@ program platem
       ! Only integrate outside colloid volume
       if (rsq .ge. computed%Rcoll2) then
         ! Chemical potential contributions
-        belamb = dlog(fields%ebelam(kz, iz)) - computed%emscale
-        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - computed%scalem)
+        belamb = dlog(fields%ebelam(kz, iz)) - emscale
+        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - scalem)
         fde = fields%fem(kz, iz)
         fdc = fdm - fde
         ! Excess free energy from hard-sphere interactions
@@ -544,10 +774,10 @@ program platem
         ! Grand potential density omega(r) = f(r) - mu*rho(r)
         ! where f(r) is Helmholtz free energy density
         arsum = &
-          rho*(fdc*bclamb + bfdc*bulk%cmtrams + fde*belamb + bfde*bulk%emtrams + &
-               bulk%bdpol - fdm*computed%rrnmon + Fex - bulk%bFex) + arsum
+          rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
+               bdpol - fdm*rrnmon + Fex - bFex) + arsum
         brsum = &
-          rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bulk%bFex) + brsum
+          rho*(fdc*bclamb + fde*belamb - fdm*rrnmon + Fex - bFex) + brsum
       end if
 
       ! Add Lennard-Jones contribution to grand potential
@@ -948,11 +1178,6 @@ program platem
   close (ifc)
   close (ins)
   close (iep)
-  close (iout_zdens)
-  close (iout_zprop)
-  close (iout_zavg)
-  close (iout_rdens)
-  close (iout_rprop)
 
   ! Deallocate arrays before exit
   deallocate (c, cA, cB)

@@ -1123,4 +1123,85 @@ contains
     return
   end subroutine calculate_bulk_properties
 
+  !-----------------------------------------------------------------------------
+  ! output_density_profiles - Write converged density profiles to output files
+  !
+  ! Writes density and propagator profiles to various output files:
+  ! - iout_zdens: monomer and end-segment densities along z-axis at centerline (rho=0)
+  ! - iout_zprop: propagator profiles along z-axis at centerline
+  ! - iout_zavg: radially averaged density along z-axis (within radius 1.0)
+  ! - iout_rdens: radial profile of densities at z = input%zc1
+  ! - iout_rprop: radial profile of propagators at z = input%zc1
+  !
+  ! Inputs:
+  !   inp - Input parameters (dz, drho, zc1)
+  !   grd - Grid parameters (istp1, imitt, mxrho)
+  !   comp - Computed parameters (rdz)
+  !   flds - Fields (fdmon, fem, ehbclam)
+  !   c - Chain propagator array c(rho, z, segment)
+  !   iout_zdens - File unit for z-axis density profiles
+  !   iout_zprop - File unit for z-axis propagator profiles
+  !   iout_zavg - File unit for radially averaged density
+  !   iout_rdens - File unit for radial density profiles
+  !   iout_rprop - File unit for radial propagator profiles
+  !-----------------------------------------------------------------------------
+  subroutine output_density_profiles(inp, grd, comp, flds, c, &
+                                      iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    type(input_params_t), intent(in) :: inp
+    type(grid_params_t), intent(in) :: grd
+    type(computed_params_t), intent(in) :: comp
+    type(fields_t), intent(in) :: flds
+    real(real64), intent(in) :: c(0:, 0:, :)
+    integer(int32), intent(in) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
+
+    ! Local variables
+    integer(int32) :: iz, i, kr, klm
+    real(real64) :: z, rho, fsum
+
+    rewind iout_zprop
+    rewind iout_zavg
+    rewind iout_zdens
+    z = -0.5d0*inp%dz
+
+    ! Write density profiles along z-axis at rho=0 (centerline)
+    do iz = grd%istp1, grd%imitt
+      z = z + inp%dz
+      ! iout_zdens: monomer and end-segment densities at centerline
+      write (iout_zdens, *) z, flds%fdmon(1, iz), flds%fem(1, iz)
+      ! iout_zprop: propagators for segments 1,3,5,9 and ehbclam at centerline
+      write (iout_zprop, '(6f14.7)') z, c(1, iz, 1), c(1, iz, 3), c(1, iz, 5), &
+        flds%ehbclam(1, iz), c(1, iz, 9)
+
+      ! Radially integrate density within radius 1.0 to get average
+      fsum = 0.d0
+      klm = nint(1.d0/inp%drho)
+      rho = -0.5d0*inp%drho
+      do i = 1, klm
+        rho = rho + inp%drho
+        fsum = fsum + flds%fdmon(i, iz)*2.d0*PI*rho
+      end do
+      ! iout_zavg: z-position and radially averaged density
+      write (iout_zavg, *) z, fsum*inp%drho/(PI*1.d0**2)
+    end do
+
+    ! Write radial profiles at z = inp%zc1 (first colloid center position)
+    rewind iout_rdens
+    rewind iout_rprop
+    iz = int(inp%zc1*comp%rdz) + 1
+    rho = -0.5d0*inp%drho
+    do kr = 1, grd%mxrho
+      rho = rho + inp%drho
+      ! iout_rprop: radial profile of propagators for segments 1,3,5,9 and ehbclam
+      write (iout_rprop, '(6f14.7)') rho, c(kr, iz, 1), c(kr, iz, 3), c(kr, iz, 5), &
+        flds%ehbclam(kr, iz), c(kr, iz, 9)
+      ! iout_rdens: radial profile of monomer and end-segment densities
+      write (iout_rdens, *) rho, flds%fdmon(kr, iz), flds%fem(kr, iz)
+    end do
+
+    return
+  end subroutine output_density_profiles
+
 end module polymer_dft_data
