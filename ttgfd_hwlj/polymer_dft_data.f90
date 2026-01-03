@@ -171,7 +171,6 @@ module polymer_dft_data
 
   ! Cosine lookup tables for performance optimization
   real(real64) :: cos_phi(maxphi)
-  real(real64) :: cos_pphi(maxphi)
 
   ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
@@ -763,17 +762,17 @@ contains
   ! where r is computed from (rho, rho', dz, phi) using cylindrical geometry.
   !
   ! Arguments:
-  !   inp     - Input parameters (dz, drho, dpphi)
-  !   grd     - Grid parameters (nfack, mxrho)
-  !   comp    - Computed parameters (dhs2)
-  !   alj     - LJ attractive coefficient (4*eps*sigma^6)
-  !   rlj     - LJ repulsive coefficient (4*eps*sigma^12)
-  !   flds    - Fields structure (hvec will be filled)
-  !   cos_pphi - Cosine lookup table (output, will be filled)
-  !   npphi   - Number of angular grid points (output)
+  !   inp  - Input parameters (dz, drho, dpphi, epslj)
+  !   grd  - Grid parameters (nfack, mxrho)
+  !   comp - Computed parameters (dhs2, dhs3)
+  !   flds - Fields structure (hvec will be filled)
+  !
+  ! Internal computations:
+  !   - Calculates LJ coefficients alj and rlj from epslj and dhs3
+  !   - Creates angular lookup table cos_pphi
+  !   - Number of angular points (npphi) determined from dpphi
   ! ==========================================================================
-  subroutine calculate_lj_potential_table(inp, grd, comp, alj, rlj, flds, &
-                                          cos_pphi, npphi)
+  subroutine calculate_lj_potential_table(inp, grd, comp, flds)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -781,21 +780,26 @@ contains
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(in) :: grd
     type(computed_params_t), intent(in) :: comp
-    real(real64), intent(in) :: alj, rlj
     type(fields_t), intent(inout) :: flds
-    real(real64), intent(out) :: cos_pphi(:)
-    integer(int32), intent(out) :: npphi
 
     ! Local variables
-    integer(int32) :: itdz, iphi, krho, kprho
+    integer(int32) :: itdz, iphi, krho, kprho, npphi
     real(real64) :: phi, tdz, tdzsq, rho, rhosq, use1, trho, trhosq
     real(real64) :: trmix, useful, pint, s2, dpphi_rad
+    real(real64) :: alj, rlj
+    real(real64), allocatable :: cos_pphi(:)
+
+    ! Calculate Lennard-Jones coefficients from epslj and hard-sphere diameter
+    alj = 4.d0*inp%epslj*comp%dhs3*comp%dhs3    ! Attractive (r^-6) coefficient
+    rlj = 4.d0*inp%epslj*comp%dhs3**4           ! Repulsive (r^-12) coefficient
 
     ! Convert dpphi to radians and calculate number of angular points
     dpphi_rad = inp%dpphi*PI
     npphi = int(PI/dpphi_rad + 0.01d0)
+    write (*, *) 'dpphi,npphi = ', inp%dpphi*PI, npphi
 
-    ! Initialize cosine lookup table for angular integration
+    ! Allocate and initialize cosine lookup table for angular integration
+    allocate(cos_pphi(npphi))
     do iphi = 1, npphi
       phi = (dble(iphi) - 0.5d0)*dpphi_rad
       cos_pphi(iphi) = dcos(phi)
@@ -834,6 +838,9 @@ contains
       end do
     end do
 !$omp end parallel do
+
+    ! Clean up temporary lookup table
+    deallocate(cos_pphi)
 
     return
   end subroutine calculate_lj_potential_table

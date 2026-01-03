@@ -23,11 +23,11 @@ program platem
   ! Integer variables
   integer(int32) :: i, j, k, iz, jz, kz, irho, iphi, imon, kmon
   integer(int32) :: irho0min, jstart
-  integer(int32) :: ifc, ins, iep, niter, npphi
+  integer(int32) :: ifc, ins, iep, niter
   integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
   ! Real variables
-  real(real64) :: alj, aw
+  real(real64) :: aw
   real(real64) :: bds, bebbe
   real(real64) :: bw
   real(real64) :: ch2, ctf
@@ -42,7 +42,7 @@ program platem
   real(real64) :: fact, ffact, fphi
   real(real64) :: phi, phisum
   real(real64) :: rcliffF, rcyl2
-  real(real64) :: rho, rho0, rho02, rho2, rhoz2, rlj
+  real(real64) :: rho, rho0, rho02, rho2, rhoz2
   real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
   real(real64) :: sume
   real(real64) :: tdmm, tdms, tfdm, tfem
@@ -100,10 +100,8 @@ program platem
   computed%rnmon = dble(input%nmon)
   computed%rrnmon = 1.d0/computed%rnmon
 
-  ! Read Lennard-Jones energy parameter and compute LJ coefficients
+  ! Read Lennard-Jones energy parameter (used in calculate_lj_potential_table)
   read (iep, *) input%epslj
-  alj = 4.d0*input%epslj*computed%dhs3*computed%dhs3    ! Attractive (r^-6) coefficient
-  rlj = 4.d0*input%epslj*computed%dhs3**4      ! Repulsive (r^-12) coefficient
 
   ! Compute additional local parameters needed for bulk calculations
   Rcyl2 = input%Rcyl*input%Rcyl
@@ -174,9 +172,9 @@ program platem
 
   ! Precompute Lennard-Jones interaction potential on grid (hvec array)
   ! This tabulates U_LJ for all distance combinations to speed up later calculations
+  ! LJ coefficients (alj, rlj) and angular grid (cos_pphi, npphi) are computed internally
   write (*, *) 'dpphi = ', input%dpphi
-  call calculate_lj_potential_table(input, grid, computed, alj, rlj, fields, cos_pphi, npphi)
-  write (*, *) 'dpphi,npphi = ', input%dpphi*PI, npphi
+  call calculate_lj_potential_table(input, grid, computed, fields)
   write (*, *) 'hvec fixad'
 
   ! Initialize iteration
