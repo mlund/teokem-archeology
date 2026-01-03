@@ -102,6 +102,7 @@ legacy: ttgfd_hwlj_varbl.f t2.inc
 clean:
 	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77 $(PROGRAM)_gperf
 	rm -f *.o *.mod
+	rm -f fort.*
 	rm -f gmon.out cpu.prof profile.pdf
 	rm -f fcdfil epfil
 	rm -fR *.dSYM
