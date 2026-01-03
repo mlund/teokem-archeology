@@ -23,7 +23,7 @@ program platem
   ! Integer variables
   integer(int32) :: i, j, k, iz, jz, kz, irho, iphi, imon, kmon
   integer(int32) :: irho0min, jstart
-  integer(int32) :: ifc, ins, iep, niter
+  integer(int32) :: ifc, niter
   integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
   ! Real variables
@@ -52,42 +52,8 @@ program platem
   ! ========================================================================
   ! File unit numbers (automatically assigned by runtime)
 
-  ! Open input and output files
-  ! fcdfil: unknown allows both read and write (for restart capability)
-  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
-  open (newunit=ins, file='input.tsph', form='formatted', status='old')
-  open (newunit=iep, file='epfil', form='formatted', status='old')
-
-  ! Open output files for density profiles (use traditional fort.* names for compatibility)
-  open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
-  open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
-  open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
-  open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
-  open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
-
-  rewind ifc
-  rewind ins
-  rewind iep
-
-  ! Read simulation parameters from input file into structured input type
-  read (ins, *) input%bdm         ! Monomer bulk density
-  read (ins, *) input%bdtot       ! Total bulk density
-  bds = input%bdtot - input%bdm   ! Solvent bulk density
-  read (ins, *) input%nmon        ! Number of monomers per polymer chain
-  read (ins, *) input%dz          ! Grid spacing in z direction
-  read (ins, *) input%drho        ! Grid spacing in radial direction
-  read (ins, *) input%dphi        ! Angular grid spacing (input in units of pi)
-  input%dphi = PI*input%dphi      ! Convert to radians
-  read (ins, *) input%Rcoll       ! Colloid radius
-  read (ins, *) input%zc1         ! Position of first colloid center
-  read (ins, *) input%collsep     ! Separation between colloid centers
-  read (ins, *) input%Rcyl        ! Cylinder radius (system boundary)
-  read (ins, *) input%ioimaxm     ! Maximum number of iterations
-  read (ins, *) input%dmm, input%dms  ! Density mixing parameters (monomer, solvent)
-  read (ins, *) input%kread       ! Read initial guess from file (0=no, 1=yes)
-  read (ins, *) input%bl          ! Bond length
-  read (ins, *) input%dhs         ! Hard sphere diameter (monomer)
-  read (ins, *) input%dpphi       ! Angular grid spacing for potential calculation
+  ! Read all simulation parameters from input files
+  call read_input_parameters(input, bds)
 
   ! Initialize grid parameters from input
   call initialize_grid_params(input, grid)
@@ -100,8 +66,18 @@ program platem
   computed%rnmon = dble(input%nmon)
   computed%rrnmon = 1.d0/computed%rnmon
 
-  ! Read Lennard-Jones energy parameter (used in calculate_lj_potential_table)
-  read (iep, *) input%epslj
+  ! Open files for I/O
+  ! fcdfil: unknown allows both read and write (for restart capability)
+  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
+
+  ! Open output files for density profiles (use traditional fort.* names for compatibility)
+  open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
+  open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
+  open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
+  open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
+  open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
+
+  rewind ifc
 
   ! Compute additional local parameters needed for bulk calculations
   Rcyl2 = input%Rcyl*input%Rcyl
@@ -518,8 +494,6 @@ program platem
 
   ! Close files to ensure buffers are flushed
   close (ifc)
-  close (ins)
-  close (iep)
   close (iout_zdens)
   close (iout_zprop)
   close (iout_zavg)

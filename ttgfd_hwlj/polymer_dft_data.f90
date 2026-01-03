@@ -264,6 +264,64 @@ contains
     if (allocated(flds%edu)) deallocate(flds%edu)
   end subroutine deallocate_arrays
 
+  !-----------------------------------------------------------------------------
+  ! read_input_parameters - Read simulation parameters from input files
+  !
+  ! Reads all simulation parameters from input files and populates the
+  ! input_params_t structure. Opens and closes the files internally.
+  !
+  ! Input files:
+  !   - input.tsph: Main simulation parameters (bdm, nmon, grid spacing, etc.)
+  !   - epfil: Lennard-Jones interaction parameter (epslj)
+  !
+  ! Outputs:
+  !   inp - Populated input parameters structure
+  !   bds - Solvent bulk density (computed as bdtot - bdm)
+  !-----------------------------------------------------------------------------
+  subroutine read_input_parameters(inp, bds)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    type(input_params_t), intent(out) :: inp
+    real(real64), intent(out) :: bds
+
+    ! Local file units
+    integer(int32) :: ins, iep
+
+    ! Open input files
+    open (newunit=ins, file='input.tsph', form='formatted', status='old')
+    open (newunit=iep, file='epfil', form='formatted', status='old')
+
+    ! Read simulation parameters from input file
+    read (ins, *) inp%bdm         ! Monomer bulk density
+    read (ins, *) inp%bdtot       ! Total bulk density
+    bds = inp%bdtot - inp%bdm     ! Solvent bulk density
+    read (ins, *) inp%nmon        ! Number of monomers per polymer chain
+    read (ins, *) inp%dz          ! Grid spacing in z direction
+    read (ins, *) inp%drho        ! Grid spacing in radial direction
+    read (ins, *) inp%dphi        ! Angular grid spacing (input in units of pi)
+    inp%dphi = PI*inp%dphi        ! Convert to radians
+    read (ins, *) inp%Rcoll       ! Colloid radius
+    read (ins, *) inp%zc1         ! Position of first colloid center
+    read (ins, *) inp%collsep     ! Separation between colloid centers
+    read (ins, *) inp%Rcyl        ! Cylinder radius (system boundary)
+    read (ins, *) inp%ioimaxm     ! Maximum number of iterations
+    read (ins, *) inp%dmm, inp%dms  ! Density mixing parameters (monomer, solvent)
+    read (ins, *) inp%kread       ! Read initial guess from file (0=no, 1=yes)
+    read (ins, *) inp%bl          ! Bond length
+    read (ins, *) inp%dhs         ! Hard sphere diameter (monomer)
+    read (ins, *) inp%dpphi       ! Angular grid spacing for potential calculation
+
+    ! Read Lennard-Jones energy parameter
+    read (iep, *) inp%epslj
+
+    ! Close input files
+    close (ins)
+    close (iep)
+
+    return
+  end subroutine read_input_parameters
+
   ! ==========================================================================
   ! SUBROUTINE: initialize_grid_params
   ! ==========================================================================
