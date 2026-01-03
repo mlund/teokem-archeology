@@ -189,7 +189,7 @@ program platem
   ! Allocate module arrays based on calculated grid dimensions
   ! Include extra space for boundary cells (grid%kbl, grid%ibl)
   ! hvec needs nfack-1 for z-dimension (used in LJ potential table)
-  call allocate_arrays(grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
+  call allocate_arrays(fields, grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
 
   ! Allocate main program arrays
   ! Note: cB needs grid%nfack dimension because it's accessed as grid%islut + 1 - iz
@@ -211,13 +211,13 @@ program platem
     rxsi = 1.d0/xsi
     sqrxsi = rxsi*rxsi
     flog = dlog(xsi)
-    ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
     daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
                      input%bdm*rrnmon*daex2)*PIS*dhs3
   end do
   end do
@@ -230,13 +230,13 @@ program platem
     rxsi = 1.d0/xsi
     sqrxsi = rxsi*rxsi
     flog = dlog(xsi)
-    ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-    ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+    fields%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+    fields%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
     daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
     daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                   BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-    convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
+    fields%convp(kz, iz) = (Y*(input%bdm - 2.d0*input%bdm*rrnmon)*(daex2 - daex1) + &
                      input%bdm*rrnmon*daex2)*PIS*dhs3
   end do
   end do
@@ -258,25 +258,25 @@ program platem
       ! Loop over radial positions
       do kz = 1, grid%mxrho
         rho = rho + input%drho
-        fdmon(kz, iz) = input%bdm
-        fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-        ebelam(kz, iz) = computed%bebelam
-        ehbclam(kz, iz) = computed%behbclam
+        fields%fdmon(kz, iz) = input%bdm
+        fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+        fields%ebelam(kz, iz) = computed%bebelam
+        fields%ehbclam(kz, iz) = computed%behbclam
         ! Check if point is inside first colloid
         rt2 = rho*rho + z2
         if (rt2 .lt. computed%Rcoll2) then
-          fdmon(kz, iz) = 0.d0
-          fem(kz, iz) = 0.d0
-          ebelam(kz, iz) = 0.d0
-          ehbclam(kz, iz) = 0.d0
+          fields%fdmon(kz, iz) = 0.d0
+          fields%fem(kz, iz) = 0.d0
+          fields%ebelam(kz, iz) = 0.d0
+          fields%ehbclam(kz, iz) = 0.d0
         end if
         ! Check if point is inside second colloid
         rt2 = rho*rho + z22
         if (rt2 .lt. computed%Rcoll2) then
-          fdmon(kz, iz) = 0.d0
-          fem(kz, iz) = 0.d0
-          ebelam(kz, iz) = 0.d0
-          ehbclam(kz, iz) = 0.d0
+          fields%fdmon(kz, iz) = 0.d0
+          fields%fem(kz, iz) = 0.d0
+          fields%ebelam(kz, iz) = 0.d0
+          fields%ehbclam(kz, iz) = 0.d0
         end if
       end do
     end do
@@ -285,7 +285,7 @@ program platem
     rewind ifc
     do iz = grid%istp1, grid%imitt
     do kz = 1, grid%mxrho
-      read (ifc, *) t1, t2, fdmon(kz, iz), fem(kz, iz)
+      read (ifc, *) t1, t2, fields%fdmon(kz, iz), fields%fem(kz, iz)
     end do
     end do
   end if
@@ -294,22 +294,22 @@ program platem
   ! All densities set to bulk values
   do iz = grid%istp1, grid%ibl
   do kz = 1, grid%mxrho + grid%kbl
-    fdmon(kz, iz) = input%bdm
-    fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-    ebelam(kz, iz) = computed%bebelam
-    ehbclam(kz, iz) = computed%behbclam
-    cdmonm(kz, iz) = input%bdm
+    fields%fdmon(kz, iz) = input%bdm
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%ebelam(kz, iz) = computed%bebelam
+    fields%ehbclam(kz, iz) = computed%behbclam
+    fields%cdmonm(kz, iz) = input%bdm
   end do
   end do
   ! Set boundary conditions at radial edge (outer cylinder boundary)
   ! All densities set to bulk values
   do iz = 1, grid%imitt
   do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
-    fdmon(kz, iz) = input%bdm
-    fem(kz, iz) = 2.d0*fdmon(kz, iz)*rrnmon
-    ebelam(kz, iz) = computed%bebelam
-    ehbclam(kz, iz) = computed%behbclam
-    cdmonm(kz, iz) = input%bdm
+    fields%fdmon(kz, iz) = input%bdm
+    fields%fem(kz, iz) = 2.d0*fields%fdmon(kz, iz)*rrnmon
+    fields%ebelam(kz, iz) = computed%bebelam
+    fields%ehbclam(kz, iz) = computed%behbclam
+    fields%cdmonm(kz, iz) = input%bdm
   end do
   end do
 
@@ -318,15 +318,15 @@ program platem
   do iz = grid%imitt + 1, grid%imitt + grid%ibl
     jz = jz - 1
     do kz = 1, grid%mxrho + grid%kbl
-      fdmon(kz, iz) = fdmon(kz, jz)
-      fem(kz, iz) = fem(kz, jz)
-      ebelam(kz, iz) = ebelam(kz, jz)
-      ehbclam(kz, iz) = ehbclam(kz, jz)
-      cdmonm(kz, iz) = input%bdm
+      fields%fdmon(kz, iz) = fields%fdmon(kz, jz)
+      fields%fem(kz, iz) = fields%fem(kz, jz)
+      fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
+      fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
+      fields%cdmonm(kz, iz) = input%bdm
     end do
   end do
-  write (*, *) 'fdmon(1,1) = ', fdmon(1, 1)
-  write (*, *) 'fdmon(1,11) = ', fdmon(1, 11)
+  write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
+  write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)
 
   ! Precompute Lennard-Jones interaction potential on grid (hvec array)
   ! This tabulates U_LJ for all distance combinations to speed up later calculations
@@ -370,7 +370,7 @@ program platem
           end if
         end do
 !$omp end simd
-        hvec(kprho, krho, itdz) = trho*pint*input%dpphi
+        fields%hvec(kprho, krho, itdz) = trho*pint*input%dpphi
       end do
     end do
   end do
@@ -395,19 +395,18 @@ program platem
     end if
 
     ! Update fields in density functional theory calculation
-    call CDCALC(input, grid, computed, fdmon, cos_phi, cdmonm)     ! Calculate contact density
-    call AVEC(grid, computed, cdmonm, fdmon, fem, ae1, ae2, convp)       ! Calculate excess free energy
-    call EBLMNEW(input, grid, computed, convp, ae1, ae2, cos_phi, &
-                 ebelam, ehbclam)    ! Calculate end-segment Boltzmann factors
-    call EBDU(input, grid, computed, fdmon, hvec, edu)       ! Calculate external potential contribution
+    call CDCALC(input, grid, computed, fields, cos_phi)     ! Calculate contact density
+    call AVEC(grid, computed, fields)       ! Calculate excess free energy
+    call EBLMNEW(input, grid, computed, fields, cos_phi)    ! Calculate end-segment Boltzmann factors
+    call EBDU(input, grid, computed, fields)       ! Calculate external potential contribution
 
     ! Apply boundary conditions at outer radial edge (rho > Rcyl)
     ! Set to bulk values since density should approach bulk far from colloids
     do iz = grid%istp1, grid%imitt
     do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
-      ebelam(kz, iz) = computed%bebelam
-      ehbclam(kz, iz) = computed%behbclam
-      edu(kz, iz) = 1.d0
+      fields%ebelam(kz, iz) = computed%bebelam
+      fields%ehbclam(kz, iz) = computed%behbclam
+      fields%edu(kz, iz) = 1.d0
     end do
     end do
 
@@ -418,9 +417,9 @@ program platem
     do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
       do kz = 1, grid%mxrho + grid%kbl
-        ebelam(kz, iz) = ebelam(kz, jz)
-        ehbclam(kz, iz) = ehbclam(kz, jz)
-        edu(kz, iz) = edu(kz, jz)
+        fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
+        fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
+        fields%edu(kz, iz) = fields%edu(kz, jz)
       end do
     end do
 
@@ -429,9 +428,9 @@ program platem
     do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
       do kz = 1, grid%mxrho + grid%kbl
-        ebelam(kz, iz) = ebelam(kz, jz)
-        ehbclam(kz, iz) = ehbclam(kz, jz)
-        edu(kz, iz) = edu(kz, jz)
+        fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
+        fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
+        fields%edu(kz, iz) = fields%edu(kz, jz)
       end do
     end do
 
@@ -441,7 +440,7 @@ program platem
     !   edu = exp(-U_LJ) from Lennard-Jones interactions
     do iz = grid%istp1, grid%imitt + grid%ibl
     do kz = 1, grid%mxrho + grid%kbl
-      cA(kz, iz) = ebelam(kz, iz)*edu(kz, iz)
+      cA(kz, iz) = fields%ebelam(kz, iz)*fields%edu(kz, iz)
     end do
     end do
 
@@ -516,11 +515,11 @@ program platem
             if (iabs(jz - iz) .eq. grid%ibl) fact = 0.5d0
             sume = 2.d0*phisum*input%dphi*fact + sume
           end do
-          efact = dsqrt(edu(kz, iz))
-          ffact = sume*computed%dzrfp*ehbclam(kz, iz)/input%bl*efact
+          efact = dsqrt(fields%edu(kz, iz))
+          ffact = sume*computed%dzrfp*fields%ehbclam(kz, iz)/input%bl*efact
           c(kz, iz, imon) = ffact
-          if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = ffact*ehbclam(kz, iz)*efact
-          cB(kz, iz) = ffact*ehbclam(kz, iz)*efact
+          if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = ffact*fields%ehbclam(kz, iz)*efact
+          cB(kz, iz) = ffact*fields%ehbclam(kz, iz)*efact
         end do
       end do
 !$omp end do
@@ -655,8 +654,8 @@ program platem
         rho = rho + input%drho
         rsq = rho*rho + diffz2
         if (rsq .lt. computed%Rcoll2) then
-          fem(j, i) = 0.d0
-          fdmon(j, i) = 0.d0
+          fields%fem(j, i) = 0.d0
+          fields%fdmon(j, i) = 0.d0
         else
           ! Calculate total monomer density from chain propagators
           ! Sum over all internal segments (convolution of forward and backward propagators)
@@ -664,14 +663,14 @@ program platem
           do k = 2, input%nmon - 1
             dumsum = c(j, i, k)*c(j, i, input%nmon + 1 - k) + dumsum
           end do
-          tfem = 2.d0*c(j, i, 1)*ebelam(j, i)*dsqrt(edu(j, i))/ehbclam(j, i)
+          tfem = 2.d0*c(j, i, 1)*fields%ebelam(j, i)*dsqrt(fields%edu(j, i))/fields%ehbclam(j, i)
           tfdm = dumsum + tfem
           if (dabs(tfdm) .gt. 1.0d-14) then
-            ddiff = abs(tfdm - fdmon(j, i))/tfdm
+            ddiff = abs(tfdm - fields%fdmon(j, i))/tfdm
             if (ddiff .gt. ddmax) ddmax = ddiff
           end if
-          fem(j, i) = fem(j, i)*dmm_adaptive + tdmm*tfem
-          fdmon(j, i) = fdmon(j, i)*dmm_adaptive + tdmm*tfdm
+          fields%fem(j, i) = fields%fem(j, i)*dmm_adaptive + tdmm*tfem
+          fields%fdmon(j, i) = fields%fdmon(j, i)*dmm_adaptive + tdmm*tfdm
         end if
       end do
     end do
@@ -682,8 +681,8 @@ program platem
     do iz = grid%imitt + 1, grid%imitt + grid%ibl
       jz = jz - 1
       do kz = 1, grid%mxrho + grid%kbl
-        fdmon(kz, iz) = fdmon(kz, jz)
-        fem(kz, iz) = fem(kz, jz)
+        fields%fdmon(kz, iz) = fields%fdmon(kz, jz)
+        fields%fem(kz, iz) = fields%fem(kz, jz)
       end do
     end do
 
@@ -706,10 +705,10 @@ program platem
   do iz = grid%istp1, grid%imitt
     z = z + input%dz
     ! File 85: monomer and end-segment densities at centerline
-    write (85, *) z, fdmon(1, iz), fem(1, iz)
+    write (85, *) z, fields%fdmon(1, iz), fields%fem(1, iz)
     ! File 89: propagators for segments 1,3,5,9 and ehbclam at centerline
     write (89, '(6f14.7)') z, c(1, iz, 1), c(1, iz, 3), c(1, iz, 5), &
-      ehbclam(1, iz), c(1, iz, 9)
+      fields%ehbclam(1, iz), c(1, iz, 9)
 
     ! Radially integrate density within radius 1.0 to get average
     fsum = 0.d0
@@ -717,7 +716,7 @@ program platem
     rho = -0.5d0*input%drho
     do i = 1, klm
       rho = rho + input%drho
-      fsum = fsum + fdmon(i, iz)*2.d0*PI*rho
+      fsum = fsum + fields%fdmon(i, iz)*2.d0*PI*rho
     end do
     ! File 78: z-position and radially averaged density
     write (78, *) z, fsum*input%drho/(PI*1.d0**2)
@@ -732,9 +731,9 @@ program platem
     rho = rho + input%drho
     ! File 87: radial profile of propagators for segments 1,3,5,9 and ehbclam
     write (87, '(6f14.7)') rho, c(kr, iz, 1), c(kr, iz, 3), c(kr, iz, 5), &
-      ehbclam(kr, iz), c(kr, iz, 9)
+      fields%ehbclam(kr, iz), c(kr, iz, 9)
     ! File 83: radial profile of monomer and end-segment densities
-    write (83, *) rho, fdmon(kr, iz), fem(kr, iz)
+    write (83, *) rho, fields%fdmon(kr, iz), fields%fem(kr, iz)
   end do
 
   ! ===== Calculate grand potential (thermodynamic potential) =====
@@ -760,17 +759,17 @@ program platem
     do kz = 1, grid%mxrho
       rho = rho + input%drho
       rsq = rho*rho + diffz2
-      fdm = fdmon(kz, iz)
+      fdm = fields%fdmon(kz, iz)
 
       ! Only integrate outside colloid volume
       if (rsq .ge. computed%Rcoll2) then
         ! Chemical potential contributions
-        belamb = dlog(ebelam(kz, iz)) - emscale
-        bclamb = 2.d0*(dlog(ehbclam(kz, iz)) - scalem)
-        fde = fem(kz, iz)
+        belamb = dlog(fields%ebelam(kz, iz)) - emscale
+        bclamb = 2.d0*(dlog(fields%ehbclam(kz, iz)) - scalem)
+        fde = fields%fem(kz, iz)
         fdc = fdm - fde
         ! Excess free energy from hard-sphere interactions
-        Fex = fdc*Y*(ae2(kz, iz) - ae1(kz, iz)) + 0.5d0*fde*ae2(kz, iz)
+        Fex = fdc*Y*(fields%ae2(kz, iz) - fields%ae1(kz, iz)) + 0.5d0*fde*fields%ae2(kz, iz)
 
         ! Grand potential density omega(r) = f(r) - mu*rho(r)
         ! where f(r) is Helmholtz free energy density
@@ -782,7 +781,7 @@ program platem
       end if
 
       ! Add Lennard-Jones contribution to grand potential
-      eexc = -dlog(edu(kz, iz))
+      eexc = -dlog(fields%edu(kz, iz))
       arsum = arsum - 0.5d0*rho*eexc*(fdm + input%bdm)
       brsum = brsum + rho*(0.5d0*(fdm - input%bdm)*eexc - fdm*eexc)
     end do
@@ -837,17 +836,17 @@ program platem
 
       ! Quadratic interpolation to get density at exact colloid surface
       ! Use 3 points near boundary (irho, irho+1, irho+2)
-      if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
-        y3 = fdmon(irho, iz)
-        y2 = fdmon(irho + 1, iz)
-        y1 = fdmon(irho + 2, iz)
+      if (dabs(fields%fdmon(irho, iz)) .gt. 0.00000001d0) then
+        y3 = fields%fdmon(irho, iz)
+        y2 = fields%fdmon(irho + 1, iz)
+        y1 = fields%fdmon(irho + 2, iz)
         x3 = rho
         x2 = rho + input%drho
         x1 = rho + 2.d0*input%drho
       else
-        y3 = fdmon(irho + 1, iz)
-        y2 = fdmon(irho + 2, iz)
-        y1 = fdmon(irho + 3, iz)
+        y3 = fields%fdmon(irho + 1, iz)
+        y2 = fields%fdmon(irho + 2, iz)
+        y1 = fields%fdmon(irho + 3, iz)
         x3 = rho + input%drho
         x2 = rho + 2.d0*input%drho
         x1 = rho + 3.d0*input%drho
@@ -891,21 +890,21 @@ program platem
       Rc = dsqrt(rho*rho + zsq)
       rhoc = dsqrt(computed%Rcoll2 - zsq)
 
-      if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
-        y3 = fdmon(irho, iz)
-        y2 = fdmon(irho + 1, iz)
-        y1 = fdmon(irho + 2, iz)
+      if (dabs(fields%fdmon(irho, iz)) .gt. 0.00000001d0) then
+        y3 = fields%fdmon(irho, iz)
+        y2 = fields%fdmon(irho + 1, iz)
+        y1 = fields%fdmon(irho + 2, iz)
         x3 = rho
         x2 = rho + input%drho
         x1 = rho + 2.d0*input%drho
       else
-        y3 = fdmon(irho + 1, iz)
-        y2 = fdmon(irho + 2, iz)
-        y1 = fdmon(irho + 3, iz)
+        y3 = fields%fdmon(irho + 1, iz)
+        y2 = fields%fdmon(irho + 2, iz)
+        y1 = fields%fdmon(irho + 3, iz)
         x3 = rho + input%drho
         x2 = rho + 2.d0*input%drho
         x1 = rho + 3.d0*input%drho
-        write (*, *) 'TJOHO!!!!', fdmon(irho, iz), rho
+        write (*, *) 'TJOHO!!!!', fields%fdmon(irho, iz), rho
       end if
 
       x = rhoc
@@ -998,17 +997,17 @@ program platem
       deltazc = dsqrt(computed%Rcoll2 - rhosq)
 
       ! Quadratic interpolation in z-direction to get surface density
-      if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
-        y3 = fdmon(irho, iz)
-        y2 = fdmon(irho, iz - 1)
-        y1 = fdmon(irho, iz - 2)
+      if (dabs(fields%fdmon(irho, iz)) .gt. 0.00000001d0) then
+        y3 = fields%fdmon(irho, iz)
+        y2 = fields%fdmon(irho, iz - 1)
+        y1 = fields%fdmon(irho, iz - 2)
         x3 = dabs(z - input%zc1)
         x2 = x3 + input%dz
         x1 = x3 + 2.d0*input%dz
       else
-        y3 = fdmon(irho, iz - 1)
-        y2 = fdmon(irho, iz - 2)
-        y1 = fdmon(irho, iz - 3)
+        y3 = fields%fdmon(irho, iz - 1)
+        y2 = fields%fdmon(irho, iz - 2)
+        y1 = fields%fdmon(irho, iz - 3)
         x3 = dabs(z - input%zc1) + input%dz
         x2 = x3 + input%dz
         x1 = x3 + 2.d0*input%dz
@@ -1050,17 +1049,17 @@ program platem
       Rc = dsqrt(rhosq + zsq)
       deltazc = dsqrt(computed%Rcoll2 - rhosq)
 
-      if (dabs(fdmon(irho, iz)) .gt. 0.00000001d0) then
-        y3 = fdmon(irho, iz)
-        y2 = fdmon(irho, iz + 1)
-        y1 = fdmon(irho, iz + 2)
+      if (dabs(fields%fdmon(irho, iz)) .gt. 0.00000001d0) then
+        y3 = fields%fdmon(irho, iz)
+        y2 = fields%fdmon(irho, iz + 1)
+        y1 = fields%fdmon(irho, iz + 2)
         x3 = dabs(z - input%zc1)
         x2 = x3 + input%dz
         x1 = x3 + 2.d0*input%dz
       else
-        y3 = fdmon(irho, iz + 1)
-        y2 = fdmon(irho, iz + 2)
-        y1 = fdmon(irho, iz + 3)
+        y3 = fields%fdmon(irho, iz + 1)
+        y2 = fields%fdmon(irho, iz + 2)
+        y1 = fields%fdmon(irho, iz + 3)
         x3 = dabs(z - input%zc1) + input%dz
         x2 = x3 + input%dz
         x1 = x3 + 2.d0*input%dz
@@ -1171,7 +1170,7 @@ program platem
     do kz = 1, grid%mxrho
       rho = rho + input%drho
       write (ifc, '(2f12.5,2f21.12)') &
-        z, rho, fdmon(kz, iz), fem(kz, iz)
+        z, rho, fields%fdmon(kz, iz), fields%fem(kz, iz)
     end do
   end do
 
@@ -1182,7 +1181,7 @@ program platem
 
   ! Deallocate arrays before exit
   deallocate (c, cA, cB)
-  call deallocate_arrays()
+  call deallocate_arrays(fields)
 
   STOP
 END

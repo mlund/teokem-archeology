@@ -118,30 +118,45 @@ module polymer_dft_data
   end type computed_params_t
 
   ! ========================================================================
+  ! TYPE: fields_t
+  ! ========================================================================
+  ! Encapsulates all density, potential, and work arrays for DFT calculation
+  ! All arrays use 0-based indexing: (0:nrho, 0:nz) or (0:nrho, 0:nrho, 0:nz_hvec)
+  ! ========================================================================
+  type :: fields_t
+    ! Density fields
+    real(real64), allocatable :: fdmon(:, :)    ! Monomer density field ρ_m(r,z)
+    real(real64), allocatable :: fem(:, :)      ! End-segment density field ρ_e(r,z)
+
+    ! Boltzmann weight factors
+    real(real64), allocatable :: ebelam(:, :)   ! End-segment Boltzmann factor exp(-βμ_e)
+    real(real64), allocatable :: ehbclam(:, :)  ! Half-bond Boltzmann factor exp(-βμ_hb)
+
+    ! Contact density and excess free energy
+    real(real64), allocatable :: cdmonm(:, :)   ! Contact density at hard-sphere diameter
+    real(real64), allocatable :: ae1(:, :)      ! Excess free energy (C1 term)
+    real(real64), allocatable :: ae2(:, :)      ! Excess free energy (C2 term)
+    real(real64), allocatable :: convp(:, :)    ! Convolution term for DFT functional
+
+    ! External potentials
+    real(real64), allocatable :: edu(:, :)      ! Lennard-Jones external potential exp(-βU_LJ)
+
+    ! Lennard-Jones potential lookup table (3D)
+    real(real64), allocatable :: hvec(:, :, :)  ! Precomputed LJ interaction integrals
+  end type fields_t
+
+  ! ========================================================================
   ! Module variables - structured input parameters
   ! ========================================================================
-  type(input_params_t) :: input  ! User input parameters
+  type(input_params_t) :: input      ! User input parameters
   type(grid_params_t) :: grid        ! Grid dimensions and discretization
   type(computed_params_t) :: computed ! Derived parameters
+  type(fields_t) :: fields           ! Density and potential fields
 
   ! ========================================================================
   ! Array dimensions - now allocatable (no fixed limits)
   ! ========================================================================
   integer, parameter :: maxphi = 5000  ! Maximum phi grid points for lookup tables
-
-  ! ========================================================================
-  ! Large arrays - now allocatable (formerly fixed-size in COMMON/VECT/)
-  ! ========================================================================
-  real(real64), allocatable :: fdmon(:, :)
-  real(real64), allocatable :: ebelam(:, :)
-  real(real64), allocatable :: convp(:, :)
-  real(real64), allocatable :: hvec(:, :, :)
-  real(real64), allocatable :: fem(:, :)
-  real(real64), allocatable :: ehbclam(:, :)
-  real(real64), allocatable :: cdmonm(:, :)
-  real(real64), allocatable :: ae1(:, :)
-  real(real64), allocatable :: ae2(:, :)
-  real(real64), allocatable :: edu(:, :)
 
   ! Cosine lookup tables for performance optimization
   real(real64) :: cos_phi(maxphi)
@@ -184,36 +199,37 @@ contains
   ! Allocates all dynamic arrays based on grid dimensions
   ! Must be called after mxrho, imitt, and nfack are calculated from input
   ! ==========================================================================
-  subroutine allocate_arrays(nrho, nz, nz_hvec)
+  subroutine allocate_arrays(flds, nrho, nz, nz_hvec)
+    type(fields_t), intent(inout) :: flds  ! Fields structure to allocate
     integer(int32), intent(in) :: nrho     ! Maximum rho grid points (mxrho + kbl)
     integer(int32), intent(in) :: nz       ! Maximum z grid points (imitt + ibl)
     integer(int32), intent(in) :: nz_hvec  ! Maximum z for hvec (nfack - 1)
 
     ! Allocate 2D arrays with 0-based indexing
-    allocate(fdmon(0:nrho, 0:nz))
-    allocate(ebelam(0:nrho, 0:nz))
-    allocate(convp(0:nrho, 0:nz))
-    allocate(fem(0:nrho, 0:nz))
-    allocate(ehbclam(0:nrho, 0:nz))
-    allocate(cdmonm(0:nrho, 0:nz))
-    allocate(ae1(0:nrho, 0:nz))
-    allocate(ae2(0:nrho, 0:nz))
-    allocate(edu(0:nrho, 0:nz))
+    allocate(flds%fdmon(0:nrho, 0:nz))
+    allocate(flds%ebelam(0:nrho, 0:nz))
+    allocate(flds%convp(0:nrho, 0:nz))
+    allocate(flds%fem(0:nrho, 0:nz))
+    allocate(flds%ehbclam(0:nrho, 0:nz))
+    allocate(flds%cdmonm(0:nrho, 0:nz))
+    allocate(flds%ae1(0:nrho, 0:nz))
+    allocate(flds%ae2(0:nrho, 0:nz))
+    allocate(flds%edu(0:nrho, 0:nz))
 
     ! Allocate 3D array (hvec has different z-dimension for LJ potential table)
-    allocate(hvec(0:nrho, 0:nrho, 0:nz_hvec))
+    allocate(flds%hvec(0:nrho, 0:nrho, 0:nz_hvec))
 
     ! Initialize arrays to zero
-    fdmon = 0.d0
-    ebelam = 0.d0
-    convp = 0.d0
-    hvec = 0.d0
-    fem = 0.d0
-    ehbclam = 0.d0
-    cdmonm = 0.d0
-    ae1 = 0.d0
-    ae2 = 0.d0
-    edu = 0.d0
+    flds%fdmon = 0.d0
+    flds%ebelam = 0.d0
+    flds%convp = 0.d0
+    flds%hvec = 0.d0
+    flds%fem = 0.d0
+    flds%ehbclam = 0.d0
+    flds%cdmonm = 0.d0
+    flds%ae1 = 0.d0
+    flds%ae2 = 0.d0
+    flds%edu = 0.d0
 
   end subroutine allocate_arrays
 
@@ -223,17 +239,19 @@ contains
   ! Deallocates all dynamic arrays
   ! Should be called before program termination for clean memory management
   ! ==========================================================================
-  subroutine deallocate_arrays()
-    if (allocated(fdmon)) deallocate(fdmon)
-    if (allocated(ebelam)) deallocate(ebelam)
-    if (allocated(convp)) deallocate(convp)
-    if (allocated(hvec)) deallocate(hvec)
-    if (allocated(fem)) deallocate(fem)
-    if (allocated(ehbclam)) deallocate(ehbclam)
-    if (allocated(cdmonm)) deallocate(cdmonm)
-    if (allocated(ae1)) deallocate(ae1)
-    if (allocated(ae2)) deallocate(ae2)
-    if (allocated(edu)) deallocate(edu)
+  subroutine deallocate_arrays(flds)
+    type(fields_t), intent(inout) :: flds  ! Fields structure to deallocate
+
+    if (allocated(flds%fdmon)) deallocate(flds%fdmon)
+    if (allocated(flds%ebelam)) deallocate(flds%ebelam)
+    if (allocated(flds%convp)) deallocate(flds%convp)
+    if (allocated(flds%hvec)) deallocate(flds%hvec)
+    if (allocated(flds%fem)) deallocate(flds%fem)
+    if (allocated(flds%ehbclam)) deallocate(flds%ehbclam)
+    if (allocated(flds%cdmonm)) deallocate(flds%cdmonm)
+    if (allocated(flds%ae1)) deallocate(flds%ae1)
+    if (allocated(flds%ae2)) deallocate(flds%ae2)
+    if (allocated(flds%edu)) deallocate(flds%edu)
   end subroutine deallocate_arrays
 
   ! ==========================================================================
@@ -400,7 +418,7 @@ contains
   ! diameter dhs, computed using 3D integration in cylindrical coordinates
   ! with angular averaging.
   ! ==========================================================================
-  subroutine CDCALC(inp, grd, comp, fdmon, cos_phi_table, cdmonm)
+  subroutine CDCALC(inp, grd, comp, flds, cos_phi_table)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -408,9 +426,8 @@ contains
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(in) :: grd
     type(computed_params_t), intent(in) :: comp
-    real(real64), intent(in) :: fdmon(0:, 0:)
+    type(fields_t), intent(inout) :: flds
     real(real64), intent(in) :: cos_phi_table(:)
-    real(real64), intent(out) :: cdmonm(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, jz, kz, iphi, irho, krhop, krhopmax
@@ -447,7 +464,7 @@ contains
               rho2 = rhomax2 - fphi*cos_phi_table(iphi)
               rho = dsqrt(rho2)
               irho = int(rho*comp%rdrho) + 1
-              phisum = fdmon(irho, jz) + phisum
+              phisum = flds%fdmon(irho, jz) + phisum
             end do
 !$omp end simd
             sumrhop = rhop*phisum*inp%dphi + sumrhop
@@ -456,7 +473,7 @@ contains
           if (iabs(jz - iz) .eq. grd%ism) fact = 0.5d0
           sume = 2.d0*sumrhop*inp%drho*fact + sume
         end do
-        cdmonm(kz, iz) = 3.d0*sume*comp%dzrfp*comp%cdnorm*comp%rdhs3
+        flds%cdmonm(kz, iz) = 3.d0*sume*comp%dzrfp*comp%cdnorm*comp%rdhs3
       end do
     end do
 !$omp end parallel do
@@ -471,19 +488,14 @@ contains
   ! of state. These quantities are used in the density functional expressions
   ! for the polymer chain propagators.
   ! ==========================================================================
-  subroutine AVEC(grd, comp, cdmonm, fdmon, fem, ae1, ae2, convp)
+  subroutine AVEC(grd, comp, flds)
     use iso_fortran_env, only: real64, int32
     implicit none
 
     ! Arguments
     type(grid_params_t), intent(in) :: grd
     type(computed_params_t), intent(in) :: comp
-    real(real64), intent(in) :: cdmonm(0:, 0:)
-    real(real64), intent(in) :: fdmon(0:, 0:)
-    real(real64), intent(in) :: fem(0:, 0:)
-    real(real64), intent(out) :: ae1(0:, 0:)
-    real(real64), intent(out) :: ae2(0:, 0:)
-    real(real64), intent(out) :: convp(0:, 0:)
+    type(fields_t), intent(inout) :: flds
 
     ! Local variables
     integer(int32) :: iz, kz, jz
@@ -493,20 +505,20 @@ contains
 !$omp parallel do private(kz, cdt, pcdt, xsi, rxsi, sqrxsi, flog, daex1, daex2) schedule(static)
     do iz = grd%istp1 + 2*grd%ism, grd%imitt
       do kz = 1, grd%mxrho - grd%kbl
-        cdt = cdmonm(kz, iz)*comp%dhs3
+        cdt = flds%cdmonm(kz, iz)*comp%dhs3
         pcdt = PIS*cdt
         xsi = (1.d0 - pcdt)
         rxsi = 1.d0/xsi
         sqrxsi = rxsi*rxsi
         flog = dlog(xsi)
-        ae1(kz, iz) = -(c1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-        ae2(kz, iz) = -(c2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+        flds%ae1(kz, iz) = -(c1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+        flds%ae2(kz, iz) = -(c2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
         daex1 = rxsi*(c1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                       BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
         daex2 = rxsi*(c2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
                       BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-        convp(kz, iz) = (Y*(fdmon(kz, iz) - fem(kz, iz))*(daex2 - daex1) + &
-                         0.5d0*fem(kz, iz)*daex2)*pis*comp%dhs3
+        flds%convp(kz, iz) = (Y*(flds%fdmon(kz, iz) - flds%fem(kz, iz))*(daex2 - daex1) + &
+                         0.5d0*flds%fem(kz, iz)*daex2)*pis*comp%dhs3
       end do
     end do
 !$omp end parallel do
@@ -516,9 +528,9 @@ contains
       jz = grd%imitt + 1
       do iz = grd%imitt + 1, grd%imitt + grd%ibl
         jz = jz - 1
-        ae1(kz, iz) = ae1(kz, jz)
-        ae2(kz, iz) = ae2(kz, jz)
-        convp(kz, iz) = convp(kz, jz)
+        flds%ae1(kz, iz) = flds%ae1(kz, jz)
+        flds%ae2(kz, iz) = flds%ae2(kz, jz)
+        flds%convp(kz, iz) = flds%convp(kz, jz)
       end do
     end do
 !$omp end parallel do
@@ -533,8 +545,7 @@ contains
   ! include contributions from the excess free energy and the convolution
   ! integrals. Excludes regions inside colloids.
   ! ==========================================================================
-  subroutine EBLMNEW(inp, grd, comp, convp, ae1, ae2, cos_phi_table, &
-                     ebelam, ehbclam)
+  subroutine EBLMNEW(inp, grd, comp, flds, cos_phi_table)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -542,12 +553,8 @@ contains
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(in) :: grd
     type(computed_params_t), intent(in) :: comp
-    real(real64), intent(in) :: convp(0:, 0:)
-    real(real64), intent(in) :: ae1(0:, 0:)
-    real(real64), intent(in) :: ae2(0:, 0:)
+    type(fields_t), intent(inout) :: flds
     real(real64), intent(in) :: cos_phi_table(:)
-    real(real64), intent(out) :: ebelam(0:, 0:)
-    real(real64), intent(out) :: ehbclam(0:, 0:)
 
     ! Local variables
     integer(int32) :: iz, kz, jstart, irho0min, krhop, krhopmax, jz, iphi, irho
@@ -559,8 +566,8 @@ contains
 !$omp parallel do private(kz)
     do iz = 1, grd%ibl
       do kz = 1, grd%mxrho + grd%kbl
-        ebelam(kz, iz) = comp%bebelam
-        ehbclam(kz, iz) = comp%behbclam
+        flds%ebelam(kz, iz) = comp%bebelam
+        flds%ehbclam(kz, iz) = comp%behbclam
       end do
     end do
 !$omp end parallel do
@@ -584,15 +591,15 @@ contains
         ! Skip points inside first colloid
         rt2 = rho02 + (z - inp%zc1)**2
         if (rt2 .lt. comp%Rcoll2) then
-          ehbclam(kz, iz) = 0.d0
-          ebelam(kz, iz) = 0.d0
+          flds%ehbclam(kz, iz) = 0.d0
+          flds%ebelam(kz, iz) = 0.d0
           cycle
         end if
         ! Skip points inside second colloid
         rt2 = rho02 + (z - comp%zc2)**2
         if (rt2 .lt. comp%Rcoll2) then
-          ehbclam(kz, iz) = 0.d0
-          ebelam(kz, iz) = 0.d0
+          flds%ehbclam(kz, iz) = 0.d0
+          flds%ebelam(kz, iz) = 0.d0
           cycle
         end if
 
@@ -635,7 +642,7 @@ contains
               rho = dsqrt(rho2)
               irho = int(rho*comp%rdrho) + 1
               ! Sum convolution term (weighted density) over angular direction
-              phisum = convp(irho, jz) + phisum
+              phisum = flds%convp(irho, jz) + phisum
             end do
 !$omp end simd
             ! Integrate over rho': weight by rhop*dphi*drho (cylindrical volume element)
@@ -652,12 +659,12 @@ contains
 
         ! Calculate Boltzmann factors from free energy contributions
         ! emtrams: end-segment contribution (half of middle segment)
-        emtrams = trams + 0.5d0*ae2(kz, iz)
+        emtrams = trams + 0.5d0*flds%ae2(kz, iz)
         ! cmtrams: middle-segment contribution with Y factor for chain connectivity
-        cmtrams = trams + Y*(ae2(kz, iz) - ae1(kz, iz))
+        cmtrams = trams + Y*(flds%ae2(kz, iz) - flds%ae1(kz, iz))
         ! exp(-beta*F): Boltzmann weights with bulk chemical potential offset
-        ebelam(kz, iz) = dexp(-emtrams + comp%emscale)
-        ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + comp%scalem)
+        flds%ebelam(kz, iz) = dexp(-emtrams + comp%emscale)
+        flds%ehbclam(kz, iz) = dexp(-0.5d0*(cmtrams) + comp%scalem)
       end do
     end do
 !$omp end parallel do
@@ -672,7 +679,7 @@ contains
   ! the interaction energy between a test particle at (rho,z) and the entire
   ! density field, using symmetry to include both colloids.
   ! ==========================================================================
-  subroutine EBDU(inp, grd, comp, fdmon, hvec, edu)
+  subroutine EBDU(inp, grd, comp, flds)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -680,9 +687,7 @@ contains
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(in) :: grd
     type(computed_params_t), intent(in) :: comp
-    real(real64), intent(in) :: fdmon(0:, 0:)
-    real(real64), intent(in) :: hvec(0:, 0:, 0:)
-    real(real64), intent(out) :: edu(0:, 0:)
+    type(fields_t), intent(inout) :: flds
 
     ! Local variables
     integer(int32) :: iz, kz, krho, kprho, ipz, itdz
@@ -692,7 +697,7 @@ contains
 !$omp parallel do private(kz)
     do iz = 1, grd%ibl
       do kz = 1, grd%mxrho + grd%kbl
-        edu(kz, iz) = 1.d0
+        flds%edu(kz, iz) = 1.d0
       end do
     end do
 !$omp end parallel do
@@ -711,7 +716,7 @@ contains
           itdz = nint(dabs(tdz*comp%rdz))
           sumrho = 0.d0
           do kprho = 1, grd%mxrho
-            sumrho = sumrho + (fdmon(kprho, ipz) - inp%bdm)*hvec(kprho, krho, itdz)
+            sumrho = sumrho + (flds%fdmon(kprho, ipz) - inp%bdm)*flds%hvec(kprho, krho, itdz)
           end do
           sumpint = 2.d0*sumrho*inp%drho + sumpint
         end do
@@ -723,12 +728,12 @@ contains
           itdz = nint(dabs(tdz*comp%rdz))
           sumrho = 0.d0
           do kprho = 1, grd%mxrho
-            sumrho = sumrho + (fdmon(kprho, grd%nfack + 1 - ipz) - inp%bdm)*hvec(kprho, krho, itdz)
+            sumrho = sumrho + (flds%fdmon(kprho, grd%nfack + 1 - ipz) - inp%bdm)*flds%hvec(kprho, krho, itdz)
           end do
           sumpint = 2.d0*sumrho*inp%drho + sumpint
         end do
         sumpint = sumpint*inp%dz
-        edu(krho, iz) = dexp(-sumpint)
+        flds%edu(krho, iz) = dexp(-sumpint)
       end do
     end do
 !$omp end parallel do
