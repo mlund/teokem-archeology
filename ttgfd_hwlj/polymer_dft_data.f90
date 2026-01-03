@@ -1305,4 +1305,413 @@ contains
     return
   end subroutine calculate_grand_potential
 
+  !-----------------------------------------------------------------------------
+  ! calculate_colloid_forces - Calculate forces on colloid from contact density
+  !
+  ! Integrates the contact density over the colloid surface to compute the
+  ! net force on the colloid. Uses multiple integration methods:
+  ! 1. Integration in z-direction (hemispheres)
+  ! 2. Integration in rho-direction (alternative method)
+  ! 3. Integration over cos(theta) coordinate
+  !
+  ! The contact density at the colloid surface is obtained by quadratic
+  ! (Lagrange) interpolation from nearby grid points.
+  !
+  ! Inputs:
+  !   inp - Input parameters (zc1, Rcoll, dz, drho)
+  !   comp - Computed parameters (rdz, Rcoll2)
+  !   flds - Fields (fdmon - monomer density field)
+  !
+  ! Outputs:
+  !   rcliffF - Force from z-hemisphere integration
+  !   ctF - Force from cos(theta) integration
+  !   ch2 - Alternative integral for comparison
+  !-----------------------------------------------------------------------------
+  subroutine calculate_colloid_forces(inp, comp, flds, rcliffF, ctF, ch2)
+    use iso_fortran_env, only: real64, int32
+    implicit none
+
+    type(input_params_t), intent(in) :: inp
+    type(computed_params_t), intent(in) :: comp
+    type(fields_t), intent(in) :: flds
+    real(real64), intent(out) :: rcliffF, ctF, ch2
+
+    ! Local variables
+    integer(int32) :: iz, izmin, izmax, izc1, irho, irhomax, krho, kct, ict
+    real(real64) :: z, zmin, zmax, rho, rhon, rhoc, rhomax, Rc
+    real(real64) :: zsq, rhosq, deltazc
+    real(real64) :: x, x1, x2, x3, y1, y2, y3
+    real(real64) :: fdc, fdcn, fdcm1, fdcp1, fk
+    real(real64) :: ctheta, ct, ctn, ctp
+    real(real64) :: rhoFo, rcliffFo, rhoFi, rcliffFi
+    real(real64) :: zFi, zFo, chi, cho, cliffFi, cliffFo
+    real(real64) :: cckoll, ckoll, ckk, ccckoll, bordekoll, ccc
+    real(real64) :: add, t, tn, th
+    real(real64), dimension(0:1000) :: cdens, ctvec
+
+    ! Determine integration limits for first colloid (centered at inp%zc1)
+    izmin = nint((inp%zc1 + 0.5d0*inp%dz - inp%Rcoll)*comp%rdz + 0.5d0)
+    zmin = (dfloat(izmin) - 0.5d0)*inp%dz
+    izmax = nint((inp%zc1 - 0.5d0*inp%dz + inp%Rcoll)*comp%rdz + 0.5d0)
+    zmax = (dfloat(izmax) - 0.5d0)*inp%dz
+    izc1 = nint(inp%zc1*comp%rdz + 0.5d0)
+    write (*, *) 'zmin,inp%zc1,zmax = ', zmin, inp%zc1, zmax
+    write (*, *) 'izmin,izc1,izmax = ', izmin, izc1, izmax
+    write (*, *) dfloat(izmin)*inp%dz - 0.5d0*inp%dz, dfloat(izmax)*inp%dz - 0.5d0*inp%dz
+    write (*, *) dfloat(izc1)*inp%dz - 0.5d0*inp%dz
+    ict = 0
+
+    ! Calculate force on outer hemisphere (z < inp%zc1) of first colloid
+    rhoFo = 0.d0
+    rcliffFo = 0.d0
+    z = zmin - inp%dz
+    do iz = izmin, izc1 - 1
+      z = z + inp%dz
+      zsq = (z - inp%zc1)**2
+      ! Only process z-slices that intersect the colloid
+      if (zsq .le. comp%Rcoll2) then
+        rho = -0.5d0*inp%drho
+        irho = 0
+        ! Find first grid point outside colloid at this z
+        do
+          rho = rho + inp%drho
+          irho = irho + 1
+          if ((rho*rho + zsq) .gt. comp%Rcoll2) exit
+        end do
+        Rc = dsqrt(rho*rho + zsq)
+        rhoc = dsqrt(comp%Rcoll2 - zsq)
+
+        ! Quadratic interpolation to get density at exact colloid surface
+        ! Use 3 points near boundary (irho, irho+1, irho+2)
+        if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
+          y3 = flds%fdmon(irho, iz)
+          y2 = flds%fdmon(irho + 1, iz)
+          y1 = flds%fdmon(irho + 2, iz)
+          x3 = rho
+          x2 = rho + inp%drho
+          x1 = rho + 2.d0*inp%drho
+        else
+          y3 = flds%fdmon(irho + 1, iz)
+          y2 = flds%fdmon(irho + 2, iz)
+          y1 = flds%fdmon(irho + 3, iz)
+          x3 = rho + inp%drho
+          x2 = rho + 2.d0*inp%drho
+          x1 = rho + 3.d0*inp%drho
+          write (*, *) 'TJOHO!'
+        end if
+
+        ! Lagrange interpolation to get density at colloid surface
+        x = rhoc
+        fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
+              y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
+              y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
+        ! cos(theta) = (z - inp%zc1)/inp%Rcoll for surface normal direction
+        ctheta = (z - inp%zc1)/inp%Rcoll
+        rhoFo = 2.d0*PI*rhoc*ctheta*fdc + rhoFo
+        rcliffFo = 2.d0*PI*ctheta*fdc + rcliffFo
+        ict = ict + 1
+        ctvec(ict) = ctheta
+        cdens(ict) = fdc
+      end if
+    end do
+    write (*, *) 'rcliffFo = ', inp%Rcoll*rcliffFo*inp%dz
+    write (*, *) 'z = ', z
+
+    ! Calculate force on inner hemisphere (z > inp%zc1) of first colloid
+    rhoFi = 0.d0
+    rcliffFi = 0.d0
+    z = inp%zc1 - 0.5d0*inp%dz
+    do iz = izc1, izmax
+      z = z + inp%dz
+      zsq = (z - inp%zc1)**2
+      ! Only process z-slices that intersect the colloid
+      if (zsq .le. comp%Rcoll2) then
+        rho = -0.5d0*inp%drho
+        irho = 0
+        ! Find first grid point outside colloid at this z
+        do
+          rho = rho + inp%drho
+          irho = irho + 1
+          if ((rho*rho + zsq) .gt. comp%Rcoll2) exit
+        end do
+        Rc = dsqrt(rho*rho + zsq)
+        rhoc = dsqrt(comp%Rcoll2 - zsq)
+
+        if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
+          y3 = flds%fdmon(irho, iz)
+          y2 = flds%fdmon(irho + 1, iz)
+          y1 = flds%fdmon(irho + 2, iz)
+          x3 = rho
+          x2 = rho + inp%drho
+          x1 = rho + 2.d0*inp%drho
+        else
+          y3 = flds%fdmon(irho + 1, iz)
+          y2 = flds%fdmon(irho + 2, iz)
+          y1 = flds%fdmon(irho + 3, iz)
+          x3 = rho + inp%drho
+          x2 = rho + 2.d0*inp%drho
+          x1 = rho + 3.d0*inp%drho
+          write (*, *) 'TJOHO!!!!', flds%fdmon(irho, iz), rho
+        end if
+
+        x = rhoc
+        fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
+              y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
+              y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
+        ctheta = (z - inp%zc1)/inp%Rcoll
+        rhoFi = 2.d0*PI*rhoc*ctheta*fdc + rhoFi
+        rcliffFi = 2.d0*PI*ctheta*fdc + rcliffFi
+        ict = ict + 1
+        ctvec(ict) = ctheta
+        cdens(ict) = fdc
+      end if
+    end do
+    write (*, *) 'rcliffFi = ', inp%Rcoll*rcliffFi*inp%dz
+    write (*, *)
+    write (*, *) 'rcliffF = ', inp%Rcoll*(rcliffFi + rcliffFo)*inp%dz
+    write (*, *)
+    write (*, *) 'z = ', z
+
+    ! Integrate force over colloid surface using cos(theta) as coordinate
+    ! Extrapolate density to poles (theta = ±1) using linear interpolation
+    ctF = 0.d0
+    fdcm1 = &
+      cdens(1) + (cdens(2) - cdens(1))*(-1.d0 - ctvec(1))/(ctvec(2) - ctvec(1))
+    write (*, *) 'fdcm1 = ', fdcm1
+    write (*, *) 'cdens(1),cdens(2) = ', cdens(1), cdens(2)
+    cdens(0) = fdcm1
+    ctvec(0) = -1.d0
+    fdcp1 = &
+      cdens(ict) + &
+      (cdens(ict) - cdens(ict - 1))*(1.d0 - ctvec(ict))/(ctvec(ict) - &
+                                                         ctvec(ict - 1))
+    write (*, *) 'fdcp1 = ', fdcp1
+    write (*, *) 'cdens(ict),cdens(ict-1) = ', cdens(ict), cdens(ict - 1)
+    cdens(ict + 1) = fdcp1
+    ctvec(ict + 1) = 1.d0
+
+    ! Trapezoidal integration over cos(theta) from -1 to +1
+    ch2 = 0.d0
+    do kct = 0, ict
+      ct = ctvec(kct)
+      ctn = ctvec(kct + 1)
+      fdc = cdens(kct)
+      fdcn = cdens(kct + 1)
+      fk = (fdcn - fdc)/(ctn - ct)
+      ctF = 0.5d0*(fdc - fk*ct)*(ctn**2 - ct**2) + fk*(ctn**3 - ct**3)/3.d0 + ctF
+      ch2 = 0.25d0*(fdc + fdcn)*(ctn**2 - ct**2) + ch2
+    end do
+    ctF = 2.d0*PI*comp%Rcoll2*ctF
+    ch2 = 2.d0*PI*comp%Rcoll2*ch2
+    write (*, *)
+    write (*, *) 'ctF = ', ctF
+    write (*, *)
+    write (*, *) 'ch2 = ', ch2
+    write (*, *)
+
+    ! Alternative force calculation: integrate over rho slices at constant z
+
+    ! Determine maximum radial index inside sphere
+    irhomax = nint(inp%Rcoll*comp%rdrho + 1.d0)
+    rhomax = (dfloat(irhomax) - 0.5d0)*inp%drho
+    ! Stay inside the sphere to avoid boundary issues
+    irhomax = irhomax - 1
+    rhomax = rhomax - inp%drho
+    write (*, *) 'rhomax,irhomax = ', rhomax, irhomax
+    ict = 0
+    zFo = 0.d0
+    cho = 0.d0
+    cliffFo = 0.d0
+    rho = -0.5d0*inp%dz
+
+    ! Loop over radial slices from center outward (outer hemisphere in z)
+    do irho = 1, irhomax
+      rho = rho + inp%drho
+      rhosq = rho*rho
+      ! Only process rho values that intersect the colloid
+      if (rhosq .le. comp%Rcoll2) then
+        z = inp%zc1 + 0.5d0*inp%dz
+        iz = izc1
+        ! Find first grid point outside colloid at this rho (moving down in z)
+        do
+          z = z - inp%dz
+          iz = iz - 1
+          zsq = (z - inp%zc1)**2
+          if ((rhosq + zsq) .gt. comp%Rcoll2) exit
+        end do
+        Rc = dsqrt(rhosq + zsq)
+        deltazc = dsqrt(comp%Rcoll2 - rhosq)
+
+        ! Quadratic interpolation in z-direction to get surface density
+        if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
+          y3 = flds%fdmon(irho, iz)
+          y2 = flds%fdmon(irho, iz - 1)
+          y1 = flds%fdmon(irho, iz - 2)
+          x3 = dabs(z - inp%zc1)
+          x2 = x3 + inp%dz
+          x1 = x3 + 2.d0*inp%dz
+        else
+          y3 = flds%fdmon(irho, iz - 1)
+          y2 = flds%fdmon(irho, iz - 2)
+          y1 = flds%fdmon(irho, iz - 3)
+          x3 = dabs(z - inp%zc1) + inp%dz
+          x2 = x3 + inp%dz
+          x1 = x3 + 2.d0*inp%dz
+          write (*, *) 'TJOHO1!'
+        end if
+
+        x = deltazc
+        fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
+              y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
+              y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
+        ctheta = -deltazc/inp%Rcoll
+        ict = ict + 1
+        ctvec(ict) = ctheta
+        cdens(ict) = fdc
+      end if
+    end do
+
+    ! Loop over radial slices in reverse (inner hemisphere in z)
+    rho = rho + inp%drho
+    irho = irhomax + 1
+    zFi = 0.d0
+    chi = 0.d0
+    cliffFi = 0.d0
+    do krho = 1, irhomax
+      irho = irho - 1
+      rho = rho - inp%drho
+      rhosq = rho*rho
+      ! Only process rho values that intersect the colloid
+      if (rhosq .le. comp%Rcoll2) then
+        z = inp%zc1 - 0.5d0*inp%dz
+        iz = izc1 - 1
+        ! Find first grid point outside colloid at this rho (moving up in z)
+        do
+          z = z + inp%dz
+          iz = iz + 1
+          zsq = (z - inp%zc1)**2
+          if ((rhosq + zsq) .gt. comp%Rcoll2) exit
+        end do
+        Rc = dsqrt(rhosq + zsq)
+        deltazc = dsqrt(comp%Rcoll2 - rhosq)
+
+        if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
+          y3 = flds%fdmon(irho, iz)
+          y2 = flds%fdmon(irho, iz + 1)
+          y1 = flds%fdmon(irho, iz + 2)
+          x3 = dabs(z - inp%zc1)
+          x2 = x3 + inp%dz
+          x1 = x3 + 2.d0*inp%dz
+        else
+          y3 = flds%fdmon(irho, iz + 1)
+          y2 = flds%fdmon(irho, iz + 2)
+          y1 = flds%fdmon(irho, iz + 3)
+          x3 = dabs(z - inp%zc1) + inp%dz
+          x2 = x3 + inp%dz
+          x1 = x3 + 2.d0*inp%dz
+          write (*, *) 'TJOHO2!'
+        end if
+
+        x = deltazc
+        fdc = y1*(x - x2)*(x - x3)/((x1 - x2)*(x1 - x3)) + &
+              y2*(x - x1)*(x - x3)/((x2 - x1)*(x2 - x3)) + &
+              y3*(x - x1)*(x - x2)/((x3 - x1)*(x3 - x2))
+        ctheta = deltazc/inp%Rcoll
+        zFi = 2.d0*PI*rho*ctheta*fdc + zFi
+        chi = 2.d0*PI*rho*ctheta + chi
+        cliffFi = 2.d0*PI*ctheta*fdc + cliffFi
+        ict = ict + 1
+        ctvec(ict) = ctheta
+        cdens(ict) = fdc
+      end if
+    end do
+
+    ! Second integration over cos(theta) from alternative method
+    ! Extrapolate to poles as before
+    ctF = 0.d0
+    th = 1.5d0
+    fdcm1 = &
+      cdens(1) + (cdens(2) - cdens(1))*(-1.d0 - ctvec(1))/(ctvec(2) - ctvec(1))
+    write (*, *) 'fdcm1 = ', fdcm1
+    write (*, *) 'cdens(1),cdens(2) = ', cdens(1), cdens(2)
+    cdens(0) = fdcm1
+    ctvec(0) = -1.d0
+    fdcp1 = &
+      cdens(ict) + &
+      (cdens(ict) - cdens(ict - 1))*(1.d0 - ctvec(ict))/(ctvec(ict) - &
+                                                         ctvec(ict - 1))
+    write (*, *) 'fdcp1 = ', fdcp1
+    write (*, *) 'cdens(ict),cdens(ict-1) = ', cdens(ict), cdens(ict - 1)
+    ctvec(ict + 1) = 1.d0
+    cdens(ict + 1) = fdcp1
+
+    ! Initialize various force and integral accumulators
+    ckoll = 0.d0
+    cckoll = 0.d0
+    ccckoll = 0.d0
+    ch2 = 0.d0
+    ccc = 0.d0
+    bordekoll = 0.d0
+
+    ! Loop over all theta intervals to compute multiple integrals
+    do kct = 0, ict
+      ct = ctvec(kct)
+      ctn = ctvec(kct + 1)
+      fdc = cdens(kct)
+      fdcn = cdens(kct + 1)
+      fk = (fdcn - fdc)/(ctn - ct)
+
+      ! Trapezoidal integration of force in cos(theta) coordinate
+      ctF = 0.5d0*(fdc - fk*ct)*(ctn**2 - ct**2) + fk*(ctn**3 - ct**3)/3.d0 + ctF
+      ch2 = 0.25d0*(fdc + fdcn)*(ctn**2 - ct**2) + ch2
+
+      ! Additional integral using sin(theta)^3 = (1 - cos^2(theta))^(3/2)
+      tn = -(1.d0 - ctn*ctn)**1.5d0
+      t = -(1.d0 - ct*ct)**1.5d0
+      add = 0.5d0*(fdc + fdcn)*(tn - t)/3.d0
+      bordekoll = add + bordekoll
+
+      ! Various auxiliary integrals for force calculation checks
+      if (kct .gt. 0) then
+        cckoll = ct*fdc + cckoll
+        if (ct .lt. 0.d0) then
+          ccckoll = -fdc*ct*ct*(ctn - ct) + ccckoll
+        else
+          ccckoll = fdc*ct*ct*(ct - ctp) + ccckoll
+        end if
+        ckoll = ct*fdc*dsqrt(1.d0 - ct*ct) + ckoll
+        ckk = dabs(ct)*dsqrt(1.d0 - ct*ct) + ckk
+        ctp = ct
+      end if
+
+      ! Convert cos(theta) to rho coordinate: rho = R*sin(theta) = R*sqrt(1-cos^2)
+      rho = inp%Rcoll*dsqrt(1.d0 - ct*ct)
+      rhon = inp%Rcoll*dsqrt(1.d0 - ctn*ctn)
+      if (kct .eq. 0) rho = inp%Rcoll
+      if (kct .eq. ict) rhon = inp%Rcoll
+      if (dabs(rhon - rho) .lt. 0.00000001d0) then
+        fk = 0.d0
+      else
+        fk = (fdcn - fdc)/(rhon - rho)
+      end if
+      ccc = (fdc - fk*rho)*(rhon - rho) + 0.5d0*fk*(rhon*rhon - rho*rho) + ccc
+    end do
+
+    ctF = 2.d0*PI*comp%Rcoll2*ctF
+    ch2 = 2.d0*PI*comp%Rcoll2*ch2
+    cckoll = 2.d0*PI*cckoll*inp%drho
+    ckoll = 2.d0*PI*ckoll*inp%Rcoll*inp%drho
+    ckk = 2.d0*PI*ckk*inp%Rcoll*inp%drho
+    ccc = 2.d0*PI*ccc
+    write (*, *)
+    write (*, *) 'ctF = ', ctF
+    write (*, *)
+    write (*, *) 'ch2 = ', ch2
+
+    ! Return final values
+    rcliffF = inp%Rcoll*(rcliffFi + rcliffFo)*inp%dz
+
+    return
+  end subroutine calculate_colloid_forces
+
 end module polymer_dft_data
