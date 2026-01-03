@@ -25,7 +25,7 @@ WARNFLAGS = -Wall \
             -Wpedantic \
             -Wimplicit-interface \
             -Wunused \
-            -Wno-maybe-uninitialized \
+            -Wmaybe-uninitialized \
             -Wuninitialized \
             -Wconversion \
             -Wconversion-extra \
@@ -40,7 +40,7 @@ WARNFLAGS = -Wall \
             -Wno-tabs \
             -Wreal-q-constant \
             -Wunderflow \
-            -Wno-unused-parameter \
+            -Wunused-parameter \
             -Wrealloc-lhs \
             -Wrealloc-lhs-all \
             -Wtarget-lifetime \
@@ -95,7 +95,7 @@ run-profile: profile-gperftools
 # Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
 legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) $(WARNFLAGS) -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -ffast-math -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
+	$(FC) $(WARNFLAGS) -Wno-implicit-interface -Wno-unused-parameter -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -ffast-math -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
 
 # Clean build artifacts
 .PHONY: clean

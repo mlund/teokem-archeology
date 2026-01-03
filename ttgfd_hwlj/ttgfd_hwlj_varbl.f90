@@ -28,8 +28,8 @@ program platem
 
   ! Real variables
   real(real64) :: add, alj, arsum, asumw, aw
-  real(real64) :: bclamb, bcmtrams
-  real(real64) :: bds, bebbe, belamb, bemtrams, bfdc, bfde
+  real(real64) :: bclamb
+  real(real64) :: bds, bebbe, belamb, bfdc, bfde
   real(real64) :: bordekoll, brsum, bsumw, bw
   real(real64) :: ccc, ccckoll, cckoll, ch2, chi, cho, chvol
   real(real64) :: ckk, ckoll, clifffi, clifffo, ct, ctf
@@ -572,7 +572,7 @@ program platem
         ! Grand potential density omega(r) = f(r) - mu*rho(r)
         ! where f(r) is Helmholtz free energy density
         arsum = &
-          rho*(fdc*bclamb + bfdc*bcmtrams + fde*belamb + bfde*bemtrams + &
+          rho*(fdc*bclamb + bfdc*bulk%cmtrams + fde*belamb + bfde*bulk%emtrams + &
                bulk%bdpol - fdm*computed%rrnmon + Fex - bulk%bFex) + arsum
         brsum = &
           rho*(fdc*bclamb + fde*belamb - fdm*computed%rrnmon + Fex - bulk%bFex) + brsum
