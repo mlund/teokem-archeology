@@ -167,10 +167,9 @@ module polymer_dft_data
   ! ========================================================================
   ! Array dimensions - now allocatable (no fixed limits)
   ! ========================================================================
-  integer, parameter :: maxphi = 5000  ! Maximum phi grid points for lookup tables
 
-  ! Cosine lookup tables for performance optimization
-  real(real64) :: cos_phi(maxphi)
+  ! Cosine lookup table for performance optimization (dynamically allocated)
+  real(real64), allocatable :: cos_phi(:)
 
   ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)

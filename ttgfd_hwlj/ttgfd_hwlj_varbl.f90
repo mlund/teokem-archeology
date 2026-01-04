@@ -40,6 +40,9 @@ program platem
   call read_input_parameters(input, bds)
   call initialize_grid_params(input, grid)
 
+  ! Allocate cosine lookup table based on actual grid size
+  allocate(cos_phi(grid%nphi))
+
   ! Compute local derived parameters needed for bulk thermodynamic calculations
   ! These will be recomputed and stored in structs by initialize_computed_params later
   computed%dhs2 = input%dhs*input%dhs
@@ -51,7 +54,7 @@ program platem
   open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
   rewind ifc
 
-  ! Initialize cosine lookup table for input%dphi (using grid%nphi from initialize_grid_params)
+  ! Initialize cosine lookup table for input%dphi
   do iphi = 1, grid%nphi
     phi = (dble(iphi) - 0.5d0)*input%dphi
     cos_phi(iphi) = dcos(phi)
@@ -178,7 +181,7 @@ program platem
   close (ifc)
 
   ! Deallocate arrays before exit
-  deallocate (c, cA, cB)
+  deallocate (cos_phi, c, cA, cB)
   call deallocate_arrays(fields)
 
   STOP
