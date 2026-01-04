@@ -1,0 +1,43 @@
+{
+  "name": "Polymer DFT - GCC 15 Development",
+
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fortran-lang.linter-gfortran",
+        "ekibun.fortranbreaker",
+        "ms-python.python",
+        "ms-vscode.cpptools"
+      ],
+      "settings": {
+        "fortran.linter.compiler": "gfortran",
+        "fortran.linter.extraArgs": ["-Wall", "-Wextra"],
+        "python.defaultInterpreterPath": "/usr/bin/python3"
+      }
+    }
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true
+    }
+  },
+
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+
+  "remoteUser": "root",
+
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt", "seccomp=unconfined"
+  ],
+
+  "postCreateCommand": "gfortran --version && fprettify --version"
+}
