@@ -1,6 +1,7 @@
 input.tsph
 legacy
 polymer_dft
+polymer_dft_debug
 fcdfil
 epfil
 fort.*
