@@ -192,7 +192,7 @@ FFLAGS = -O3 -xHost -qopenmp -fp-model fast=2 -ipo -unroll
 
 ```bash
 export OMP_NUM_THREADS=4
-python run.py --help
+python3 polymer_dft.py --help
 ```
 
 ## Scientific References
