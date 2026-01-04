@@ -5,7 +5,7 @@
 FC = gfortran
 
 # Program name
-PROGRAM = ttgfd_hwlj
+PROGRAM = polymer_dft
 
 # Source files
 MODULE_SRC = polymer_dft_data.f90
@@ -101,6 +101,7 @@ legacy: ttgfd_hwlj_varbl.f t2.inc
 .PHONY: clean
 clean:
 	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77 $(PROGRAM)_gperf
+	rm -f ttgfd_hwlj ttgfd_hwlj_debug ttgfd_hwlj_prof ttgfd_hwlj_f77 ttgfd_hwlj_gperf  # Legacy names
 	rm -f *.o *.mod
 	rm -f fort.*
 	rm -f gmon.out cpu.prof profile.pdf

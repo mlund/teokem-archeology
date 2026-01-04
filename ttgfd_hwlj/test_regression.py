@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Regression test for optimized ttgfd_hwlj.
+Regression test for polymer_dft (optimized version).
 
 Tests:
 1. Fresh start (kread=0) produces expected forces
@@ -91,7 +91,7 @@ def run_test(kread, expected_force=None, max_iters=200):
     
     try:
         result = subprocess.run(
-            ['./ttgfd_hwlj'],
+            ['./polymer_dft'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=300,
@@ -140,7 +140,7 @@ def run_test(kread, expected_force=None, max_iters=200):
 
 def main():
     print("=" * 70)
-    print("REGRESSION TEST: ttgfd_hwlj Optimized Version")
+    print("REGRESSION TEST: polymer_dft (Optimized Version)")
     print("=" * 70)
     
     # Ensure epfil exists

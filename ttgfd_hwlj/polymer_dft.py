@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run script for ttgfd_hwlj - Generalized Flory-Dimer Theory for Polymer Solutions
+Run script for polymer_dft - Generalized Flory-Dimer Theory for Polymer Solutions
 Generates input.tsph parameter file and executes the simulation.
 """
 
@@ -40,7 +40,7 @@ def write_input_file(args, output_path="input.tsph"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate input file and run ttgfd_hwlj polymer solution simulation',
+        description='Generate input file and run polymer_dft polymer solution simulation',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
@@ -93,8 +93,8 @@ def main():
     # Script options
     parser.add_argument('--input-file', type=str, default='input.tsph',
                         help='Output path for input parameter file')
-    parser.add_argument('--executable', type=str, default='./ttgfd_hwlj',
-                        help='Path to ttgfd_hwlj executable')
+    parser.add_argument('--executable', type=str, default='./polymer_dft',
+                        help='Path to polymer_dft executable')
     parser.add_argument('--dry-run', action='store_true',
                         help='Only generate input file, do not run simulation')
 
