@@ -11,10 +11,7 @@ program platem
   use polymer_dft_data
   implicit none
 
-  ! Constants
-  integer(int32), parameter :: MAXMON = 151
-
-  ! Additional arrays for main program - also dynamically allocated
+  ! Additional arrays for main program - dynamically allocated
   real(real64), allocatable :: c(:, :, :), cA(:, :), cB(:, :)
 
   ! Bulk thermodynamic properties
@@ -99,7 +96,8 @@ program platem
 
   ! Allocate main program arrays
   ! Note: cB needs grid%nfack dimension because it's accessed as grid%islut + 1 - iz
-  allocate (c(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl, MAXMON))
+  ! c array sized based on actual number of monomers from input file
+  allocate (c(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl, input%nmon))
   allocate (cA(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl))
   allocate (cB(0:grid%mxrho + grid%kbl, 0:grid%nfack))
 
