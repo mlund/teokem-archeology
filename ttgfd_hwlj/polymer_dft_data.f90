@@ -413,13 +413,14 @@ contains
   end subroutine initialize_computed_params
 
   ! ==========================================================================
-  ! SUBROUTINE: CDFACT
+  ! ==========================================================================
+  ! SUBROUTINE: calculate_contact_density_normalization
   ! ==========================================================================
   ! Calculates the normalization constant (cdnorm) for the contact density
   ! functional. This is computed via a three-dimensional integral over the
   ! hard sphere volume using trapezoidal integration in cylindrical coordinates.
   ! ==========================================================================
-  subroutine CDFACT(inp, grd, comp, cos_phi_table, cdnorm_out)
+  subroutine calculate_contact_density_normalization(inp, grd, comp, cos_phi_table, cdnorm_out)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -475,17 +476,17 @@ contains
     tcd = 3.d0*sume*comp%dzrfp*comp%rdhs3
     cdnorm_out = 1.d0/tcd
     return
-  end subroutine CDFACT
+  end subroutine calculate_contact_density_normalization
 
   ! ==========================================================================
-  ! SUBROUTINE: CDCALC
+  ! SUBROUTINE: calculate_contact_density
   ! ==========================================================================
   ! Calculates the contact density (cdmonm) at each grid point. The contact
   ! density is a weighted average of the monomer density around a sphere of
   ! diameter dhs, computed using 3D integration in cylindrical coordinates
   ! with angular averaging.
   ! ==========================================================================
-  subroutine CDCALC(inp, grd, comp, flds, cos_phi_table)
+  subroutine calculate_contact_density(inp, grd, comp, flds, cos_phi_table)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -545,17 +546,17 @@ contains
     end do
 !$omp end parallel do
     return
-  end subroutine CDCALC
+  end subroutine calculate_contact_density
 
   ! ==========================================================================
-  ! SUBROUTINE: AVEC
+  ! SUBROUTINE: calculate_excess_free_energy
   ! ==========================================================================
   ! Calculates the excess free energy arrays (ae1, ae2) and the convolution
   ! term (convp) from the contact density using the Carnahan-Starling equation
   ! of state. These quantities are used in the density functional expressions
   ! for the polymer chain propagators.
   ! ==========================================================================
-  subroutine AVEC(grd, comp, flds)
+  subroutine calculate_excess_free_energy(grd, comp, flds)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -602,17 +603,17 @@ contains
     end do
 !$omp end parallel do
     return
-  end subroutine AVEC
+  end subroutine calculate_excess_free_energy
 
   ! ==========================================================================
-  ! SUBROUTINE: EBLMNEW
+  ! SUBROUTINE: calculate_boltzmann_factors
   ! ==========================================================================
   ! Calculates the Boltzmann weight factors for polymer end segments (ebelam)
   ! and middle/hinge segments (ehbclam) at each grid point. These factors
   ! include contributions from the excess free energy and the convolution
   ! integrals. Excludes regions inside colloids.
   ! ==========================================================================
-  subroutine EBLMNEW(inp, grd, comp, flds, cos_phi_table)
+  subroutine calculate_boltzmann_factors(inp, grd, comp, flds, cos_phi_table)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -736,17 +737,17 @@ contains
     end do
 !$omp end parallel do
     return
-  end subroutine EBLMNEW
+  end subroutine calculate_boltzmann_factors
 
   ! ==========================================================================
-  ! SUBROUTINE: EBDU
+  ! SUBROUTINE: calculate_external_potential
   ! ==========================================================================
   ! Calculates the external potential contribution (edu) from Lennard-Jones
   ! interactions with the polymer solution. Computes exp(-U_LJ) where U_LJ is
   ! the interaction energy between a test particle at (rho,z) and the entire
   ! density field, using symmetry to include both colloids.
   ! ==========================================================================
-  subroutine EBDU(inp, grd, comp, flds)
+  subroutine calculate_external_potential(inp, grd, comp, flds)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -805,7 +806,7 @@ contains
     end do
 !$omp end parallel do
     return
-  end subroutine EBDU
+  end subroutine calculate_external_potential
 
   ! ==========================================================================
   ! SUBROUTINE: calculate_lj_potential_table

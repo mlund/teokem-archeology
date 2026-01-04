@@ -102,7 +102,7 @@ program platem
   allocate (cB(0:grid%mxrho + grid%kbl, 0:grid%nfack))
 
   ! Calculate normalization constant for contact density
-  call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
+  call calculate_contact_density_normalization(input, grid, computed, cos_phi, computed%cdnorm)
   write (*, *) 'computed%cdnorm = ', computed%cdnorm
 
   call initialize_boundary_excess_free_energy(input, grid, computed, fields)
@@ -135,10 +135,10 @@ program platem
       exit
     end if
 
-    call CDCALC(input, grid, computed, fields, cos_phi)     ! Calculate contact density
-    call AVEC(grid, computed, fields)                       ! Calculate excess free energy
-    call EBLMNEW(input, grid, computed, fields, cos_phi)    ! Calculate end-segment Boltzmann factors
-    call EBDU(input, grid, computed, fields)                ! Calculate external potential contribution
+    call calculate_contact_density(input, grid, computed, fields, cos_phi)
+    call calculate_excess_free_energy(grid, computed, fields)
+    call calculate_boltzmann_factors(input, grid, computed, fields, cos_phi)
+    call calculate_external_potential(input, grid, computed, fields)
 
     call apply_boundary_conditions(grid, computed, fields)
     call propagate_polymer_chain(input, grid, computed, fields, cos_phi, c, cA, cB)
