@@ -2023,7 +2023,7 @@ contains
   ! The mixing parameters control how much of the new vs old density is used
   ! ==========================================================================
   subroutine calculate_adaptive_mixing(niter, ddmax, inp, use_adaptive, &
-                                        osc_count, ddmax_prev, dmm_out, dms_out)
+                                       osc_count, ddmax_prev, dmm_out, dms_out)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -2118,7 +2118,7 @@ contains
   ! Also applies symmetry boundary conditions at the midplane.
   ! ==========================================================================
   subroutine update_densities_and_check_convergence(inp, grd, comp, flds, c, &
-                                                      dmm_mix, ddmax_out)
+                                                    dmm_mix, ddmax_out)
     use iso_fortran_env, only: real64, int32
     implicit none
 

@@ -37,14 +37,7 @@ program platem
   real(real64) :: ddmax_prev
   real(real64) :: phi, rcliffF, rho, z
 
-  ! ========================================================================
-  ! ========================================================================
-  ! File unit numbers (automatically assigned by runtime)
-
-  ! Read all simulation parameters from input files
   call read_input_parameters(input, bds)
-
-  ! Initialize grid parameters from input
   call initialize_grid_params(input, grid)
 
   ! Compute local derived parameters needed for bulk thermodynamic calculations
@@ -55,8 +48,6 @@ program platem
   computed%rnmon = dble(input%nmon)
   computed%rrnmon = 1.d0/computed%rnmon
 
-  ! Open files for I/O
-  ! fcdfil: unknown allows both read and write (for restart capability)
   open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
   rewind ifc
 
@@ -70,8 +61,7 @@ program platem
   computed%Yfact = (computed%rnmon - 2.d0)*Y
   call calculate_bulk_properties(input, computed, bulk)
 
-  ! Initialize computed parameters from input, grid, and bulk calculations
-  ! This recomputes and stores all derived parameters in structured form
+  ! Recompute and store derived parameters in structured form
   call initialize_computed_params(input, grid, computed, bulk)
 
   ! Print simulation parameters
@@ -114,10 +104,8 @@ program platem
   call CDFACT(input, grid, computed, cos_phi, computed%cdnorm)
   write (*, *) 'computed%cdnorm = ', computed%cdnorm
 
-  ! Initialize excess free energy arrays at system boundaries
   call initialize_boundary_excess_free_energy(input, grid, computed, fields)
 
-  ! Initialize density fields: either from scratch or read from file
   call initialize_density_fields(input, grid, computed, fields, ifc)
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
   write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)
@@ -146,27 +134,21 @@ program platem
       exit
     end if
 
-    ! Update fields in density functional theory calculation
     call CDCALC(input, grid, computed, fields, cos_phi)     ! Calculate contact density
-    call AVEC(grid, computed, fields)       ! Calculate excess free energy
+    call AVEC(grid, computed, fields)                       ! Calculate excess free energy
     call EBLMNEW(input, grid, computed, fields, cos_phi)    ! Calculate end-segment Boltzmann factors
-    call EBDU(input, grid, computed, fields)       ! Calculate external potential contribution
+    call EBDU(input, grid, computed, fields)                ! Calculate external potential contribution
 
-    ! Apply boundary conditions (radial + z-symmetry)
     call apply_boundary_conditions(grid, computed, fields)
-
-    ! Propagate polymer chains segment by segment
     call propagate_polymer_chain(input, grid, computed, fields, cos_phi, c, cA, cB)
 
     if (ddmax .lt. CONV_TOL) exit  ! Converged
 
-    ! Calculate adaptive mixing parameters
     call calculate_adaptive_mixing(niter, ddmax, input, use_adaptive_mixing, &
-                                    oscillation_count, ddmax_prev, dmm_adaptive, dms_adaptive)
+                                   oscillation_count, ddmax_prev, dmm_adaptive, dms_adaptive)
 
-    ! Update densities and check convergence
     call update_densities_and_check_convergence(input, grid, computed, fields, c, &
-                                                 dmm_adaptive, ddmax)
+                                                dmm_adaptive, ddmax)
 
   end do  ! End of main iteration loop
 
@@ -176,15 +158,12 @@ program platem
   end if
 
   ! ===== Output converged results =====
-  ! Write density profiles and calculate thermodynamic properties
+
   call output_density_profiles(input, grid, computed, fields, c)
-
-  ! ===== Calculate grand potential (thermodynamic potential) =====
   call calculate_grand_potential(input, grid, computed, fields, bulk, aW, bW)
-
-  ! ===== Calculate forces on colloid from contact density =====
   call calculate_colloid_forces(input, computed, fields, rcliffF, ctF, ch2)
 
+  ! ===== Write fcdfil =====
   rewind ifc
   z = -0.5d0*input%dz
   do iz = grid%istp1, grid%imitt
@@ -196,8 +175,6 @@ program platem
         z, rho, fields%fdmon(kz, iz), fields%fem(kz, iz)
     end do
   end do
-
-  ! Close files to ensure buffers are flushed
   close (ifc)
 
   ! Deallocate arrays before exit
