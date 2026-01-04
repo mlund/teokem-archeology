@@ -89,6 +89,10 @@ clean:
 run: $(PROGRAM)
 	python3 polymer_dft.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./$(PROGRAM)
 
+.PHONY: run_debug
+run_debug: debug
+	python3 polymer_dft.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./$(PROGRAM)_debug
+
 .PHONY: run_legacy
 run_legacy: legacy
 	python3 polymer_dft.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./legacy
