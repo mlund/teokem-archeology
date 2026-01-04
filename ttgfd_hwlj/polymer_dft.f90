@@ -59,9 +59,6 @@ program platem
   call read_input_parameters(input, bds)
   call initialize_grid_params(input, grid)
 
-  ! Allocate cosine lookup table based on actual grid size
-  allocate(cos_phi(grid%nphi))
-
   ! Compute local derived parameters needed for bulk thermodynamic calculations
   ! These will be recomputed and stored in structs by initialize_computed_params later
   computed%dhs2 = input%dhs*input%dhs
@@ -69,21 +66,16 @@ program platem
   computed%rdhs3 = 1.d0/computed%dhs3
   computed%rnmon = dble(input%nmon)
   computed%rrnmon = 1.d0/computed%rnmon
-
-  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
-  rewind ifc
+  computed%Yfact = (computed%rnmon - 2.d0)*Y
 
   ! Initialize cosine lookup table for input%dphi
+  allocate (cos_phi(grid%nphi))
   do iphi = 1, grid%nphi
     phi = (dble(iphi) - 0.5d0)*input%dphi
     cos_phi(iphi) = dcos(phi)
   end do
 
-  ! Calculate bulk thermodynamic properties
-  computed%Yfact = (computed%rnmon - 2.d0)*Y
   call calculate_bulk_properties(input, computed, bulk)
-
-  ! Recompute and store derived parameters in structured form
   call initialize_computed_params(input, grid, computed, bulk)
 
   ! Print simulation parameters
@@ -129,6 +121,8 @@ program platem
 
   call initialize_boundary_excess_free_energy(input, grid, computed, fields)
 
+  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
+  rewind ifc
   call initialize_density_fields(input, grid, computed, fields, ifc)
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
   write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)

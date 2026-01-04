@@ -66,8 +66,8 @@ $(PROGRAM): $(MODULE_SRC) $(SRC)
 # Debug build with runtime checks
 .PHONY: debug
 debug: FFLAGS = -O0 -g
-debug: $(SRC) $(INC)
-	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(SRC)
+debug: $(MODULE_SRC) $(SRC)
+	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(MODULE_SRC) $(SRC)
 
 # Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
@@ -96,7 +96,7 @@ run_legacy: legacy
 # Format Fortran 90 source files using fprettify
 .PHONY: format
 format:
-	fprettify -i 2 --enable-decl --c-relations $(SRC) $(INC) ${MODULE_SRC}
+	fprettify -i 2 --enable-decl --c-relations $(MODULE_SRC) $(SRC)
 
 # Run regression tests
 .PHONY: test

@@ -1009,34 +1009,34 @@ contains
       ! Read initial guess from file (restart from previous calculation)
       rewind ifc
       do iz = grd%istp1, grd%imitt
-      do kz = 1, grd%mxrho
-        read (ifc, *) t1, t2, flds%fdmon(kz, iz), flds%fem(kz, iz)
-      end do
+        do kz = 1, grd%mxrho
+          read (ifc, *) t1, t2, flds%fdmon(kz, iz), flds%fem(kz, iz)
+        end do
       end do
     end if
 
     ! Set boundary conditions at z-boundaries (left edge)
     ! All densities set to bulk values
     do iz = grd%istp1, grd%ibl
-    do kz = 1, grd%mxrho + grd%kbl
-      flds%fdmon(kz, iz) = inp%bdm
-      flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
-      flds%ebelam(kz, iz) = comp%bebelam
-      flds%ehbclam(kz, iz) = comp%behbclam
-      flds%cdmonm(kz, iz) = inp%bdm
-    end do
+      do kz = 1, grd%mxrho + grd%kbl
+        flds%fdmon(kz, iz) = inp%bdm
+        flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
+        flds%ebelam(kz, iz) = comp%bebelam
+        flds%ehbclam(kz, iz) = comp%behbclam
+        flds%cdmonm(kz, iz) = inp%bdm
+      end do
     end do
 
     ! Set boundary conditions at radial edge (outer cylinder boundary)
     ! All densities set to bulk values
     do iz = 1, grd%imitt
-    do kz = grd%mxrho + 1, grd%mxrho + grd%kbl
-      flds%fdmon(kz, iz) = inp%bdm
-      flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
-      flds%ebelam(kz, iz) = comp%bebelam
-      flds%ehbclam(kz, iz) = comp%behbclam
-      flds%cdmonm(kz, iz) = inp%bdm
-    end do
+      do kz = grd%mxrho + 1, grd%mxrho + grd%kbl
+        flds%fdmon(kz, iz) = inp%bdm
+        flds%fem(kz, iz) = 2.d0*flds%fdmon(kz, iz)*comp%rrnmon
+        flds%ebelam(kz, iz) = comp%bebelam
+        flds%ehbclam(kz, iz) = comp%behbclam
+        flds%cdmonm(kz, iz) = inp%bdm
+      end do
     end do
 
     ! Apply symmetry boundary conditions at z = grd%imitt midplane
@@ -1092,42 +1092,42 @@ contains
     ! Initialize excess free energy arrays near z-boundaries (left side)
     ! These regions are near the system edge and require special treatment
     do iz = grd%istp1, grd%istp1 + 2*grd%ibl - 1
-    do kz = 1, grd%mxrho + grd%kbl
-      cdt = inp%bdm*comp%dhs3
-      pcdt = PIS*cdt
-      xsi = (1.d0 - pcdt)
-      rxsi = 1.d0/xsi
-      sqrxsi = rxsi*rxsi
-      flog = dlog(xsi)
-      flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-      flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-      daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                    BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-      daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                    BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-      flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
-                            inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
-    end do
+      do kz = 1, grd%mxrho + grd%kbl
+        cdt = inp%bdm*comp%dhs3
+        pcdt = PIS*cdt
+        xsi = (1.d0 - pcdt)
+        rxsi = 1.d0/xsi
+        sqrxsi = rxsi*rxsi
+        flog = dlog(xsi)
+        flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+        flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+        daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                      BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+        daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                      BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+        flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
+                              inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
+      end do
     end do
 
     ! Initialize excess free energy arrays near radial boundaries (outer edge)
     do iz = grd%istp1 + 2*grd%ibl, grd%imitt + grd%ibl
-    do kz = grd%mxrho - grd%kbl + 1, grd%mxrho + grd%kbl
-      cdt = inp%bdm*comp%dhs3
-      pcdt = PIS*cdt
-      xsi = (1.d0 - pcdt)
-      rxsi = 1.d0/xsi
-      sqrxsi = rxsi*rxsi
-      flog = dlog(xsi)
-      flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
-      flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
-      daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                    BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-      daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
-                    BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
-      flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
-                            inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
-    end do
+      do kz = grd%mxrho - grd%kbl + 1, grd%mxrho + grd%kbl
+        cdt = inp%bdm*comp%dhs3
+        pcdt = PIS*cdt
+        xsi = (1.d0 - pcdt)
+        rxsi = 1.d0/xsi
+        sqrxsi = rxsi*rxsi
+        flog = dlog(xsi)
+        flds%ae1(kz, iz) = -(C1 + 1.d0)*flog - 0.5d0*(AA1 + BB1*pcdt)*pcdt*sqrxsi
+        flds%ae2(kz, iz) = -(C2 + 1.d0)*flog - 0.5d0*(AA2 + BB2*pcdt)*pcdt*sqrxsi
+        daex1 = rxsi*(C1 + 1.d0 - 0.5d0*AA1*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                      BB1*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+        daex2 = rxsi*(C2 + 1.d0 - 0.5d0*AA2*rxsi*(1.d0 + 2.d0*pcdt*rxsi) - &
+                      BB2*pcdt*rxsi*(1.d0 + pcdt*rxsi))
+        flds%convp(kz, iz) = (Y*(inp%bdm - 2.d0*inp%bdm*comp%rrnmon)*(daex2 - daex1) + &
+                              inp%bdm*comp%rrnmon*daex2)*PIS*comp%dhs3
+      end do
     end do
 
     return
