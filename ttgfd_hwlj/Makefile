@@ -9,7 +9,7 @@ PROGRAM = ttgfd_hwlj
 
 # Source files
 MODULE_SRC = polymer_dft_data.f90
-SRC = ttgfd_hwlj_varbl.f90
+SRC = polymer_dft.f90
 INC = t2.inc.f90  # Kept for legacy F77 build
 
 # Compiler flags

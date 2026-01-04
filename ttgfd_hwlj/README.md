@@ -59,10 +59,11 @@ where `ε` (epsilon) is the interaction strength and `σ` (sigma) relates to the
 
 1. **Initialization**: Set up geometry, physical parameters, and initial density guess
 2. **Self-consistent iteration**:
-   - Calculate local monomer density via weighted density approximation (CDCALC)
-   - Compute excess free energy functionals (AVEC)
-   - Update Boltzmann weights (EBLMNEW)
-   - Calculate interaction field from LJ potential (EBDU)
+   - Calculate contact density normalization
+   - Calculate local monomer density via weighted density approximation
+   - Compute excess free energy functionals
+   - Update Boltzmann weights
+   - Calculate interaction field from LJ potential
    - Propagate polymer chains forward and backward
    - Update monomer density profiles with mixing parameter `dmm`
    - Check convergence (tolerance `ddtol`)
@@ -221,19 +222,23 @@ python run.py --help
 
 ## Code Structure
 
-### Main Program (`platem`)
+### Main Program (`polymer_dft.f90`)
 - Parameter setup and initialization
 - Main iteration loop for self-consistency
 - Force calculations
 - Output generation
 
-### Subroutines
+### Core Computational Subroutines
 
-1. **CDFACT**: Calculate normalization for weighted density functional
-2. **CDCALC**: Compute local monomer density via convolution
-3. **AVEC**: Calculate excess free energy contributions
-4. **EBLMNEW**: Update Boltzmann weights and propagator prefactors
-5. **EBDU**: Compute external field from Lennard-Jones interactions
+1. **calculate_contact_density_normalization**: Calculate normalization for weighted density functional
+2. **calculate_contact_density**: Compute local monomer density via convolution
+3. **calculate_excess_free_energy**: Calculate excess free energy contributions
+4. **calculate_boltzmann_factors**: Update Boltzmann weights and propagator prefactors
+5. **calculate_external_potential**: Compute external field from Lennard-Jones interactions
+6. **propagate_polymer_chain**: Forward and backward chain propagation with symmetry enforcement
+7. **apply_boundary_conditions**: Apply boundary conditions to density fields
+8. **calculate_adaptive_mixing**: Dynamically adjust mixing parameters for convergence
+9. **update_densities_and_check_convergence**: Update density fields and check self-consistency
 
 ## Numerical Considerations
 
