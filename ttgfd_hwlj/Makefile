@@ -65,7 +65,7 @@ $(PROGRAM): $(MODULE_SRC) $(SRC)
 
 # Debug build with runtime checks
 .PHONY: debug
-debug: FFLAGS = -O0 -g
+debug: FFLAGS = -O3 -g -fopenmp
 debug: $(MODULE_SRC) $(SRC)
 	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(MODULE_SRC) $(SRC)
 

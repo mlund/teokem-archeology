@@ -1636,6 +1636,10 @@ contains
         Rc = dsqrt(rhosq + zsq)
         deltazc = dsqrt(comp%Rcoll2 - rhosq)
 
+        ! Ensure we have enough points for 3-point interpolation
+        ! Skip if iz is too close to lower bound
+        if (iz - 3 .lt. 0) cycle
+
         ! Quadratic interpolation in z-direction to get surface density
         if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
           y3 = flds%fdmon(irho, iz)
@@ -1688,6 +1692,10 @@ contains
         end do
         Rc = dsqrt(rhosq + zsq)
         deltazc = dsqrt(comp%Rcoll2 - rhosq)
+
+        ! Ensure we have enough points for 3-point interpolation
+        ! Skip if iz is too close to upper bound
+        if (iz + 3 .gt. ubound(flds%fdmon, 2)) cycle
 
         if (dabs(flds%fdmon(irho, iz)) .gt. 0.00000001d0) then
           y3 = flds%fdmon(irho, iz)
