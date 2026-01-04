@@ -23,7 +23,6 @@ program platem
   ! Integer variables
   integer(int32) :: iz, kz, iphi
   integer(int32) :: ifc, niter
-  integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
   ! Real variables
   real(real64) :: aw, bw
@@ -59,14 +58,6 @@ program platem
   ! Open files for I/O
   ! fcdfil: unknown allows both read and write (for restart capability)
   open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
-
-  ! Open output files for density profiles (use traditional fort.* names for compatibility)
-  open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
-  open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
-  open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
-  open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
-  open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
-
   rewind ifc
 
   ! Initialize cosine lookup table for input%dphi (using grid%nphi from initialize_grid_params)
@@ -186,8 +177,7 @@ program platem
 
   ! ===== Output converged results =====
   ! Write density profiles and calculate thermodynamic properties
-  call output_density_profiles(input, grid, computed, fields, c, &
-                               iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
+  call output_density_profiles(input, grid, computed, fields, c)
 
   ! ===== Calculate grand potential (thermodynamic potential) =====
   call calculate_grand_potential(input, grid, computed, fields, bulk, aW, bW)
@@ -209,11 +199,6 @@ program platem
 
   ! Close files to ensure buffers are flushed
   close (ifc)
-  close (iout_zdens)
-  close (iout_zprop)
-  close (iout_zavg)
-  close (iout_rdens)
-  close (iout_rprop)
 
   ! Deallocate arrays before exit
   deallocate (c, cA, cB)

@@ -1192,11 +1192,13 @@ contains
   ! output_density_profiles - Write converged density profiles to output files
   !
   ! Writes density and propagator profiles to various output files:
-  ! - iout_zdens: monomer and end-segment densities along z-axis at centerline (rho=0)
-  ! - iout_zprop: propagator profiles along z-axis at centerline
-  ! - iout_zavg: radially averaged density along z-axis (within radius 1.0)
-  ! - iout_rdens: radial profile of densities at z = input%zc1
-  ! - iout_rprop: radial profile of propagators at z = input%zc1
+  ! - fort.85: monomer and end-segment densities along z-axis at centerline (rho=0)
+  ! - fort.89: propagator profiles along z-axis at centerline
+  ! - fort.78: radially averaged density along z-axis (within radius 1.0)
+  ! - fort.83: radial profile of densities at z = input%zc1
+  ! - fort.87: radial profile of propagators at z = input%zc1
+  !
+  ! Opens files internally and closes them after writing.
   !
   ! Inputs:
   !   inp - Input parameters (dz, drho, zc1)
@@ -1204,14 +1206,8 @@ contains
   !   comp - Computed parameters (rdz)
   !   flds - Fields (fdmon, fem, ehbclam)
   !   c - Chain propagator array c(rho, z, segment)
-  !   iout_zdens - File unit for z-axis density profiles
-  !   iout_zprop - File unit for z-axis propagator profiles
-  !   iout_zavg - File unit for radially averaged density
-  !   iout_rdens - File unit for radial density profiles
-  !   iout_rprop - File unit for radial propagator profiles
   !-----------------------------------------------------------------------------
-  subroutine output_density_profiles(inp, grd, comp, flds, c, &
-                                     iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
+  subroutine output_density_profiles(inp, grd, comp, flds, c)
     use iso_fortran_env, only: real64, int32
     implicit none
 
@@ -1220,15 +1216,19 @@ contains
     type(computed_params_t), intent(in) :: comp
     type(fields_t), intent(in) :: flds
     real(real64), intent(in) :: c(0:, 0:, :)
-    integer(int32), intent(in) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
     ! Local variables
     integer(int32) :: iz, i, kr, klm
+    integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
     real(real64) :: z, rho, fsum
 
-    rewind iout_zprop
-    rewind iout_zavg
-    rewind iout_zdens
+    ! Open output files for density profiles (use traditional fort.* names for compatibility)
+    open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
+    open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
+    open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
+    open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
+    open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
+
     z = -0.5d0*inp%dz
 
     ! Write density profiles along z-axis at rho=0 (centerline)
@@ -1265,6 +1265,13 @@ contains
       ! iout_rdens: radial profile of monomer and end-segment densities
       write (iout_rdens, *) rho, flds%fdmon(kr, iz), flds%fem(kr, iz)
     end do
+
+    ! Close output files
+    close (iout_zdens)
+    close (iout_zprop)
+    close (iout_zavg)
+    close (iout_rdens)
+    close (iout_rprop)
 
     return
   end subroutine output_density_profiles
@@ -1859,8 +1866,8 @@ contains
     type(fields_t), intent(in) :: flds
     real(real64), intent(in) :: cos_phi_table(:)
     real(real64), intent(inout) :: c(0:, 0:, :)  ! Chain propagators
-    real(real64), intent(inout) :: cA(0:, 0:)    ! Forward propagator
-    real(real64), intent(inout) :: cB(0:, 0:)    ! Backward propagator
+    real(real64), intent(inout) :: cA(0:, 0:)    ! Forward propagator (working array)
+    real(real64), intent(inout) :: cB(0:, 0:)    ! Backward propagator (working array)
 
     ! Local variables
     integer(int32) :: iz, kz, jz, iphi, irho, imon, kmon, jstart, irho0min
