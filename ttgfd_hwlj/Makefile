@@ -118,7 +118,7 @@ run_legacy: legacy
 # Format Fortran 90 source files using fprettify
 .PHONY: format
 format:
-	fprettify -i 2 --enable-decl --c-relations $(SRC) $(INC)
+	fprettify -i 2 --enable-decl --c-relations $(SRC) $(INC) ${MODULE_SRC}
 
 # Run regression tests
 .PHONY: test

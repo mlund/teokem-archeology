@@ -21,32 +21,22 @@ program platem
   type(bulk_properties_t) :: bulk
 
   ! Integer variables
-  integer(int32) :: i, j, k, iz, jz, kz, irho, iphi, imon, kmon
-  integer(int32) :: irho0min, jstart
+  integer(int32) :: iz, kz, iphi
   integer(int32) :: ifc, niter
   integer(int32) :: iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop
 
   ! Real variables
-  real(real64) :: aw
-  real(real64) :: bds, bebbe
-  real(real64) :: bw
+  real(real64) :: aw, bw
+  real(real64) :: bds
   real(real64) :: ch2, ctf
-  real(real64) :: ddiff, ddmax, delz2, diffz2
-  real(real64) :: dmm_adaptive, dms_adaptive, dumsum
-  real(real64) :: efact
+  real(real64) :: ddmax
+  real(real64) :: dmm_adaptive, dms_adaptive
 
-  ! Logical variables
+  ! Adaptive mixing state variables
   logical :: use_adaptive_mixing
   integer(int32) :: oscillation_count
   real(real64) :: ddmax_prev
-  real(real64) :: fact, ffact, fphi
-  real(real64) :: phi, phisum
-  real(real64) :: rcliffF
-  real(real64) :: rho, rho0, rho02, rho2, rhoz2
-  real(real64) :: rsq, rsq1, rsq2, rt2, strho0, valid
-  real(real64) :: sume
-  real(real64) :: tdmm, tfdm, tfem
-  real(real64) :: z, zfact, zp, zpc2sq, zpcsq, zpst
+  real(real64) :: phi, rcliffF, rho, z
 
   ! ========================================================================
   ! ========================================================================
@@ -171,290 +161,21 @@ program platem
     call EBLMNEW(input, grid, computed, fields, cos_phi)    ! Calculate end-segment Boltzmann factors
     call EBDU(input, grid, computed, fields)       ! Calculate external potential contribution
 
-    ! Apply boundary conditions at outer radial edge (rho > Rcyl)
-    ! Set to bulk values since density should approach bulk far from colloids
-    do iz = grid%istp1, grid%imitt
-    do kz = grid%mxrho + 1, grid%mxrho + grid%kbl
-      fields%ebelam(kz, iz) = computed%bebelam
-      fields%ehbclam(kz, iz) = computed%behbclam
-      fields%edu(kz, iz) = 1.d0
-    end do
-    end do
+    ! Apply boundary conditions (radial + z-symmetry)
+    call apply_boundary_conditions(grid, computed, fields)
 
-    ! Apply symmetry boundary conditions at z = grid%imitt (midplane between colloids)
-    ! The system is symmetric about the midplane, so mirror the field values
-    ! This loop copies from iz = grid%imitt down to iz = 1 (reverse order)
-    jz = grid%imitt + 1
-    do iz = grid%imitt + 1, grid%imitt + grid%ibl
-      jz = jz - 1
-      do kz = 1, grid%mxrho + grid%kbl
-        fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
-        fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
-        fields%edu(kz, iz) = fields%edu(kz, jz)
-      end do
-    end do
-
-    ! Second symmetry application (appears redundant but ensures consistency)
-    jz = grid%imitt + 1
-    do iz = grid%imitt + 1, grid%imitt + grid%ibl
-      jz = jz - 1
-      do kz = 1, grid%mxrho + grid%kbl
-        fields%ebelam(kz, iz) = fields%ebelam(kz, jz)
-        fields%ehbclam(kz, iz) = fields%ehbclam(kz, jz)
-        fields%edu(kz, iz) = fields%edu(kz, jz)
-      end do
-    end do
-
-    ! Calculate cA: the propagator for polymer end segments
-    ! cA(r) = exp(-beta*mu_end)*exp(-U_LJ) where:
-    !   ebelam = exp(-beta*mu_end) from hard-sphere and chain connectivity
-    !   edu = exp(-U_LJ) from Lennard-Jones interactions
-    do iz = grid%istp1, grid%imitt + grid%ibl
-    do kz = 1, grid%mxrho + grid%kbl
-      cA(kz, iz) = fields%ebelam(kz, iz)*fields%edu(kz, iz)
-    end do
-    end do
-
-    ! Propagate polymer chains segment by segment from end to end
-    ! This calculates c(r,i) = propagator for segment i at position r
-    imon = input%nmon
-    do kmon = 1, input%nmon - 1
-      imon = imon - 1
-
-      ! Merge all chain propagation loops into single parallel region
-      ! to eliminate thread synchronization barriers
-!$omp parallel private(iz, z, jstart, zpst, irho0min, strho0, rho0, kz, rho02, rt2, sume, zp, jz, delz2, zpcsq, zpc2sq, phisum, zfact, rhoz2, fphi, iphi, rho2, rsq1, rsq2, valid, rho, irho, fact, efact, ffact, bebbe)
-
-      ! Loop over all spatial grid points
-!$omp do schedule(static)
-      do iz = grid%istp1 + grid%ibl, grid%imitt
-        z = input%bl - 0.5d0*input%dz + dble(iz - (grid%istp1 + grid%ibl) + 1)*input%dz
-        jstart = iz - grid%ibl
-        zpst = z - input%bl - input%dz
-        irho0min = 1
-        strho0 = -0.5d0*input%drho
-        rho0 = strho0
-        do kz = irho0min, grid%mxrho - grid%ibl
-          rho0 = rho0 + input%drho
-
-          rho02 = rho0**2
-          rt2 = rho02 + (z - input%zc1)**2
-          if (rt2 .lt. computed%Rcoll2) then
-            c(kz, iz, imon) = 0.d0
-            if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = 0.d0
-            cB(kz, iz) = 0.d0
-            cycle
-          end if
-          rt2 = rho02 + (z - computed%zc2)**2
-          if (rt2 .lt. computed%Rcoll2) then
-            c(kz, iz, imon) = 0.d0
-            cB(kz, grid%islut + 1 - iz) = 0.d0
-            cB(kz, iz) = 0.d0
-            cycle
-          end if
-
-          ! Integrate over bond orientations: sum contributions from all points
-          ! within bond length input%bl of current position (rho0, z)
-          sume = 0.d0
-          zp = zpst
-          do jz = jstart, iz + grid%ibl
-            zp = zp + input%dz
-            delz2 = (zp - z)**2
-            zpcsq = (zp - input%zc1)**2
-            zpc2sq = (zp - computed%zc2)**2
-            phisum = 0.d0
-            zfact = dabs(computed%bl2 - delz2)
-            rhoz2 = rho0**2 + zfact
-            fphi = 2.d0*rho0*dsqrt(zfact)
-!$omp simd reduction(+:phisum)
-            do iphi = 1, grid%nphi
-!     Plus or minus sign doesn't matter for the value of the integral
-              rho2 = rhoz2 - fphi*cos_phi(iphi)
-              rsq1 = rho2 + zpcsq
-              rsq2 = rho2 + zpc2sq
-
-              ! Mask-based approach: 1.0 if outside both colloids, 0.0 if inside either
-              ! This eliminates conditional exits (cycle) for full SIMD vectorization
-              valid = merge(1.0d0, 0.0d0, rsq1 >= computed%Rcoll2 .and. rsq2 >= computed%Rcoll2)
-
-              rho = dsqrt(rho2)
-              irho = int(rho*computed%rdrho) + 1
-              phisum = phisum + valid * cA(irho, jz)
-            end do
-!$omp end simd
-            fact = 1.d0
-            if (iabs(jz - iz) .eq. grid%ibl) fact = 0.5d0
-            sume = 2.d0*phisum*input%dphi*fact + sume
-          end do
-          efact = dsqrt(fields%edu(kz, iz))
-          ffact = sume*computed%dzrfp*fields%ehbclam(kz, iz)/input%bl*efact
-          c(kz, iz, imon) = ffact
-          if (iz .gt. grid%imitt - grid%ibl - 1) cB(kz, grid%islut + 1 - iz) = ffact*fields%ehbclam(kz, iz)*efact
-          cB(kz, iz) = ffact*fields%ehbclam(kz, iz)*efact
-        end do
-      end do
-!$omp end do
-      ! Implicit barrier: Loop 3 reads cB(kz,iz) which Loop 1 writes
-
-      ! Handle boundary regions: propagators at z-boundaries
-!$omp do schedule(static)
-      do iz = grid%istp1, grid%ibl
-      do kz = 1, grid%mxrho + grid%kbl
-        bebbe = computed%behbclam*cA(kz, iz)
-        c(kz, iz, imon) = bebbe
-        cA(kz, iz) = computed%behbclam*bebbe
-      end do
-      end do
-!$omp end do nowait
-
-      ! Handle radial boundaries and update propagators
-!$omp do schedule(static)
-      do iz = grid%ibl + 1, grid%imitt
-        ! Outer radial boundary: use bulk propagators
-        do kz = grid%mxrho - grid%kbl, grid%mxrho + grid%kbl
-          bebbe = computed%behbclam*cA(kz, iz)
-          c(kz, iz, imon) = bebbe
-          cA(kz, iz) = computed%behbclam*bebbe
-        end do
-        ! Interior region: use backward propagator for next iteration
-        do kz = 1, grid%mxrho - grid%ibl - 1
-          cA(kz, iz) = cB(kz, iz)
-        end do
-      end do
-!$omp end do
-      ! Implicit barrier: Loop 4 reads cA which Loops 2 & 3 write
-
-      ! Apply symmetry to propagators at midplane
-!$omp do schedule(static)
-      do iz = grid%imitt + 1, grid%imitt + grid%ibl
-        jz = grid%imitt + 1 - (iz - grid%imitt)
-        do kz = 1, grid%mxrho + grid%kbl
-          cA(kz, iz) = cA(kz, jz)
-        end do
-      end do
-!$omp end do
-
-!$omp end parallel
-
-    end do
+    ! Propagate polymer chains segment by segment
+    call propagate_polymer_chain(input, grid, computed, fields, cos_phi, c, cA, cB)
 
     if (ddmax .lt. CONV_TOL) exit  ! Converged
 
-    ! Smart adaptive mixing: detect restart scenarios and adjust accordingly
-    ! Fresh start: ddmax ~100 at iteration 2 → use adaptive mixing
-    ! Restart: ddmax ~0.005 at iteration 2 → use conservative mixing
-    if (niter == 2 .and. ddmax < 0.1d0) then
-      ! Restart scenario detected: ddmax already small at iteration 2
-      use_adaptive_mixing = .false.
-      write (*, *) 'Restart detected (ddmax < 0.1 at iter 2): using conservative mixing'
-    end if
+    ! Calculate adaptive mixing parameters
+    call calculate_adaptive_mixing(niter, ddmax, input, use_adaptive_mixing, &
+                                    oscillation_count, ddmax_prev, dmm_adaptive, dms_adaptive)
 
-    if (.not. use_adaptive_mixing) then
-      ! Conservative mixing for restart scenarios
-      dmm_adaptive = input%dmm
-      dms_adaptive = input%dms
-    else
-      ! Detect oscillations: ddmax increased after decreasing
-      if (niter .gt. 10 .and. ddmax .gt. ddmax_prev .and. ddmax .lt. 0.3d0) then
-        oscillation_count = oscillation_count + 1
-      else if (ddmax .lt. ddmax_prev) then
-        ! Reset oscillation counter when making progress
-        oscillation_count = max(0, oscillation_count - 1)
-      end if
-
-      ! Adaptive mixing for fresh starts: adjust based on convergence state
-      ! Add conservative bias when oscillations detected
-      if (ddmax .gt. 1.0d0) then
-        dmm_adaptive = 0.90d0  ! Standard mixing when far from solution
-        dms_adaptive = 0.50d0
-      else if (ddmax .gt. 0.1d0) then
-        dmm_adaptive = 0.85d0  ! Slightly more aggressive in mid-range
-        dms_adaptive = 0.45d0
-      else if (ddmax .gt. 0.01d0) then
-        ! When approaching convergence, use conservative mixing if oscillating
-        if (oscillation_count .gt. 3) then
-          dmm_adaptive = 0.92d0  ! Very conservative to dampen oscillations
-          dms_adaptive = 0.52d0
-        else
-          dmm_adaptive = 0.75d0  ! More aggressive when not oscillating
-          dms_adaptive = 0.35d0
-        end if
-      else if (ddmax .gt. 0.001d0) then
-        if (oscillation_count .gt. 3) then
-          dmm_adaptive = 0.90d0  ! Very conservative near solution if oscillating
-          dms_adaptive = 0.50d0
-        else
-          dmm_adaptive = 0.60d0  ! Aggressive near solution
-          dms_adaptive = 0.25d0
-        end if
-      else
-        if (oscillation_count .gt. 3) then
-          dmm_adaptive = 0.88d0  ! Very conservative very close if oscillating
-          dms_adaptive = 0.48d0
-        else
-          dmm_adaptive = 0.40d0  ! Extremely aggressive very close to solution
-          dms_adaptive = 0.15d0
-        end if
-      end if
-
-      if (niter .gt. 60) then
-        if (oscillation_count .gt. 3) then
-          write (*, '(A,E12.5,A,F5.3,A,I3)') 'Adaptive mixing (osc): ddmax=', ddmax, ', input%dmm=', &
-                dmm_adaptive, ', osc_count=', oscillation_count
-        else
-          write (*, '(A,E12.5,A,F5.3)') 'Adaptive mixing: ddmax=', ddmax, ', input%dmm=', dmm_adaptive
-        end if
-      end if
-
-      ! Update previous ddmax for next iteration
-      ddmax_prev = ddmax
-    end if
-
-    tdmm = 1.d0 - dmm_adaptive
-
-    ! Update densities using mixing scheme and check convergence
-    ! Calculate new densities from propagators and mix with old values
-    ddmax = 0.d0
-    z = -0.5d0*input%dz
-    do i = grid%istp1, grid%imitt
-      z = z + input%dz
-      diffz2 = (z - input%zc1)**2
-      rho = -0.5d0*input%drho
-      do j = 1, grid%mxrho
-        rho = rho + input%drho
-        rsq = rho*rho + diffz2
-        if (rsq .lt. computed%Rcoll2) then
-          fields%fem(j, i) = 0.d0
-          fields%fdmon(j, i) = 0.d0
-        else
-          ! Calculate total monomer density from chain propagators
-          ! Sum over all internal segments (convolution of forward and backward propagators)
-          dumsum = 0.d0
-          do k = 2, input%nmon - 1
-            dumsum = c(j, i, k)*c(j, i, input%nmon + 1 - k) + dumsum
-          end do
-          tfem = 2.d0*c(j, i, 1)*fields%ebelam(j, i)*dsqrt(fields%edu(j, i))/fields%ehbclam(j, i)
-          tfdm = dumsum + tfem
-          if (dabs(tfdm) .gt. 1.0d-14) then
-            ddiff = abs(tfdm - fields%fdmon(j, i))/tfdm
-            if (ddiff .gt. ddmax) ddmax = ddiff
-          end if
-          fields%fem(j, i) = fields%fem(j, i)*dmm_adaptive + tdmm*tfem
-          fields%fdmon(j, i) = fields%fdmon(j, i)*dmm_adaptive + tdmm*tfdm
-        end if
-      end do
-    end do
-
-    ! Apply symmetry to updated densities at midplane
-    ! Mirror fdmon and fem across z = grid%imitt to maintain symmetry
-    jz = grid%imitt + 1
-    do iz = grid%imitt + 1, grid%imitt + grid%ibl
-      jz = jz - 1
-      do kz = 1, grid%mxrho + grid%kbl
-        fields%fdmon(kz, iz) = fields%fdmon(kz, jz)
-        fields%fem(kz, iz) = fields%fem(kz, jz)
-      end do
-    end do
+    ! Update densities and check convergence
+    call update_densities_and_check_convergence(input, grid, computed, fields, c, &
+                                                 dmm_adaptive, ddmax)
 
   end do  ! End of main iteration loop
 
@@ -466,7 +187,7 @@ program platem
   ! ===== Output converged results =====
   ! Write density profiles and calculate thermodynamic properties
   call output_density_profiles(input, grid, computed, fields, c, &
-                                iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
+                               iout_zdens, iout_zprop, iout_zavg, iout_rdens, iout_rprop)
 
   ! ===== Calculate grand potential (thermodynamic potential) =====
   call calculate_grand_potential(input, grid, computed, fields, bulk, aW, bW)
