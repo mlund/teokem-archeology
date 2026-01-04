@@ -79,7 +79,7 @@ legacy: legacy.f legacy.inc
 clean:
 	rm -f $(PROGRAM) $(PROGRAM)_debug
 	rm -f legacy
-	rm -f *.o *.mod
+	rm -f *.o *.mod *.dat
 	rm -f fort.*
 	rm -f gmon.out cpu.prof profile.pdf
 	rm -f fcdfil epfil
