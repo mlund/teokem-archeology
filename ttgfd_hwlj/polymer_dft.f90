@@ -111,9 +111,6 @@ program platem
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)
   write (*, *) 'fields%fdmon(1,11) = ', fields%fdmon(1, 11)
 
-  ! Precompute Lennard-Jones interaction potential on grid (hvec array)
-  ! This tabulates U_LJ for all distance combinations to speed up later calculations
-  ! LJ coefficients (alj, rlj) and angular grid (cos_pphi, npphi) are computed internally
   write (*, *) 'dpphi = ', input%dpphi
   call calculate_lj_potential_table(input, grid, computed, fields)
   write (*, *) 'hvec fixad'
@@ -139,11 +136,10 @@ program platem
     call calculate_excess_free_energy(grid, computed, fields)
     call calculate_boltzmann_factors(input, grid, computed, fields, cos_phi)
     call calculate_external_potential(input, grid, computed, fields)
-
     call apply_boundary_conditions(grid, computed, fields)
     call propagate_polymer_chain(input, grid, computed, fields, cos_phi, c, cA, cB)
 
-    if (ddmax .lt. CONV_TOL) exit  ! Converged
+    if (ddmax .lt. CONV_TOL) exit ! Exit if converged
 
     call calculate_adaptive_mixing(niter, ddmax, input, use_adaptive_mixing, &
                                    oscillation_count, ddmax_prev, dmm_adaptive, dms_adaptive)
@@ -151,20 +147,19 @@ program platem
     call update_densities_and_check_convergence(input, grid, computed, fields, c, &
                                                 dmm_adaptive, ddmax)
 
-  end do  ! End of main iteration loop
+  end do
 
   ! Check if maximum iterations exceeded
   if (niter .gt. input%ioimaxm) then
     stop
   end if
 
-  ! ===== Output converged results =====
-
+  ! Output converged results
   call output_density_profiles(input, grid, computed, fields, c)
   call calculate_grand_potential(input, grid, computed, fields, bulk, aW, bW)
   call calculate_colloid_forces(input, computed, fields, rcliffF, ctF, ch2)
 
-  ! ===== Write fcdfil =====
+  ! Write fcdfil
   rewind ifc
   z = -0.5d0*input%dz
   do iz = grid%istp1, grid%imitt

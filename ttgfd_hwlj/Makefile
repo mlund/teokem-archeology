@@ -10,7 +10,6 @@ PROGRAM = polymer_dft
 # Source files
 MODULE_SRC = polymer_dft_data.f90
 SRC = polymer_dft.f90
-INC = t2.inc.f90  # Kept for legacy F77 build
 
 # Compiler flags
 # Note: Large COMMON blocks (~6GB) require special handling on ARM64
@@ -70,38 +69,16 @@ debug: FFLAGS = -O0 -g
 debug: $(SRC) $(INC)
 	$(FC) $(FFLAGS) $(WARNFLAGS) $(DEBUGFLAGS) -o $(PROGRAM)_debug $(SRC)
 
-# Build with profiling support (gprof)
-.PHONY: profile
-profile: FFLAGS = -O1 -pg
-profile: $(SRC) $(INC)
-	$(FC) $(FFLAGS) -o $(PROGRAM)_prof $(SRC)
-
-# Build with gperftools profiling support (macOS compatible)
-.PHONY: profile-gperftools
-profile-gperftools: FFLAGS = -O3 -ftree-vectorize -march=native -std=gnu -fno-automatic -finit-local-zero -fopenmp -ffast-math -flto -funroll-loops
-profile-gperftools: $(SRC) $(INC)
-	$(FC) $(FFLAGS) $(WARNFLAGS) -o $(PROGRAM)_gperf $(SRC)
-
-# Run with gperftools CPU profiler
-.PHONY: run-profile
-run-profile: profile-gperftools
-	@echo "Running with gperftools profiler..."
-	@echo "Note: Install gperftools first with: brew install gperftools"
-	CPUPROFILE=cpu.prof DYLD_INSERT_LIBRARIES=/opt/homebrew/lib/libprofiler.dylib ./$(PROGRAM)_gperf < input.tsph
-	@echo "Profile data saved to cpu.prof"
-	@echo "Analyze with: pprof --text ./$(PROGRAM)_gperf cpu.prof"
-	@echo "Or generate PDF: pprof --pdf ./$(PROGRAM)_gperf cpu.prof > profile.pdf"
-
 # Build original Fortran 77 version with legacy standard (no optimization)
 .PHONY: legacy
-legacy: ttgfd_hwlj_varbl.f t2.inc
-	$(FC) $(WARNFLAGS) -Wno-implicit-interface -Wno-unused-parameter -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -ffast-math -finit-local-zero -o $(PROGRAM)_f77 ttgfd_hwlj_varbl.f -lm
+legacy: legacy.f legacy.inc
+	$(FC) $(WARNFLAGS) -Wno-implicit-interface -Wno-unused-parameter -O3 -ftree-vectorize -march=native -std=legacy -fno-automatic -ffast-math -finit-local-zero -o legacy legacy.f -lm
 
 # Clean build artifacts
 .PHONY: clean
 clean:
-	rm -f $(PROGRAM) $(PROGRAM)_debug $(PROGRAM)_prof $(PROGRAM)_f77 $(PROGRAM)_gperf
-	rm -f ttgfd_hwlj ttgfd_hwlj_debug ttgfd_hwlj_prof ttgfd_hwlj_f77 ttgfd_hwlj_gperf  # Legacy names
+	rm -f $(PROGRAM) $(PROGRAM)_debug
+	rm -f legacy
 	rm -f *.o *.mod
 	rm -f fort.*
 	rm -f gmon.out cpu.prof profile.pdf
@@ -114,7 +91,7 @@ run: $(PROGRAM)
 
 .PHONY: run_legacy
 run_legacy: legacy
-	python3 polymer_dft.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./$(PROGRAM)_f77
+	python3 polymer_dft.py --bdm 0.1 --epslj 0.5 --dz 1.0 --nmon 151 --drho 0.3 --executable ./legacy
 
 # Format Fortran 90 source files using fprettify
 .PHONY: format

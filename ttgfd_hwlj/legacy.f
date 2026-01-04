@@ -1,6 +1,6 @@
       program platem
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
       dimension c(0:maxrho,0:maxel,maxmon),
      *cA(0:maxrho,0:maxel),cB(0:maxrho,0:maxel),
      *cdens(0:1000),ctvec(0:1000),vrho(0:1000)
@@ -952,7 +952,7 @@ c      rho = rho+drho
 
       subroutine CDFACT   
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
       strho0 = 0.5d0*drho
       rho0 = strho0
       iz = 2*ism
@@ -1003,7 +1003,7 @@ c     plus eller minus spelar ingen roll foer integralens vaerde
 
       subroutine CDCALC
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
 c      z = 1.d0-0.5d0*dz
       z = dhs-0.5d0*dz
       do  245 iz = istp1+ism,imitt
@@ -1055,7 +1055,7 @@ c     dags foer nytt z0 vaerde!
 
       subroutine AVEC
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
       do iz = istp1+2*ism,imitt
 c      do kz = 1,mxrho-ksm
       do kz = 1,mxrho-kbl
@@ -1094,7 +1094,7 @@ c      do iz = imitt+1,imitt+ism
 
       subroutine EBLMNEW
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
       z = -0.5d0*dz
       do iz = 1,ibl
       z = z+dz
@@ -1186,7 +1186,7 @@ c     dags foer nytt z0 vaerde!
 
       subroutine EBDU
       implicit double precision (a-h,o-z)
-      include 't2.inc'
+      include 'legacy.inc'
       z = -0.5d0*dz
       do iz = 1,ibl
       z = z+dz
