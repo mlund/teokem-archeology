@@ -179,14 +179,6 @@ module polymer_dft_data
   end type fields_t
 
   ! ========================================================================
-  ! Module variables - structured input parameters
-  ! ========================================================================
-  type(input_params_t) :: input      ! User input parameters
-  type(grid_params_t) :: grid        ! Grid dimensions and discretization
-  type(computed_params_t) :: computed ! Derived parameters
-  type(fields_t) :: fields           ! Density and potential fields
-
-  ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
   ! ========================================================================
 
