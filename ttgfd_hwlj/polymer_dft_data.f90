@@ -448,16 +448,15 @@ contains
   ! functional. This is computed via a three-dimensional integral over the
   ! hard sphere volume using trapezoidal integration in cylindrical coordinates.
   ! ==========================================================================
-  subroutine calculate_contact_density_normalization(inp, grd, comp, cos_phi_table, cdnorm_out)
+  subroutine calculate_contact_density_normalization(inp, grd, comp, cos_phi_table)
     use iso_fortran_env, only: real64, int32
     implicit none
 
     ! Arguments
     type(input_params_t), intent(in) :: inp
     type(grid_params_t), intent(in) :: grd
-    type(computed_params_t), intent(in) :: comp
+    type(computed_params_t), intent(inout) :: comp
     real(real64), intent(in) :: cos_phi_table(:)
-    real(real64), intent(out) :: cdnorm_out
 
     ! Local variables
     integer(int32) :: iz, jz, iphi, irho, krhopmax, krhop
@@ -502,7 +501,7 @@ contains
       sume = 2.d0*sumrhop*inp%drho*fact + sume
     end do
     tcd = 3.d0*sume*comp%dzrfp*comp%rdhs3
-    cdnorm_out = 1.d0/tcd
+    comp%cdnorm = 1.d0/tcd
     return
   end subroutine calculate_contact_density_normalization
 

@@ -103,19 +103,14 @@ program platem
   write (*, *) 'bFex = ', bulk%bFex
   write (*, *) 'computed%bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
-  ! Allocate module arrays based on calculated grid dimensions
-  ! Dimensions calculated internally: nrho = mxrho + kbl, nz = imitt + ibl, nz_hvec = nfack - 1
+  ! Allocate arrays
   call allocate_arrays(fields, grid)
-
-  ! Allocate main program arrays
-  ! Note: cB needs grid%nfack dimension because it's accessed as grid%islut + 1 - iz
-  ! c array sized based on actual number of monomers from input file
   allocate (c(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl, input%nmon))
   allocate (cA(0:grid%mxrho + grid%kbl, 0:grid%imitt + grid%ibl))
   allocate (cB(0:grid%mxrho + grid%kbl, 0:grid%nfack))
 
-  ! Calculate normalization constant for contact density
-  call calculate_contact_density_normalization(input, grid, computed, cos_phi, computed%cdnorm)
+  ! Calculate normalization constant for contact density (sets computed%cdnorm)
+  call calculate_contact_density_normalization(input, grid, computed, cos_phi)
   write (*, *) 'computed%cdnorm = ', computed%cdnorm
 
   call initialize_boundary_excess_free_energy(input, grid, computed, fields)
