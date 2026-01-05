@@ -104,9 +104,8 @@ program platem
   write (*, *) 'computed%bebelam,computed%behbclam = ', computed%bebelam, computed%behbclam
 
   ! Allocate module arrays based on calculated grid dimensions
-  ! Include extra space for boundary cells (grid%kbl, grid%ibl)
-  ! hvec needs grid%nfack-1 for z-dimension (used in LJ potential table)
-  call allocate_arrays(fields, grid%mxrho + grid%kbl, grid%imitt + grid%ibl, grid%nfack - 1)
+  ! Dimensions calculated internally: nrho = mxrho + kbl, nz = imitt + ibl, nz_hvec = nfack - 1
+  call allocate_arrays(fields, grid)
 
   ! Allocate main program arrays
   ! Note: cB needs grid%nfack dimension because it's accessed as grid%islut + 1 - iz

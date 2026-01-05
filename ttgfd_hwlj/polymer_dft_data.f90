@@ -230,11 +230,17 @@ contains
   ! Allocates all dynamic arrays based on grid dimensions
   ! Must be called after mxrho, imitt, and nfack are calculated from input
   ! ==========================================================================
-  subroutine allocate_arrays(flds, nrho, nz, nz_hvec)
+  subroutine allocate_arrays(flds, grd)
     type(fields_t), intent(inout) :: flds  ! Fields structure to allocate
-    integer(int32), intent(in) :: nrho     ! Maximum rho grid points (mxrho + kbl)
-    integer(int32), intent(in) :: nz       ! Maximum z grid points (imitt + ibl)
-    integer(int32), intent(in) :: nz_hvec  ! Maximum z for hvec (nfack - 1)
+    type(grid_params_t), intent(in) :: grd ! Grid parameters
+
+    ! Local variables for dimensions
+    integer(int32) :: nrho, nz, nz_hvec
+
+    ! Calculate dimensions from grid parameters
+    nrho = grd%mxrho + grd%kbl      ! Maximum rho grid points (including boundary)
+    nz = grd%imitt + grd%ibl        ! Maximum z grid points (including boundary)
+    nz_hvec = grd%nfack - 1         ! Maximum z for hvec (LJ potential table)
 
     ! Allocate 2D arrays with 0-based indexing
     allocate (flds%fdmon(0:nrho, 0:nz))
