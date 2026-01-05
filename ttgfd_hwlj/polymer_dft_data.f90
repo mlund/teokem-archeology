@@ -215,17 +215,17 @@ contains
   ! Allocates all dynamic arrays based on grid dimensions
   ! Must be called after mxrho, imitt, and nfack are calculated from input
   ! ==========================================================================
-  subroutine allocate_arrays(flds, grd)
+  subroutine allocate_arrays(flds, grid)
     type(fields_t), intent(inout) :: flds  ! Fields structure to allocate
-    type(grid_params_t), intent(in) :: grd ! Grid parameters
+    type(grid_params_t), intent(in) :: grid ! Grid parameters
 
     ! Local variables for dimensions
     integer(int32) :: nrho, nz, nz_hvec
 
     ! Calculate dimensions from grid parameters
-    nrho = grd%mxrho + grd%kbl      ! Maximum rho grid points (including boundary)
-    nz = grd%imitt + grd%ibl        ! Maximum z grid points (including boundary)
-    nz_hvec = grd%nfack - 1         ! Maximum z for hvec (LJ potential table)
+    nrho = grid%mxrho + grid%kbl      ! Maximum rho grid points (including boundary)
+    nz = grid%imitt + grid%ibl        ! Maximum z grid points (including boundary)
+    nz_hvec = grid%nfack - 1         ! Maximum z for hvec (LJ potential table)
 
     ! Allocate 2D arrays with 0-based indexing
     allocate (flds%fdmon(0:nrho, 0:nz))
@@ -479,7 +479,7 @@ contains
         phisum = 0.d0
 !$omp simd reduction(+:phisum)
         do iphi = 1, grd%nphi
-!     Plus or minus sign doesn't matter for the value of the integral
+          ! Plus or minus sign doesn't matter for the value of the integral
           rho2 = rhomax2 - fphi*cos_phi_table(iphi)
           rho = dsqrt(rho2)
           irho = int(rho*comp%rdrho) + 1
@@ -547,7 +547,7 @@ contains
             phisum = 0.d0
 !$omp simd reduction(+:phisum)
             do iphi = 1, grd%nphi
-!     Plus or minus sign doesn't matter for the value of the integral
+              ! Plus or minus sign doesn't matter for the value of the integral
               rho2 = rhomax2 - fphi*cos_phi_table(iphi)
               rho = dsqrt(rho2)
               irho = int(rho*comp%rdrho) + 1
