@@ -1,5 +1,17 @@
 {
     "makefile.configureOnOpen": false,
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "fortran.linter.compiler": "gfortran",
+    "fortran.linter.extraArgs": [
+        "-Wall",
+        "-Wextra",
+        "-std=gnu"
+    ],
+    "fortran.formatting.formatter": "fprettify",
+    "fortran.formatting.fprettifyArgs": [
+        "-i", "2",
+        "--enable-decl",
+        "--c-relations"
+    ]
 }
