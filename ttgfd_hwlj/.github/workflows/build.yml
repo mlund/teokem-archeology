@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: gcc:15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get install -y make python3
+
+    - name: Verify gfortran version
+      run: |
+        gfortran --version
+        echo "Expected GCC 15 or later"
+
+    - name: Build optimized version
+      run: make clean && make
+      working-directory: ttgfd_hwlj
+
+    - name: Build debug version
+      run: make debug
+      working-directory: ttgfd_hwlj
+
+    - name: Build legacy version
+      run: make legacy
+      working-directory: ttgfd_hwlj
