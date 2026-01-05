@@ -35,6 +35,7 @@ program platem
 
   ! Additional arrays for main program - dynamically allocated
   real(real64), allocatable :: c(:, :, :), cA(:, :), cB(:, :)
+  real(real64), allocatable :: cos_phi(:)  ! Cosine lookup table
 
   ! Bulk thermodynamic properties
   type(bulk_properties_t) :: bulk

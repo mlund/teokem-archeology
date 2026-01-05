@@ -187,13 +187,6 @@ module polymer_dft_data
   type(fields_t) :: fields           ! Density and potential fields
 
   ! ========================================================================
-  ! Array dimensions - now allocatable (no fixed limits)
-  ! ========================================================================
-
-  ! Cosine lookup table for performance optimization (dynamically allocated)
-  real(real64), allocatable :: cos_phi(:)
-
-  ! ========================================================================
   ! Physical and mathematical constants (compile-time parameters)
   ! ========================================================================
 
