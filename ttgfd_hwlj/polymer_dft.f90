@@ -116,7 +116,7 @@ program platem
 
   call initialize_boundary_excess_free_energy(input, grid, computed, fields)
 
-  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown')
+  open (newunit=ifc, file='fcdfil', form='formatted', status='unknown', action='readwrite')
   rewind ifc
   call initialize_density_fields(input, grid, computed, fields, ifc)
   write (*, *) 'fields%fdmon(1,1) = ', fields%fdmon(1, 1)

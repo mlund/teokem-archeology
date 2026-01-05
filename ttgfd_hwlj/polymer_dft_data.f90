@@ -306,11 +306,18 @@ contains
     real(real64), intent(out) :: bds
 
     ! Local file units
-    integer(int32) :: ins, iep
+    integer(int32) :: ins, iep, iostat
 
     ! Open input files
-    open (newunit=ins, file='input.tsph', form='formatted', status='old')
-    open (newunit=iep, file='epfil', form='formatted', status='old')
+    open (newunit=ins, file='input.tsph', form='formatted', status='old', action='read', iostat=iostat)
+    if (iostat /= 0) then
+      error stop "Error: Unable to open input.tsph"
+    end if
+
+    open (newunit=iep, file='epfil', form='formatted', status='old', action='read', iostat=iostat)
+    if (iostat /= 0) then
+      error stop "Error: Unable to open epfil"
+    end if
 
     ! Read simulation parameters from input file
     read (ins, *) inp%bdm         ! Monomer bulk density
@@ -1243,12 +1250,11 @@ contains
     real(real64) :: z, rho, fsum
 
     ! Open output files for density profiles (use traditional fort.* names for compatibility)
-    open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace')
-    open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace')
-    open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace')
-    open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace')
-    open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace')
-
+    open (newunit=iout_zdens, file='fort.85', form='formatted', status='replace', action='write')
+    open (newunit=iout_zprop, file='fort.89', form='formatted', status='replace', action='write')
+    open (newunit=iout_zavg, file='fort.78', form='formatted', status='replace', action='write')
+    open (newunit=iout_rdens, file='fort.83', form='formatted', status='replace', action='write')
+    open (newunit=iout_rprop, file='fort.87', form='formatted', status='replace', action='write')
     z = -0.5d0*inp%dz
 
     ! Write density profiles along z-axis at rho=0 (centerline)
