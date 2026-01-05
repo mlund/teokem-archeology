@@ -906,7 +906,8 @@ contains
             s2 = useful - trmix*cos_pphi(iphi)
             if (s2 .gt. comp%dhs2) then
               ! Lennard-Jones potential: U(r) = 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
-              pint = rlj/s2**6 - alj/s2**3 + pint
+              s2 = 1.d0/s2**3 ! r^2 -> 1/r^6
+              pint = pint + s2 * (rlj*s2 - alj)
             end if
           end do
 !$omp end simd
@@ -1307,8 +1308,8 @@ contains
   ! - bW: Alternative formulation for comparison
   !
   ! Inputs:
-  !   inp - Input parameters (bdm, dz, drho, zc1)
-  !   grd - Grid parameters (istp1, imitt, mxrho)
+  !   inp- Input parameters (bdm, dz, drho, zc1)
+  !   grid - Grid parameters (istp1, imitt, mxrho)
   !   comp - Computed parameters (Rcoll2, emscale, scalem, rrnmon)
   !   flds - Fields (fdmon, fem, ebelam, ehbclam, ae1, ae2, edu)
   !   bulk - Bulk thermodynamic properties
@@ -1317,12 +1318,12 @@ contains
   !   aW - Grand potential (primary formulation)
   !   bW - Grand potential (alternative formulation)
   !-----------------------------------------------------------------------------
-  subroutine calculate_grand_potential(inp, grd, comp, flds, bulk, aW, bW)
+  subroutine calculate_grand_potential(inp, grid, comp, flds, bulk, aW, bW)
     use iso_fortran_env, only: real64, int32
     implicit none
 
     type(input_params_t), intent(in) :: inp
-    type(grid_params_t), intent(in) :: grd
+    type(grid_params_t), intent(in) :: grid
     type(computed_params_t), intent(in) :: comp
     type(fields_t), intent(in) :: flds
     type(bulk_properties_t), intent(in) :: bulk
@@ -1342,13 +1343,13 @@ contains
     z = -0.5d0*inp%dz
 
     ! Integrate grand potential density over system volume
-    do iz = grd%istp1, grd%imitt
+    do iz = grid%istp1, grid%imitt
       z = z + inp%dz
       arsum = 0.d0
       brsum = 0.d0
       diffz2 = (z - inp%zc1)**2
       rho = -0.5d0*inp%drho
-      do kz = 1, grd%mxrho
+      do kz = 1, grid%mxrho
         rho = rho + inp%drho
         rsq = rho*rho + diffz2
         fdm = flds%fdmon(kz, iz)
@@ -1541,6 +1542,7 @@ contains
           x3 = rho + inp%drho
           x2 = rho + 2.d0*inp%drho
           x1 = rho + 3.d0*inp%drho
+          ! Flag when the nominal contact point still sits in the depletion zone
           write (*, *) 'TJOHO!!!!', flds%fdmon(irho, iz), rho
         end if
 
