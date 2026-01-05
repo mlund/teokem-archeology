@@ -10,9 +10,7 @@
     "vscode": {
       "extensions": [
         "fortran-lang.linter-gfortran",
-        "ekibun.fortranbreaker",
-        "ms-python.python",
-        "ms-vscode.cpptools"
+        "ekibun.fortranbreaker"
       ],
       "settings": {
         "fortran.linter.compiler": "gfortran",
